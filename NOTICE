@@ -1,0 +1,10 @@
+GitHub Community Agent
+Copyright 2026 NATURE AI CORP and contributors.
+
+Portions of the initial GitHub read-only community tools were adapted from
+Nature AI Worker (Apache License, Version 2.0), as developed in
+nature-ai-corp/nature-ai-worker, branch feature/github-community-agent-profile.
+Original per-file SPDX copyright and license notices are retained.
+
+This independent repository is not yet released. License/NOTICE and full
+dependency inventory must be finalized before public distribution.
