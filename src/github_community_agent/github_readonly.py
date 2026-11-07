@@ -9,8 +9,7 @@
 * Nothing here can write: the REST calls are GETs and the GraphQL documents are
   fixed ``query`` constants (never mutations, never model text). A classic token
   whose scopes go beyond reading discussions is refused before any data is used.
-* The repository comes from the user's allowlist in Settings (default
-  ``nature-ai-corp/github-community-agent``) and the API host is a constant; neither is model input. Redirects and
+* The repository comes from the user's allowlist in Settings (no default) and the API host is a constant; neither is model input. Redirects and
   environment proxies are not followed, responses are size-limited, and links are
   rebuilt from numbers rather than taken from the response.
 * GitHub text is untrusted data and must not become agent instructions.
@@ -29,9 +28,9 @@ import httpx
 
 from .errors import ToolError
 
-# The default and demonstration repository. Users configure their own allowlist in Settings;
-# the tools only ever address a repository from it, never one named by the model.
-DEFAULT_REPOSITORY = "nature-ai-corp/github-community-agent"
+# No implicit repository: the product owner must configure an authorized public repository.
+# The agent/model must not choose the repository.
+DEFAULT_REPOSITORY = ""
 REPOSITORY = DEFAULT_REPOSITORY
 REPOSITORY_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}/[A-Za-z0-9._-]{1,100}")
 API_HOST = "https://api.github.com"  # also the only endpoint a stored GitHub token is bound to
