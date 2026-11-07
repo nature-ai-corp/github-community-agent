@@ -409,7 +409,9 @@ def github_discussions(token: Callable[[], str | None], args: dict, repo: str, *
 
     if mode == "list":
         data = _graphql(DISCUSSIONS_QUERY, variables, secret)
-        conn = data.get("discussions") or {}
+        conn = data.get("discussions")
+        if conn is None:
+            conn = {}
         if not isinstance(conn, dict) or not isinstance(conn.get("nodes") or [], list):
             raise ToolError("Unexpected GitHub API response.")
         items = [d for node in conn.get("nodes") or [] if isinstance(node, dict) and (d := _discussion(node, repo))]
@@ -428,7 +430,9 @@ def github_discussions(token: Callable[[], str | None], args: dict, repo: str, *
         "created_at": _text(node.get("createdAt"), 40),
         "body": _text(node.get("body"), 9000),
     })
-    conn = node.get("comments") or {}
+    conn = node.get("comments")
+    if conn is None:
+        conn = {}
     if not isinstance(conn, dict) or not isinstance(conn.get("nodes") or [], list):
         raise ToolError("Unexpected GitHub API response.")
     comments = [c for item in conn.get("nodes") or [] if isinstance(item, dict)
