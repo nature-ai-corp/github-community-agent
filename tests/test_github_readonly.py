@@ -39,3 +39,11 @@ def test_unsupported_issue_mode_does_not_make_network_request(monkeypatch):
     monkeypatch.setattr(gh, "_transport", httpx.MockTransport(unreachable))
     with pytest.raises(ToolError):
         gh.github_issues(REPO, {"mode": "delete"})
+
+
+def test_no_implicit_repository_default():
+    # A newly installed independent product must not silently point at the
+    # maintainer's repository, including one that is currently private.
+    assert gh.DEFAULT_REPOSITORY == ""
+    with pytest.raises(ToolError):
+        gh.api_root(gh.DEFAULT_REPOSITORY)
