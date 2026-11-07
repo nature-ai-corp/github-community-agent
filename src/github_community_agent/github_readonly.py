@@ -155,7 +155,10 @@ def _reset_hint(headers: httpx.Headers) -> str:
     reset = headers.get("x-ratelimit-reset", "")
     if not reset.isdigit():
         return " Try again later."
-    when = datetime.datetime.fromtimestamp(int(reset), datetime.timezone.utc)
+    try:
+        when = datetime.datetime.fromtimestamp(int(reset), datetime.timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return " Try again later."
     return f" Try again after {when:%Y-%m-%d %H:%M} UTC."
 
 
@@ -366,13 +369,18 @@ def _graphql(query: str, variables: dict, token: str) -> dict:
         raise ToolError("Unexpected GitHub API response.")
     errors = payload.get("errors")
     if errors:
+        if not isinstance(errors, list):
+            raise ToolError("Unexpected GitHub API response.")
         types = {e.get("type") for e in errors if isinstance(e, dict)}
         if "RATE_LIMITED" in types:
             raise ToolError("GitHub API rate limit reached." + _reset_hint(headers))
         if "NOT_FOUND" in types:
             raise ToolError("GitHub discussion not found.")
         raise ToolError("GitHub could not answer the discussion query.")
-    repo = (payload.get("data") or {}).get("repository")
+    data = payload.get("data")
+    if data is not None and not isinstance(data, dict):
+        raise ToolError("Unexpected GitHub API response.")
+    repo = (data or {}).get("repository")
     if not isinstance(repo, dict):
         raise ToolError("GitHub repository not found.")
     if repo.get("isPrivate") is not False:
@@ -402,6 +410,8 @@ def github_discussions(token: Callable[[], str | None], args: dict, repo: str, *
     if mode == "list":
         data = _graphql(DISCUSSIONS_QUERY, variables, secret)
         conn = data.get("discussions") or {}
+        if not isinstance(conn, dict) or not isinstance(conn.get("nodes") or [], list):
+            raise ToolError("Unexpected GitHub API response.")
         items = [d for node in conn.get("nodes") or [] if isinstance(node, dict) and (d := _discussion(node, repo))]
         record = _record("Discussions", mode, repo, posting, total=conn.get("totalCount"), discussions=items,
                          **_paging(conn))
@@ -419,6 +429,8 @@ def github_discussions(token: Callable[[], str | None], args: dict, repo: str, *
         "body": _text(node.get("body"), 9000),
     })
     conn = node.get("comments") or {}
+    if not isinstance(conn, dict) or not isinstance(conn.get("nodes") or [], list):
+        raise ToolError("Unexpected GitHub API response.")
     comments = [c for item in conn.get("nodes") or [] if isinstance(item, dict)
                 and (c := _discussion_comment(repo, discussion["number"], item))]
     record = _record("Discussions", mode, repo, posting, discussion=discussion, comments=comments, **_paging(conn))
@@ -427,6 +439,8 @@ def github_discussions(token: Callable[[], str | None], args: dict, repo: str, *
 
 def _paging(conn: dict) -> dict:
     info = conn.get("pageInfo") or {}
+    if not isinstance(info, dict):
+        raise ToolError("Unexpected GitHub API response.")
     cursor = info.get("endCursor")
     return {"has_next_page": info.get("hasNextPage") is True,
             "end_cursor": cursor if isinstance(cursor, str) and len(cursor) <= 200 else None}
