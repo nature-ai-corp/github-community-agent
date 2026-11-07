@@ -1,0 +1,25 @@
+# Python runtime and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local configuration, credentials and runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+data/
+logs/
