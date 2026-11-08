@@ -1,0 +1,47 @@
+/* GC Agent product additions to the original Apache-2.0 Worker v0.1.1 UI. */
+.hid{display:none!important}
+.nav{cursor:pointer}
+#work-center .nav-item,.sidebar-footer .nav-item{background:none;border:0;color:var(--nav-text);text-align:left;width:100%;font-size:14px}
+#work-center .nav-item.active,.sidebar-footer .nav-item.active{background:var(--nav-selected);color:var(--nav-strong)}
+#sidebar .new-work{margin-top:2px}
+#work-nav{overflow-y:auto}
+#work-nav button{background:none;border:0;color:var(--nav-text);text-align:left;width:100%;padding:7px 10px;border-radius:5px}
+#work-nav button:hover{background:var(--nav-selected)}
+#page-new .card{margin-bottom:14px}
+#page-new .route{display:flex;gap:12px;margin:12px 0 18px}
+#page-new .route label{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+#page-new .route label.selected{border-color:var(--accent);background:var(--user)}
+#page-new .route input{width:auto}
+#page-new .field{margin:10px 0}
+#page-new .field select{max-width:400px}
+#choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;margin:14px 0}
+.taskchoice{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;background:var(--panel);padding:12px;border:1px solid var(--border);border-radius:8px}
+.taskchoice:hover{border-color:var(--accent)}
+.taskchoice.selected{background:var(--user);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.taskchoice:disabled{opacity:.6;cursor:not-allowed}
+.taskchoice small,.tag{font-size:12px;color:var(--muted)}
+.tag.planned{color:#966628}
+#page-new .task-start{margin-top:14px}
+.filter-group{display:flex;gap:8px}.filter-group select{min-width:125px;max-width:220px}
+#work-list{display:flex;flex-direction:column;gap:8px}
+#work-list .work{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--border);padding:12px 14px;border-radius:8px}
+#work-list .work:hover{border-color:var(--accent)}
+#work-list .work strong{display:block}
+#work-list .work .note{font-size:12px;color:var(--muted)}
+#work-list .work .status{font-weight:600}
+.status.finished{color:var(--ok)}.status.failed{color:var(--error-border)}
+.status.needs_attention{color:#a05f15}.status.running{color:var(--accent)}
+#work-detail{margin-top:14px}
+#work-detail .note{color:var(--muted);font-size:12px}
+#work-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:54vh;overflow:auto;background:var(--surface);padding:12px}
+#work-detail .source{overflow-wrap:anywhere}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.40);display:flex;justify-content:center;align-items:center;z-index:30}
+#settings-dialog{position:relative;margin:auto;max-height:92vh;overflow-y:auto;box-shadow:0 18px 48px rgba(0,0,0,.18)}
+#settings-dialog label{display:block;margin:10px 0}
+#settings-message{font-size:12px;min-height:1.7em;color:var(--muted)}
+#error{color:var(--error-border);font-size:13px}
+#page-new .form-actions{margin-top:12px;display:flex}
+@media(max-width:760px){#sidebar{position:relative;transform:none;width:100%;height:auto}
+#app{display:block;height:auto}#work-center{display:flex;flex-direction:row;flex-wrap:wrap}
+#work-center .nav-item{width:auto}#work-nav{display:none}#main{min-height:70vh}
+#topbar{display:none}.filter-group{flex-wrap:wrap}}
