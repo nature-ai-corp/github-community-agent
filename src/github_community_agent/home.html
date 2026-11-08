@@ -292,7 +292,7 @@ function exportTaskResult(t){
   if(t.result===null||t.result===undefined)return;
   const status=$("result-action-status");
   try{
-    const serialized=JSON.stringify(exportRecord(t),null,2)+"\\n";
+    const serialized=JSON.stringify(exportRecord(t),null,2);
     const blob=new Blob([serialized],{type:"application/json;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const link=document.createElement("a");
