@@ -50,7 +50,7 @@
 <label>Provider<select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></label>
 <label>Model<input id="model" value="gpt-4.1-mini" autocomplete="off"></label>
 <label>API key<input type="password" id="model-key" autocomplete="off" placeholder="Leave empty to keep current key"></label>
-<p class="muted small">Session-only in this preview; encrypted persistence is not implemented.</p>
+<p class="muted small">API keys are stored encrypted for this Windows user. Leave blank to keep the saved key.</p>
 <details id="settings-advanced"><summary>Advanced</summary>
 <label>Public GitHub repository<input id="settings-repo" placeholder="owner/repository"></label>
 <label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label>
@@ -69,7 +69,7 @@
 const NONCE="__APP_NONCE__";
 const $=id=>document.getElementById(id);
 const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null,
-settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",modelKey:"",readToken:""}};
+settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",hasModelKey:false,hasReadToken:false}};
 const headers=()=>({"Content-Type":"application/json","X-App-Nonce":NONCE});
 const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function error(message){$("error").textContent=message||""}
@@ -104,25 +104,39 @@ $("settings-overlay").classList.add("hid");
 }
 function settingsDraft(){
 return {repository:$("settings-repo").value.trim(),provider:$("provider").value,
-model:$("model").value.trim(),modelKey:$("model-key").value||state.settings.modelKey,
-readToken:$("read-key").value||state.settings.readToken};
+model:$("model").value.trim(),model_key:$("model-key").value,
+read_token:$("read-key").value};
 }
-function saveSettings(){
+async function loadSettings(){
+const st=await getJSON("/api/settings");
+state.settings={repository:st.repository,provider:st.provider,model:st.model,
+hasModelKey:st.has_model_key,hasReadToken:st.has_read_token};
+$("model-label").textContent=st.has_model_key?st.provider+" · "+st.model:"";
+$("target-repo").value=st.repository||"";
+}
+async function saveSettings(){
 const st=settingsDraft();
 if(!st.repository){$("settings-message").textContent="Enter a public repository under Advanced.";return}
-if(!st.model||!st.modelKey){$("settings-message").textContent="Model and API key are required.";return}
-state.settings=st;
-$("model-label").textContent=st.provider+" · "+st.model;
-$("target-repo").value=st.repository;
+if(!st.model){$("settings-message").textContent="Model is required.";return}
+if(!st.model_key&&!state.settings.hasModelKey){$("settings-message").textContent="Enter an API key.";return}
+$("settings-save").disabled=true;
+try{
+const saved=await postJSON("/api/settings",st);
+state.settings={repository:saved.repository,provider:saved.provider,model:saved.model,
+hasModelKey:saved.has_model_key,hasReadToken:saved.has_read_token};
+$("model-label").textContent=saved.provider+" · "+saved.model;
+$("target-repo").value=saved.repository;
 closeSettings();
-error("Settings saved for this application session only.");
+error("Settings saved encrypted for this Windows user.");
+}catch(e){$("settings-message").textContent="Settings not saved: "+e.message}
+finally{$("settings-save").disabled=false}
 }
 async function testSettings(){
 const st=settingsDraft();
 $("test-connection").disabled=true;
 $("settings-message").textContent="Testing real AI provider connection…";
 try{
-const result=await postJSON("/api/test-connection",{provider:st.provider,model_name:st.model,model_key:st.modelKey});
+const result=await postJSON("/api/test-connection",{provider:st.provider,model_name:st.model,model_key:st.model_key});
 $("settings-message").textContent=result.status==="connected"?"Connection succeeded (live provider check).":"Connection not verified.";
 }catch(e){$("settings-message").textContent="Connection failed: "+e.message}
 finally{$("test-connection").disabled=false}
@@ -162,7 +176,7 @@ if(!state.definition)return;
 const d=state.definition;
 const n=Number($("number").value);
 const st=state.settings;
-const data={route:state.route,selection:$("selection").value,definition_id:d.id,repository:st.repository,provider:st.provider,model_name:st.model,model_key:st.modelKey,discussion_token:st.readToken,number:d.workflow==="draft_replies"?n:null};
+const data={route:state.route,selection:$("selection").value,definition_id:d.id,number:d.workflow==="draft_replies"?n:null};
 $("start").disabled=true;
 try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res.id;await refresh();page("all")}
 catch(e){error(e.message)}
@@ -220,6 +234,6 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overla
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
 $("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
 $("target-repo").addEventListener("input",()=>{state.settings.repository=$("target-repo").value.trim()});
-(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
+(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await loadSettings();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
 setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
 </script></body></html>
