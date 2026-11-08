@@ -33,6 +33,7 @@
 <div id="choices" class="taskgrid"></div>
 </div>
 <div class="card task-start"><h2 id="selected-title" class="section-title">Select a Task</h2>
+<div id="task-details" class="task-details" aria-live="polite"><p class="muted small">Choose a Task above to see its purpose, what it will do, expected output, and required review.</p></div>
 <div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="Configure repository in Settings → Advanced" readonly></div>
 <div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
 <p class="muted small" id="planned-note">V1 uses real GitHub and AI models; V2 Promotion is planned.</p>
@@ -148,30 +149,44 @@ state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
 $("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
 const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
-// Product default: Self-Promotion is the first Domain choice and initial
-// selection. Do not change the user's selection while browsing task cards.
-if(state.route==="domain"){
-  vals.sort((a,b)=>(a==="Self-Promotion"?-1:b==="Self-Promotion"?1:a.localeCompare(b)));
-}
+// Default to a runnable Community Management Task on the Work Type route,
+// and to Self-Promotion when Domain is chosen. Neither is a mandatory field
+// in the other route.
+const preferred=state.route==="work_type"?"Community Management":"Self-Promotion";
+vals.sort((a,b)=>a===preferred?-1:b===preferred?1:a.localeCompare(b));
 $("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
-if(state.route==="domain"&&vals.includes("Self-Promotion"))$("selection").value="Self-Promotion";
+if(vals.includes(preferred))$("selection").value=preferred;
 renderChoices();
 }
 function renderChoices(){
 state.definition=null;
 const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
-$("choices").innerHTML=items.map(d=>'<button class="taskchoice" data-id="'+escapeHTML(d.id)+'" '+(!d.enabled?'disabled':'')+'><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+(d.domain?' · '+escapeHTML(d.domain):'')+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned')+'</span></button>').join("");
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+(d.domain?' · '+escapeHTML(d.domain):'')+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
 $("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
 choose(null);
 }
 function choose(id){
 state.definition=state.definitions.find(d=>d.id===id)||null;
 document.querySelectorAll(".taskchoice").forEach(b=>b.classList.toggle("selected",b.dataset.id===id));
-$("selected-title").textContent=state.definition?state.definition.title:"Select a Task";
-const needNumber=state.definition&&state.definition.workflow==="draft_replies";
+const d=state.definition;
+$("selected-title").textContent=d?d.title:"Select a Task";
+const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
-$("start").disabled=!state.definition||!state.definition.enabled;
-$("planned-note").textContent=state.definition?.version==="V2"?"V2 Promotion is planned; execution has not been implemented.":"V1: actual GitHub/OpenAI runtime; no GitHub posting.";
+$("start").disabled=!d||!d.enabled;
+$("planned-note").textContent=d?.version==="V2"?"V2 Promotion is planned. You can inspect this Task definition but cannot run it yet.":"V1: real GitHub and AI analysis; no GitHub posting.";
+if(!d){
+$("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
+return;
+}
+const dt=d.details||{};
+const steps=Array.isArray(dt.steps)?dt.steps:[];
+$("task-details").innerHTML=
+'<p class="smallhead">Objective</p><p>'+escapeHTML(dt.goal||"Not specified")+'</p>'+
+'<p class="smallhead">What this Task does</p><ol>'+steps.map(x=>'<li>'+escapeHTML(x)+'</li>').join("")+'</ol>'+
+'<p class="smallhead">Expected result</p><p>'+escapeHTML(dt.output||"Not specified")+'</p>'+
+'<p class="smallhead">Requirements</p><p>'+escapeHTML(dt.requires||"Not specified")+'</p>'+
+'<p class="smallhead">Review and approval</p><p>'+escapeHTML(dt.review||"Not specified")+'</p>'+
+'<p class="smallhead">Scope / availability</p><p>'+escapeHTML(dt.limitations||"Not specified")+'</p>';
 }
 async function startTask(){
 if(!state.definition)return;
