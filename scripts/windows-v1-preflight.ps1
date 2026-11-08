@@ -4,7 +4,12 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$python = (Get-Command python -ErrorAction Stop).Source
+$venvPython = Join-Path $root '.venv\Scripts\python.exe'
+$python = if (Test-Path -LiteralPath $venvPython) {
+    $venvPython
+} else {
+    (Get-Command python -ErrorAction Stop).Source
+}
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("gc-agent-wheel-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
