@@ -302,3 +302,37 @@ shows 10 Tasks plus saved model Settings, then review original Task IDs and
 archived reports. Original Store Python files must stay intact. The target's
 previous empty database is backed up. Keep Inno Setup blocked until that
 verification succeeds.
+
+## Frozen EXE user-data continuity — latest user UI evidence
+
+On Nov 8, 2026, following an approved controlled migration from the
+Microsoft Store Python AppData virtual store to the ordinary GC Agent
+user-local directory, the user supplied an actual **frozen EXE Work Center**
+screenshot showing original active Tasks **#10, #8, #6, #2, #1** in My Work
+and Recent Work with their original IDs and finished states. The left sidebar
+also displayed `openai · gpt-4.1-mini` from the previously saved settings.
+This closes the prior *empty My Work* symptom at the visible UI level.
+
+**Acceptance scope remains limited:** the screenshot does not independently
+prove Archive records #3/#4/#5/#7/#9 are displayed, the DPAPI key can be
+decrypted and used, or that the later Inno Setup installed binary retains
+data. Inspect Archived Work and Settings in the frozen EXE before accepting
+the entire runtime continuity gate. Do not treat user-visible model name as
+proof of a valid API key or a successful live connection.
+
+### Next non-installing step
+
+With the existing onedir bundle already passing `--self-check`, first
+compile the **internal unsigned installer only**:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-build-installer.ps1
+```
+
+An installed Inno Setup 6 compiler is required. This build does not run the
+installer and should produce an EXE in `dist\installer` and print SHA256.
+If it fails, capture the full compiler error. **Do not install yet** until
+the output is inspected and a backup/verification plan for Task history and
+settings is completed.
