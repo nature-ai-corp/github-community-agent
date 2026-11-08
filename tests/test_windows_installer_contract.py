@@ -74,3 +74,27 @@ def test_frozen_diagnostics_is_read_only_and_does_not_expose_secrets(tmp_path, m
     assert "Existing protected settings: False" in output
     assert "key" not in output.lower()
     assert "--diagnostics" in launch_path.read_text(encoding="utf-8")
+
+
+def test_msix_store_python_migration_is_opt_in_and_non_destructive():
+    script = (ROOT / "scripts/windows-store-data-migration.ps1").read_text(encoding="utf-8")
+    assert "param([switch]$Apply)" in script
+    assert "os.path.realpath(root)" in script
+    assert "mode=ro" in script
+    assert "LocalCache\\Local" in script
+    assert "Source has no Tasks; refusing migration." in script
+    assert "Cannot prove target database is empty." in script
+    assert "Target already has encrypted settings" in script
+    assert "Source SQLite WAL/SHM exists" in script
+    assert "Target SQLite WAL/SHM exists" in script
+    assert "ReparsePoint" in script
+    assert "DRY RUN PASS. No files changed." in script
+    assert "if (-not $Apply)" in script
+    assert "migration-backup-" in script
+    assert "migration-stage-" in script
+    assert "Get-FileHash" in script
+    assert "Move-Item -LiteralPath $stageDb" in script
+    assert "Move-Item -LiteralPath $stageSettings" in script
+    assert "Remove-Item" not in script
+    assert "Copy-Item -LiteralPath $sourceDb" in script
+    assert "Copy-Item -LiteralPath $sourceSettings" in script
