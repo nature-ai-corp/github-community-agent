@@ -440,7 +440,7 @@ def test_delete_button_is_confirmed_and_limited_to_terminal_tasks():
     assert ".task-management" in css and ".task-delete" in css
 
 
-def test_archived_work_restore_and_minimal_activity_visible(tmp_path):
+def test_archived_work_is_read_only_and_keeps_activity(tmp_path):
     db = tmp_path / "db.sqlite"
     journal = w.Journal(db)
     task_id = journal.create("draft_issue", "example/repository")
@@ -455,12 +455,10 @@ def test_archived_work_restore_and_minimal_activity_visible(tmp_path):
     assert [e["event"] for e in archived[0]["activity"]] == [
         "created", "needs_attention", "marked_reviewed_locally", "archived"
     ]
-    assert not journal.restore(9999)
-    assert journal.restore(task_id)
-    assert not journal.restore(task_id)
-    restored = w.Journal(db).list()
-    assert restored[0]["archived"] is False
-    assert [e["event"] for e in restored[0]["activity"]][-1] == "restored"
+    assert not hasattr(journal, "restore")
+    assert not journal.delete(task_id)
+    assert w.Journal(db).list() == []
+    assert w.Journal(db).list(include_archived=True)[0]["result"]["draft"] == "sample"
 
 
 def test_archived_existing_database_has_no_fake_historical_events(tmp_path):
@@ -484,13 +482,15 @@ def test_archived_existing_database_has_no_fake_historical_events(tmp_path):
     assert [e["event"] for e in archived["activity"]] == ["archived"]
 
 
-def test_archive_ui_exposes_retained_records_and_restoration():
+def test_archive_ui_exposes_read_only_retained_records():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     assert 'data-page="archived">Archived Work' in html
     assert 'getJSON("/api/tasks?include_archived=1")' in html
     assert 'state.page==="archived"?t.archived:!t.archived' in html
-    assert 'id="restore-task"' in html
-    assert 'postJSON("/api/tasks/"+t.id+"/restore",{})' in html
+    assert 'id="restore-task"' not in html
+    assert 'function restoreTask(' not in html
+    assert 'Archived record — view only.' in html
+    assert 'path.endswith("/restore")' not in (Path(w.__file__).read_text(encoding="utf-8"))
     assert 'Activity History (' in html
     assert 'This record predates activity tracking.' in html
     assert 'Marked reviewed locally (not posted)' in html
