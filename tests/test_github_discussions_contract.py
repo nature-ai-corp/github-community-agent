@@ -182,5 +182,5 @@ def test_github_readonly_rest_get_does_not_retry_timeout(monkeypatch):
         raise httpx.ConnectTimeout("no connection", request=request)
     monkeypatch.setattr(gh, "_transport", httpx.MockTransport(handle))
     with pytest.raises(ToolError, match="timed out"):
-        gh.github_issues({"mode": "list"}, REPO)
+        gh.github_issues(REPO, {"mode": "list"})
     assert len(requests) == 1
