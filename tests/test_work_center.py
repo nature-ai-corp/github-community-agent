@@ -190,3 +190,14 @@ def test_task_details_are_shown_after_selection():
     for marker in ("id=\"task-details\"", "What this Task does", "Expected result",
                    "Review and approval", "Scope / availability", "V2 planned — view details"):
         assert marker in html
+
+
+def test_new_task_entry_labels_are_community_management_and_promotion():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'value="work_type" checked>Community Management</label>' in html
+    assert 'value="domain">Promotion</label>' in html
+    assert '"Community Management — Work Type":"Promotion — Domain"' in html
+    assert 'Select Community Management or Promotion to choose a Task.' in html
+    # UI label changes must not mutate the mutually exclusive backend routes.
+    assert w.task_choices("work_type", "Review Issues") == [w.BY_ID["review_issues"]]
+    assert w.task_choices("domain", "Self-Promotion") == [w.BY_ID["promote_self"]]
