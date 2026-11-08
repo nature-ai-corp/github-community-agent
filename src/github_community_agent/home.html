@@ -408,7 +408,7 @@ function communityReportBody(t){
   const discussions=Array.isArray(r.discussions)?r.discussions.length:null;
   const synopsis=[
     issues!==null?"Analyzed "+issues+" recent Issues"+(read!==null?" from "+read+" fetched Issue records":""):null,
-    discussions!==null?"Read "+discussions+" Discussion records":null
+    discussions!==null?"Read "+discussions+" Discussion"+(discussions===1?"":"s")+" from the fetched sample":null
   ].filter(Boolean).join(" · ");
   const items=[];
   items.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(synopsis||"Community evidence report from a bounded GitHub sample.")+'</p></section>');
