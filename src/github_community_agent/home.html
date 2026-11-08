@@ -387,6 +387,19 @@ function taskReport(t){
   elements.push('<section class="user-report" aria-label="Work report">');
   elements.push('<div class="user-report-title"><strong>'+escapeHTML(reportTitle)+'</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>');
   elements.push('<div class="report-subtitle">'+escapeHTML(t.repository)+' · '+escapeHTML(t.title)+'</div>');
+  // Draft Reply is the deliverable; render the actual draft, not an empty analysis.
+  // Keep publication disabled and human review visible.
+  if((t.definition_id==="draft_issue"||t.definition_id==="draft_discussion")&&typeof r.draft==="string"){
+    elements.push('<section class="report-section"><h4>Draft Reply — Not Published</h4><div class="draft-reply-text">'+escapeHTML(r.draft)+'</div></section>');
+    elements.push('<section class="report-section"><h4>Review Status</h4><p>'+escapeHTML(t.status==="needs_attention"?"Needs your review. No GitHub reply has been posted.":t.status==="finished"?"Marked reviewed locally. No GitHub reply has been posted.":"This is an unposted draft.")+'</p></section>');
+    elements.push('<section class="report-section"><h4>Next Step</h4><p>Review the draft against the linked Issue or Discussion. To publish, use GitHub manually; this application has no posting capability.</p></section>');
+    if(typeof r.source_url==="string"&&r.source_url.startsWith("https://github.com/")){
+      elements.push('<section class="report-section"><h4>Sources</h4><a href="'+escapeHTML(r.source_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(r.source_url)+'</a></section>');
+    }
+    elements.push('<p class="report-coverage">Read-only: '+escapeHTML(String(r.read_only===true))+' · Posted: '+escapeHTML(String(r.posted===true))+'</p>');
+    elements.push('</section>');
+    return elements.join("");
+  }
   const issueCoverage=issueItems.length?"Reviewed "+issueItems.length+" Issue"+(issueItems.length===1?"":"s")+" in detail"+(typeof r.issue_page_count==="number"?" from "+r.issue_page_count+" retrieved Issue records":"")+".":"";
   const summaryText=issueItems.length?issueCoverage:(summary|| (typeof r.summary==="string"?r.summary:""));
   elements.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(summaryText||"No narrative summary was supplied by this execution.")+'</p></section>');
