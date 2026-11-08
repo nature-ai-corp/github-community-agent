@@ -308,11 +308,78 @@ function exportTaskResult(t){
     if(status)status.textContent="Export failed. Try again.";
   }
 }
+// Report presentation is deterministic and uses only captured Task result data.
+// It NEVER calls a model, generates claims, or interprets GitHub content as HTML.
+function reportSections(analysis){
+  const text=typeof analysis==="string"?analysis.trim():"";
+  const sections={};
+  const matches=[...text.matchAll(/(?:^|\n)\s*(Issue\/Question|Category|Answer Status|Actionable Suggestion|Source URL):\s*/g)];
+  const summary=matches.length?text.slice(0,matches[0].index).trim():text;
+  for(let i=0;i<matches.length;i++){
+    const key=matches[i][1];
+    const start=matches[i].index+matches[i][0].length;
+    const end=i+1<matches.length?matches[i+1].index:text.length;
+    sections[key]=text.slice(start,end).trim();
+  }
+  return {summary,sections};
+}
+function taskReport(t){
+  const r=t.result||{};
+  const {summary,sections}=reportSections(r.analysis);
+  const details=[];
+  const reportTitle=({
+    review_discussions:"Community Review Report",
+    review_issues:"Issues Review Report",
+    community_report:"Community Report",
+    draft_issue:"Issue Reply Draft",
+    draft_discussion:"Discussion Reply Draft"
+  })[t.definition_id]||t.title;
+  const elements=[];
+  elements.push('<section class="user-report" aria-label="Work report">');
+  elements.push('<div class="user-report-title"><strong>'+escapeHTML(reportTitle)+'</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>');
+  elements.push('<div class="report-subtitle">'+escapeHTML(t.repository)+' · '+escapeHTML(t.title)+'</div>');
+  const summaryText=summary|| (typeof r.summary==="string"?r.summary:"");
+  elements.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(summaryText||"No narrative summary was supplied by this execution.")+'</p></section>');
+  if(sections["Issue/Question"]||sections["Answer Status"]||sections.Category){
+    elements.push('<section class="report-section"><h4>Findings</h4>');
+    if(sections["Issue/Question"])elements.push('<p>'+escapeHTML(sections["Issue/Question"])+'</p>');
+    if(sections.Category)elements.push('<p class="report-meta">Category: '+escapeHTML(sections.Category)+'</p>');
+    if(sections["Answer Status"])elements.push('<p class="report-meta">Answer status: '+escapeHTML(sections["Answer Status"])+'</p>');
+    elements.push('</section>');
+  }else if(Array.isArray(r.evidence)&&r.evidence.length){
+    elements.push('<section class="report-section"><h4>Findings</h4><p>'+escapeHTML(String(r.evidence.length))+' evidence items in the stored result. See Sources and Technical Details for their contents.</p></section>');
+  }
+  const suggestions=sections["Actionable Suggestion"]||r.recommended_actions||r.recommendations;
+  if(typeof suggestions==="string"&&suggestions.trim()){
+    elements.push('<section class="report-section"><h4>Recommended Actions</h4><p>'+escapeHTML(suggestions.trim())+'</p></section>');
+  }else if(Array.isArray(suggestions)&&suggestions.length){
+    elements.push('<section class="report-section"><h4>Recommended Actions</h4><ol>'+suggestions.filter(x=>typeof x==="string").map(x=>'<li>'+escapeHTML(x)+'</li>').join("")+'</ol></section>');
+  }
+  const next=(typeof r.next_step==="string"&&r.next_step.trim())?r.next_step:
+     r.requires_human_review?"Review the findings and decide whether any follow-up is needed. No GitHub action has been performed.":"No follow-up instruction was supplied in this result.";
+  elements.push('<section class="report-section"><h4>Next Step</h4><p>'+escapeHTML(next)+'</p></section>');
+  const refs=[];
+  const append=link=>{if(typeof link==="string"&&/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|discussions)\/\d+(?:[/?#][^\s]*)?$/.test(link)&&!refs.includes(link))refs.push(link)};
+  append(taskSource(t));
+  for(const obj of [...(Array.isArray(r.discussions)?r.discussions:[]),...(Array.isArray(r.issues)?r.issues:[]),...(Array.isArray(r.evidence)?r.evidence:[])])append(obj?.url);
+  if(refs.length){
+    elements.push('<section class="report-section"><h4>Sources</h4><ul>'+refs.map(link=>'<li><a href="'+escapeHTML(link)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(link)+'</a></li>').join("")+'</ul></section>');
+  }
+  const coverage=[];
+  if(typeof r.discussions_analyzed==="number")coverage.push("Discussions analyzed: "+r.discussions_analyzed);
+  if(typeof r.discussions_in_fetched_page==="number")coverage.push("Discussions in fetched page: "+r.discussions_in_fetched_page);
+  if(r.total_pages_known===false)coverage.push("Total pages not verified");
+  if(r.incomplete===true)coverage.push("Coverage incomplete");
+  if(typeof r.note==="string"&&r.note.trim())coverage.push(r.note);
+  if(coverage.length)elements.push('<p class="report-coverage">'+escapeHTML(coverage.join(" · "))+'</p>');
+  elements.push('</section>');
+  return elements.join("");
+}
 function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
 const source=taskSource(t);
 const hasResult=t.result!==null&&t.result!==undefined;
-const resultActions=hasResult?'<div class="result-toolbar"><span class="smallhead">Actual application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre>':'<p class="note">No result yet.</p>';
+const resultActions=hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
 c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
 const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
 const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
