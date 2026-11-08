@@ -201,3 +201,28 @@ def test_new_task_entry_labels_are_community_management_and_promotion():
     # UI label changes must not mutate the mutually exclusive backend routes.
     assert w.task_choices("work_type", "Review Issues") == [w.BY_ID["review_issues"]]
     assert w.task_choices("domain", "Self-Promotion") == [w.BY_ID["promote_self"]]
+
+
+def test_my_work_result_copy_and_json_export_controls():
+    root = Path(w.__file__).parent
+    html = (root / "home.html").read_text(encoding="utf-8")
+    css = (root / "gc.css").read_text(encoding="utf-8")
+    assert 'id="copy-result"' in html
+    assert 'id="export-result"' in html
+    assert 'id="task-result-json"' in html
+    assert 'navigator.clipboard.writeText(resultText(t))' in html
+    assert 'JSON.stringify(exportRecord(t),null,2)' in html
+    assert 'type:"application/json;charset=utf-8"' in html
+    assert 'link.download="gc-agent-task-"+t.id+"-result.json"' in html
+    assert 'exported_at_utc:new Date().toISOString()' in html
+    assert "task_id:t.id" in html and "created_at_utc:t.created_utc" in html
+    assert "result:t.result" in html and "status:t.status" in html
+    assert 'const hasResult=t.result!==null&&t.result!==undefined;' in html
+    assert ".result-toolbar" in css
+    assert ".result-action-buttons" in css
+
+
+def test_no_work_result_does_not_offer_copy_or_export():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'const resultActions=hasResult?' in html
+    assert "No result yet." in html
