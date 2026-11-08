@@ -90,14 +90,14 @@ function renderRoute(){
 state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
 $("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
-const vals=unique(state.definitions.map(d=>d[state.route]));
+const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
 $("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
 renderChoices();
 }
 function renderChoices(){
 state.definition=null;
 const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
-$("choices").innerHTML=items.map(d=>'<button class="taskchoice" data-id="'+escapeHTML(d.id)+'" '+(!d.enabled?'disabled':'')+'><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+' · '+escapeHTML(d.domain)+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned')+'</span></button>').join("");
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" data-id="'+escapeHTML(d.id)+'" '+(!d.enabled?'disabled':'')+'><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+(d.domain?' · '+escapeHTML(d.domain):'')+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned')+'</span></button>').join("");
 $("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
 choose(null);
 }
@@ -136,7 +136,7 @@ $("work-title").textContent=$("heading").textContent;
 renderFilters();
 const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],all:["running","needs_attention","finished","failed"]};
 const rows=state.tasks.filter(t=>(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
-$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML(t.classifications.work_type)+' · '+escapeHTML(t.classifications.domain)+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
+$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML(t.classifications.work_type)+(t.classifications.domain?' · '+escapeHTML(t.classifications.domain):'')+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
 $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
 const selected=rows.find(t=>t.id===state.selectedTask);if(selected)showDetail(selected);else $("work-detail").classList.add("hid");
 }
@@ -144,7 +144,7 @@ function openTask(id){state.selectedTask=id;const t=state.tasks.find(x=>x.id===i
 function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
 const source=t.result?.source_url||t.result?.issues?.[0]?.url||t.result?.discussions?.[0]?.url;
-c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Work Type: '+escapeHTML(t.classifications.work_type)+' · Domain: '+escapeHTML(t.classifications.domain)+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+(t.result?'<p class="smallhead">Actual application result</p><pre>'+escapeHTML(JSON.stringify(t.result,null,2))+'</pre>':'<p class="note">No result yet.</p>')+(t.status==="needs_attention"?'<button class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Work Type: '+escapeHTML(t.classifications.work_type)+(t.classifications.domain?' · Domain: '+escapeHTML(t.classifications.domain):'')+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+(t.result?'<p class="smallhead">Actual application result</p><pre>'+escapeHTML(JSON.stringify(t.result,null,2))+'</pre>':'<p class="note">No result yet.</p>')+(t.status==="needs_attention"?'<button class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
 const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
 }
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
