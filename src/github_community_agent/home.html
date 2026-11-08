@@ -112,6 +112,7 @@ const st=settingsDraft();
 if(!st.repository){$("settings-message").textContent="Enter a public repository under Advanced.";return}
 if(!st.model||!st.modelKey){$("settings-message").textContent="Model and API key are required.";return}
 state.settings=st;
+$("model-label").textContent=st.provider+" · "+st.model;
 $("target-repo").value=st.repository;
 closeSettings();
 error("Settings saved for this application session only.");
@@ -161,7 +162,20 @@ try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res
 catch(e){error(e.message)}
 finally{$("start").disabled=false}
 }
-async function refresh(){const obj=await getJSON("/api/tasks");state.tasks=obj.tasks;renderWork()}
+async function refresh(){
+const obj=await getJSON("/api/tasks");
+state.tasks=obj.tasks;
+const recent=$("work-nav");
+recent.replaceChildren();
+for(const task of state.tasks.slice(0,8)){
+const button=document.createElement("button");
+button.type="button";button.textContent="#"+task.id+" "+task.title;
+button.title=task.title;
+button.addEventListener("click",()=>{page("all");openTask(task.id)});
+recent.append(button);
+}
+renderWork();
+}
 function renderFilters(){
 const keys=unique(state.definitions.flatMap(d=>Object.keys({work_type:d.work_type,domain:d.domain})));
 const labels={work_type:"Work Type",domain:"Domain"};
