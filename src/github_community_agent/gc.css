@@ -89,3 +89,6 @@
 .issue-finding h5{font-size:13px;margin:0 0 5px}
 .issue-finding .report-meta{font-size:12px}
 .issue-actions li{margin:8px 0}
+
+/* Unposted draft is the user deliverable, not developer JSON. */
+.draft-reply-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:13px;padding:14px;border-radius:7px;background:var(--surface);border:1px solid var(--border)}
