@@ -133,3 +133,25 @@ Validation steps:
 DPAPI only protects secrets for the current Windows user. Other processes
 running as the **same Windows identity** may decrypt them. Native Windows
 pytest and real application restart E2E remain unverified for this change.
+
+## Classification correction — concrete Work Types
+
+Owner clarified that the **five V1 actions are Work Types themselves**, not
+five choices under an extra `Community Management` Work Type. The New Task
+selector now works as follows:
+
+- **Work Type**: Review Issues; Review Discussions; Draft Issue Reply; Draft
+  Discussion Reply; Community Report. Selecting a Work Type selects its one
+  Task definition directly, with objective, steps, expected result, review
+  and limits below. The redundant row of V1 task cards is removed.
+- **Domain**: Self-Promotion (default) or Product Promotion. Self-Promotion
+  describes GC Agent self-promotion; Product Promotion contains Nature AI
+  Worker or another repository. These V2 tasks are described but disabled.
+- All V1 tasks have a Work Type and no Domain; all current V2 tasks have a
+  Domain and no Work Type. The classification is product-owned, not a forced
+  two-field structure across other Worker-family products.
+
+**Native Windows acceptance pending:** update/restart the app; ensure no
+`Community Management` Work Type remains, verify all five types and two
+Domains, and inspect the Task description for each before launching a real
+read-only V1 Task.
