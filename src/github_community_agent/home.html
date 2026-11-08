@@ -248,10 +248,74 @@ $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",
 const selected=rows.find(t=>t.id===state.selectedTask);if(selected)showDetail(selected);else $("work-detail").classList.add("hid");
 }
 function openTask(id){state.selectedTask=id;const t=state.tasks.find(x=>x.id===id);if(t)showDetail(t)}
+function exportRecord(t){
+  // Export is a snapshot of an already completed or active Work record.
+  // Never serialize local Settings/credentials into evidence.
+  return {
+    application:"GitHub Community Agent",
+    export_schema:1,
+    exported_at_utc:new Date().toISOString(),
+    task_id:t.id,
+    task_definition_id:t.definition_id,
+    task_title:t.title,
+    repository:t.repository,
+    classifications:t.classifications,
+    status:t.status,
+    created_at_utc:t.created_utc,
+    updated_at_utc:t.updated_utc,
+    source_url:taskSource(t)||null,
+    result:t.result,
+    error:t.error||null
+  };
+}
+function taskSource(t){
+  const r=t.result||{};
+  const evidence=Array.isArray(r.evidence)?r.evidence:[];
+  const discussions=Array.isArray(r.discussions)?r.discussions:[];
+  const issues=Array.isArray(r.issues)?r.issues:[];
+  return r.source_url||evidence[0]?.url||discussions[0]?.url||issues[0]?.url||null;
+}
+function resultText(t){
+  return JSON.stringify(t.result,null,2);
+}
+async function copyTaskResult(t){
+  if(t.result===null||t.result===undefined)return;
+  const status=$("result-action-status");
+  try{
+    await navigator.clipboard.writeText(resultText(t));
+    if(status)status.textContent="Result copied.";
+  }catch(e){
+    if(status)status.textContent="Copy failed. Select the result and copy manually.";
+  }
+}
+function exportTaskResult(t){
+  if(t.result===null||t.result===undefined)return;
+  const status=$("result-action-status");
+  try{
+    const serialized=JSON.stringify(exportRecord(t),null,2)+"\\n";
+    const blob=new Blob([serialized],{type:"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download="gc-agent-task-"+t.id+"-result.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Defer release so browser has time to take ownership of the download.
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    if(status)status.textContent="Export started (JSON).";
+  }catch(e){
+    if(status)status.textContent="Export failed. Try again.";
+  }
+}
 function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
-const source=t.result?.source_url||t.result?.issues?.[0]?.url||t.result?.discussions?.[0]?.url;
-c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Work Type: '+escapeHTML(t.classifications.work_type)+(t.classifications.domain?' · Domain: '+escapeHTML(t.classifications.domain):'')+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+(t.result?'<p class="smallhead">Actual application result</p><pre>'+escapeHTML(JSON.stringify(t.result,null,2))+'</pre>':'<p class="note">No result yet.</p>')+(t.status==="needs_attention"?'<button class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
+const source=taskSource(t);
+const hasResult=t.result!==null&&t.result!==undefined;
+const resultActions=hasResult?'<div class="result-toolbar"><span class="smallhead">Actual application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre>':'<p class="note">No result yet.</p>';
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
+const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
+const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
 const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
 }
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
