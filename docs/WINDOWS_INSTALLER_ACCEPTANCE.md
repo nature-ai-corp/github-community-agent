@@ -280,3 +280,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-store-da
 **Do not execute -Apply, install, or uninstall yet.** If the matching
 physical source cannot be uniquely found, the script refuses migration
 rather than guessing paths.
+
+## User-confirmed Windows migration Dry Run PASS — 2026-11-08
+
+Native Windows PowerShell results on branch `feature/unified-task-home`:
+- `windows-test-regression.ps1`: **213 passed in 1.54s**, zero failures.
+- Store-Python-backed original source was uniquely fingerprint-matched to
+  `%LOCALAPPDATA%\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\Local\\GitHubCommunityAgent`.
+- Original source database: **10 Task records** (including archived).
+- Original source encrypted `settings.dpapi`: present.
+- Nonvirtualized target directory: `%LOCALAPPDATA%\\GitHubCommunityAgent`.
+- Independent frozen EXE confirmed target database exists but contains
+  **0 Task records**, and there is **no target protected settings file**.
+- Script printed **`DRY RUN PASS. No files changed.`**
+- As of this evidence, **-Apply has NOT been executed**, so original/exe data
+  continuity remains pending.
+
+Next authorized-by-user-operated step is to stop all GC Agent processes,
+explicitly execute the opt-in `-Apply` migration and verify the frozen EXE
+shows 10 Tasks plus saved model Settings, then review original Task IDs and
+archived reports. Original Store Python files must stay intact. The target's
+previous empty database is backed up. Keep Inno Setup blocked until that
+verification succeeds.
