@@ -126,3 +126,22 @@ def test_worker_style_settings_modal_and_real_connection_control():
     assert "/api/test-connection" in html
     assert 'id="page-settings"' not in html
     assert 'Leave empty to keep current key' in html
+
+
+def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
+    root = Path(w.__file__).parent
+    base = (root / "worker_v011.css").read_text(encoding="utf-8")
+    custom = (root / "gc.css").read_text(encoding="utf-8")
+    html = (root / "home.html").read_text(encoding="utf-8")
+    assert "SPDX-License-Identifier: Apache-2.0" in base
+    assert "--nav-bg: #13161e" in base
+    assert ".sidebar-footer" in base
+    assert "dialog::backdrop" in base
+    assert "/static/worker_v011.css" in html
+    assert "/static/gc.css" in html
+    assert 'id="sidebar"' in html
+    assert 'id="work-center"' in html
+    assert 'id="settings-dialog"' in html
+    assert 'id="settings-form"' in html
+    assert "domain" in custom.lower()
+    assert "GitHub Community Agent" in html
