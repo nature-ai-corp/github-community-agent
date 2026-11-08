@@ -122,3 +122,65 @@ def test_github_api_does_not_follow_redirect_for_discussions(api):
 def test_discussions_never_use_private_default():
     assert gh.DEFAULT_REPOSITORY == ""
     assert not gh.valid_repository(gh.DEFAULT_REPOSITORY)
+
+
+def test_transient_graphql_detail_timeout_retries_once_without_any_write(monkeypatch):
+    requests = []
+    def handle(request):
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("simulated network timeout", request=request)
+        return httpx.Response(200, json={"data": {"repository": {
+            "isPrivate": False,
+            "discussion": {
+                "number": 32, "title": "Welcome", "body": "Community welcome",
+                "category": {"name": "Announcements"},
+                "comments": {"totalCount": 0, "pageInfo": {"hasNextPage": False},
+                             "nodes": []},
+            },
+        }}})
+    monkeypatch.setattr(gh, "_transport", httpx.MockTransport(handle))
+    data = json.loads(gh.github_discussions(lambda: TOKEN, {"mode": "discussion", "number": 32}, REPO))
+    assert data["discussion"]["number"] == 32
+    assert len(requests) == 2
+    for request in requests:
+        assert request.method == "POST" and request.url.host == "api.github.com"
+        query = json.loads(request.content)["query"]
+        assert query == gh.DISCUSSION_QUERY
+        assert "mutation" not in query.lower()
+        assert b"number" in request.content
+
+
+def test_repeated_discussion_timeout_has_specific_safe_error(monkeypatch):
+    requests = []
+    def handle(request):
+        requests.append(request)
+        raise httpx.ReadTimeout("secret from transport", request=request)
+    monkeypatch.setattr(gh, "_transport", httpx.MockTransport(handle))
+    with pytest.raises(ToolError, match="timed out") as exc:
+        gh.github_discussions(lambda: TOKEN, {"mode": "discussion", "number": 32}, REPO)
+    assert len(requests) == 2
+    assert TOKEN not in str(exc.value)
+    assert "secret" not in str(exc.value)
+
+
+def test_non_timeout_http_error_is_not_retried(monkeypatch):
+    requests = []
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(403)
+    monkeypatch.setattr(gh, "_transport", httpx.MockTransport(handle))
+    with pytest.raises(ToolError, match="HTTP 403"):
+        gh.github_discussions(lambda: TOKEN, {"mode": "discussion", "number": 32}, REPO)
+    assert len(requests) == 1
+
+
+def test_github_readonly_rest_get_does_not_retry_timeout(monkeypatch):
+    requests = []
+    def handle(request):
+        requests.append(request)
+        raise httpx.ConnectTimeout("no connection", request=request)
+    monkeypatch.setattr(gh, "_transport", httpx.MockTransport(handle))
+    with pytest.raises(ToolError, match="timed out"):
+        gh.github_issues({"mode": "list"}, REPO)
+    assert len(requests) == 1
