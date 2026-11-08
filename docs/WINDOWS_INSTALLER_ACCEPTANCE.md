@@ -248,3 +248,35 @@ hard-code the Windows Store Python package identity in normal runtime.
 The script is opt-in, not a silently performed installer migration. If it
 reports a source path different from the expected MSIX package or refuses
 for any reason, investigate and do **not** bypass guards or delete files.
+
+## Dry-run detector correction — November 8, 2026
+
+The user attempted the first migration dry-run, which **safely stopped**
+with `Source and destination resolve to the same physical directory`.
+This revealed a false assumption in our detection: `os.path.realpath`
+returns the visible logical AppData string and **does not resolve MSIX
+file-virtualization redirection**. No files were changed, and no migration
+was run.
+
+Revised dry-run detection:
+- Reads the original Task count and SHA256 fingerprints of the original
+  database and DPAPI settings **from the existing Store-Python-backed venv**.
+- Enumerates only `%LOCALAPPDATA%\\Packages\\PythonSoftwareFoundation.Python.3.13_*\\LocalCache\\Local\\GitHubCommunityAgent`
+  candidate backing directories, accessed from ordinary PowerShell.
+- Requires **exactly one** physical candidate with both matching file
+  fingerprints, then applies the previous directory/empty-destination,
+  symlink/junction and SQLite-journal guards.
+- The default mode **remains non-mutating**; `-Apply` is neither implied
+  nor recommended until the revised Dry Run output is reviewed.
+
+Next Windows step:
+
+```powershell
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-store-data-migration.ps1
+```
+
+**Do not execute -Apply, install, or uninstall yet.** If the matching
+physical source cannot be uniquely found, the script refuses migration
+rather than guessing paths.
