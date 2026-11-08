@@ -254,3 +254,17 @@ def test_report_is_presentational_and_technical_result_is_preserved():
     assert 'result:t.result' in html
     assert 'Copy JSON' in html and 'Export JSON' in html
     assert 'r.requires_human_review?' in html
+
+
+def test_polling_does_not_reset_expanded_technical_details():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    # Finished tasks do not change on each poll. Rendering them every two
+    # seconds destroyed the expanded <details> node and caused flashing.
+    assert "const signature=JSON.stringify(obj.tasks);" in html
+    assert "if(signature===state.tasksSignature)return;" in html
+    assert "state.tasksSignature=signature;" in html
+    # If data legitimately changes, keep the user's open/closed preference
+    # and JSON scrolling position when rendering the new Work record.
+    assert 'const wasOpen=Boolean(opened?.open);' in html
+    assert 'next.open=wasOpen;' in html
+    assert 'if(result&&wasOpen)result.scrollTop=priorScroll;' in html
