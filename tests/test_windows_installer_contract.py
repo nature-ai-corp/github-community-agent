@@ -79,7 +79,13 @@ def test_frozen_diagnostics_is_read_only_and_does_not_expose_secrets(tmp_path, m
 def test_msix_store_python_migration_is_opt_in_and_non_destructive():
     script = (ROOT / "scripts/windows-store-data-migration.ps1").read_text(encoding="utf-8")
     assert "param([switch]$Apply)" in script
-    assert "os.path.realpath(root)" in script
+    # MSIX path redirection happens below os.path.realpath: only actual file
+    # fingerprints may identify the corresponding LocalCache backing files.
+    assert "os.path.realpath(root)" not in script
+    assert "PythonSoftwareFoundation.Python.3.13_*" in script
+    assert "settings_sha256" in script
+    assert "db_sha256" in script
+    assert "$matches.Count -ne 1" in script
     assert "mode=ro" in script
     assert "LocalCache\\Local" in script
     assert "Source has no Tasks; refusing migration." in script
