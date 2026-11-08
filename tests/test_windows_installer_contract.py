@@ -57,3 +57,20 @@ def test_installer_compilation_requires_explicit_external_compiler_and_self_chec
     assert "--self-check" in script
     assert "Existing test installer must not be overwritten" in script
     assert "No installer execution, signing, or publication" in script
+
+
+def test_frozen_diagnostics_is_read_only_and_does_not_expose_secrets(tmp_path, monkeypatch, capsys):
+    import importlib.util
+    from github_community_agent import work_center
+    launch_path = ROOT / "scripts" / "gc_agent_launcher.py"
+    spec = importlib.util.spec_from_file_location("gc_agent_launcher_test", launch_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert module.diagnostics() == 0
+    assert not (tmp_path / "GitHubCommunityAgent").exists()
+    output = capsys.readouterr().out
+    assert "Existing work database: False" in output
+    assert "Existing protected settings: False" in output
+    assert "key" not in output.lower()
+    assert "--diagnostics" in launch_path.read_text(encoding="utf-8")
