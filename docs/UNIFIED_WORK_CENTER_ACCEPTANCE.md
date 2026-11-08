@@ -103,3 +103,33 @@ using the UI; Ctrl+C exits.
 - Confirm Work Type and Domain remain mutually exclusive New Task discovery routes. Domain has exactly Self-Promotion and Product Promotion; V2 actions remain disabled.
 - Restart the original loopback server with Ctrl+C after updating so it serves new CSS and markup.
 - A full Windows test run and **human-operated real UI E2E** are still mandatory; source and syntax checks do not count as app E2E PASS.
+
+## Persistent Settings: Windows DPAPI (new)
+
+The GC Agent now uses an independent encrypted Settings file at
+`%LOCALAPPDATA%\GitHubCommunityAgent\settings.dpapi`. This is **not** the
+Nature AI Worker credentials file or key. Data is protected by current-user
+Windows DPAPI. No plaintext API key or GitHub token should enter
+`work.sqlite3`. Non-Windows platforms refuse persistent settings.
+
+**Note:** Earlier paragraphs in this preexisting guide that describe
+session-only settings are superseded by this new section.
+
+Validation steps:
+1. Open Settings → fill in Provider, Model, public GitHub repository and API
+   key → Save. If needed expand Advanced for the repository and read token.
+2. Stop server with Ctrl+C, relaunch the same home executable, reopen Settings.
+3. Confirm the saved provider, model, repository and a "key stored encrypted"
+   indicator appear while the password input stays empty. Do not re-enter key.
+4. Click Test connection with API key field empty: backend must load saved key,
+   perform a real provider request and show success.
+5. Verify Settings GET never returns actual key/token; Task start uses backend
+   protected settings. No keys/tokens in SQLite work history.
+6. Switch provider (e.g. OpenAI → DeepSeek) without a new key; Save should
+   refuse rather than reuse the previous provider's credential.
+7. Ensure no plaintext keys are written anywhere. Do not show or paste
+   credentials in screenshots or command logs.
+
+DPAPI only protects secrets for the current Windows user. Other processes
+running as the **same Windows identity** may decrypt them. Native Windows
+pytest and real application restart E2E remain unverified for this change.
