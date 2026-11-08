@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 from .desktop import execute_workflow
 from .model_provider import ChatCompletionsModel, ModelSettings
 from .errors import ToolError
+from .encrypted_settings import EncryptedSettings, SettingsError
 
 MAX_REQUEST_BYTES = 12000
 
@@ -175,7 +176,7 @@ class WorkService:
             self.journal.finish(task_id, "failed", error="Execution failed; inspect application settings.")
 
 
-def handler_factory(service: WorkService, nonce: str):
+def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "GitHubCommunityAgent/0.1"
 
@@ -229,6 +230,15 @@ def handler_factory(service: WorkService, nonce: str):
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
                 return self.wfile.write(raw)
+            if path == "/api/settings":
+                if self.headers.get("X-App-Nonce") != nonce:
+                    return self._send(403, {"error": "Unauthorized."})
+                if settings is None:
+                    return self._send(503, {"error": "Settings storage unavailable."})
+                try:
+                    return self._send(200, settings.public())
+                except SettingsError:
+                    return self._send(503, {"error": "Cannot read protected settings."})
             if path == "/api/definitions":
                 return self._send(200, {"definitions": service.definitions()})
             if path == "/api/tasks":
@@ -248,10 +258,18 @@ def handler_factory(service: WorkService, nonce: str):
                 if not isinstance(payload, dict):
                     return self._send(400, {"error": "Expected a JSON object."})
                 path = urlsplit(self.path).path
+                if path == "/api/settings":
+                    if settings is None:
+                        return self._send(503, {"error": "Settings storage unavailable."})
+                    return self._send(200, settings.save(payload))
                 if path == "/api/test-connection":
                     provider = payload.get("provider")
                     model_name = payload.get("model_name")
                     model_key = payload.get("model_key")
+                    if not model_key and settings is not None:
+                        saved = settings.load()
+                        if provider == saved["provider"]:
+                            model_key = saved["model_key"]
                     if not isinstance(model_key, str) or not model_key:
                         return self._send(400, {"error": "Enter a model API key."})
                     model = ChatCompletionsModel(
@@ -266,6 +284,13 @@ def handler_factory(service: WorkService, nonce: str):
                         "note": "Live model request completed; no GitHub operation."
                     })
                 if path == "/api/tasks":
+                    if settings is None:
+                        return self._send(503, {"error": "Settings storage unavailable."})
+                    saved = settings.load()
+                    payload = {**payload, "repository": saved["repository"],
+                               "provider": saved["provider"], "model_name": saved["model"],
+                               "model_key": saved["model_key"],
+                               "discussion_token": saved["read_token"]}
                     task_id = service.start(payload)
                     return self._send(202, {"id": task_id, "status": "running"})
                 if path.startswith("/api/tasks/") and path.endswith("/review"):
@@ -274,7 +299,7 @@ def handler_factory(service: WorkService, nonce: str):
                         return self._send(200, {"id": task_id, "status": "finished", "posted": False})
                     return self._send(409, {"error": "Task does not need review."})
                 return self._send(404, {"error": "Not found."})
-            except (ToolError, ValueError, TypeError):
+            except (ToolError, SettingsError, ValueError, TypeError):
                 # Do not echo input, secrets, or exception payload.
                 return self._send(400, {"error": "Invalid task selection or connection settings."})
 
@@ -284,8 +309,9 @@ def handler_factory(service: WorkService, nonce: str):
 def main() -> int:
     journal = Journal(data_directory() / "work.sqlite3")
     service = WorkService(journal)
+    settings = EncryptedSettings(data_directory())
     nonce = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings))
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"GitHub Community Agent Work Center: {url}")
     webbrowser.open(url)
