@@ -336,3 +336,33 @@ installer and should produce an EXE in `dist\installer` and print SHA256.
 If it fails, capture the full compiler error. **Do not install yet** until
 the output is inspected and a backup/verification plan for Task history and
 settings is completed.
+
+## Inno Setup internal unsigned installer compilation — user-confirmed PASS
+
+On November 8, 2026, the user executed
+`scripts/windows-build-installer.ps1` after preserving a pre-existing
+same-named installer. The native Windows output explicitly reported:
+
+- `Successful compile (12.016 sec)`
+- `GC Agent unsigned internal Windows installer build PASS.`
+- Result: `dist\\installer\\GitHubCommunityAgent-InternalTest-Unsigned.exe`
+- A SHA256 hash was printed by the build process.
+- `No installer execution, signing, or publication performed.`
+
+**Accepted scope: Inno Setup compilation only.** The artifact has not yet
+been installed or exercised under the program installation path. A
+screenshot does not establish installed EXE startup, fresh install,
+upgrades, uninstall retention, Windows Defender status, independent
+integrity verification, or DPAPI decryption.
+
+Before the manual installer acceptance, stop all GC Agent processes.
+Preserve an offline backup of the nonvirtualized
+`%LOCALAPPDATA%\\GitHubCommunityAgent\\work.sqlite3` and
+`settings.dpapi` under the same Windows identity, and record the
+original 10 Task IDs/archived counts. Do not upload credentials or
+backups. Confirm the installer SHA256 again before execution. On a
+permitted Windows testing machine, run the unsigned installer only with
+appropriate local security policy, and record warning/blocker outcomes
+rather than bypassing protection. Verify Start menu launch and Task
+continuity, then design an independent clean-account acceptance.
+No destructive uninstall/upgrade before continuity has passed.
