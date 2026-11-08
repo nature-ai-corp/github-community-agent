@@ -1,7 +1,6 @@
 # Unified Work Center — New Task with ONE classification route
 
-This independent GitHub Community Agent preview shares the **home navigation
-concept** with Nature AI Worker without depending on that product's backend,
+This independent GitHub Community Agent preview uses the **actual v0.1.1 base stylesheet and adapted home / Settings markup** from Nature AI Worker without depending on that product's backend,
 installation, credentials or data. Product-specific Task definitions live in
 `work_center.DEFINITIONS`, not in the shared Work Center UI.
 
@@ -96,3 +95,11 @@ using the UI; Ctrl+C exits.
   establish fixed domain fields for the wider product family.
 - App-generated JSON and real source checking are required for final
   end-to-end acceptance; offline pytest green alone does not prove it.
+
+## Latest v0.1.1 UI regression gates
+
+- Confirm the dark sidebar, Work Center, Recent Work area and light main workspace follow the Worker v0.1.1 UI.
+- Confirm Settings is a dialog (not a separate page): Provider, Model, API key, Advanced, Test connection, Cancel and Save. Under Advanced, find the GC-specific public repository and Discussions READ token.
+- Confirm Work Type and Domain remain mutually exclusive New Task discovery routes. Domain has exactly Self-Promotion and Product Promotion; V2 actions remain disabled.
+- Restart the original loopback server with Ctrl+C after updating so it serves new CSS and markup.
+- A full Windows test run and **human-operated real UI E2E** are still mandatory; source and syntax checks do not count as app E2E PASS.
