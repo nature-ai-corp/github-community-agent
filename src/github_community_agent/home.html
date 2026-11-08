@@ -343,10 +343,39 @@ function reportSections(analysis){
   }
   return {summary,sections};
 }
+// Parse the existing Issue review into independently inspectable findings.
+// This is a presentation transform, not a new analysis or AI inference.
+function issueReviewItems(analysis, issues){
+  if(typeof analysis!=="string")return [];
+  const headers=[...analysis.matchAll(/(?:^|\n)\s*Issue\s+#(\d+):\s*/g)];
+  const known=new Map((Array.isArray(issues)?issues:[]).map(x=>[String(x.number),x]));
+  const items=[];
+  for(let i=0;i<headers.length;i++){
+    const match=headers[i], number=match[1];
+    const start=match.index+match[0].length;
+    const end=i+1<headers.length?headers[i+1].index:analysis.length;
+    let block=analysis.slice(start,end).trim();
+    // The model may add a final sample-coverage note after the last Issue.
+    block=block.split(/\n\s*\n(?=No evidence\b|Sample\b|Coverage\b)/i)[0].trim();
+    const marker=block.match(/\bNext action:\s*/i);
+    const urgency=block.match(/\bUrgency:\s*/i);
+    const source=block.match(/\bSource:\s*https:\/\/github\.com\/[^\s]+/i);
+    const cut=[marker?.index,urgency?.index,source?.index].filter(Number.isInteger);
+    const finding=block.slice(0,cut.length?Math.min(...cut):block.length).trim();
+    const action=marker?block.slice(marker.index+marker[0].length,
+       [urgency?.index,source?.index,block.length].filter(n=>Number.isInteger(n)&&n>marker.index).sort((a,b)=>a-b)[0]).trim():"";
+    const priority=urgency?block.slice(urgency.index+urgency[0].length,
+       [source?.index,block.length].filter(n=>Number.isInteger(n)&&n>urgency.index).sort((a,b)=>a-b)[0]).trim():"";
+    const evidence=known.get(number);
+    items.push({number,title:evidence?.title||"Issue #"+number,
+      url:evidence?.url||null,finding,action,priority});
+  }
+  return items;
+}
 function taskReport(t){
   const r=t.result||{};
   const {summary,sections}=reportSections(r.analysis);
-  const details=[];
+  const issueItems=t.definition_id==="review_issues"?issueReviewItems(r.analysis,r.issues):[];
   const reportTitle=({
     review_discussions:"Community Review Report",
     review_issues:"Issues Review Report",
@@ -358,9 +387,19 @@ function taskReport(t){
   elements.push('<section class="user-report" aria-label="Work report">');
   elements.push('<div class="user-report-title"><strong>'+escapeHTML(reportTitle)+'</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>');
   elements.push('<div class="report-subtitle">'+escapeHTML(t.repository)+' · '+escapeHTML(t.title)+'</div>');
-  const summaryText=summary|| (typeof r.summary==="string"?r.summary:"");
+  const issueCoverage=issueItems.length?"Reviewed "+issueItems.length+" Issue"+(issueItems.length===1?"":"s")+" in detail"+(typeof r.issue_page_count==="number"?" from "+r.issue_page_count+" retrieved Issue records":"")+".":"";
+  const summaryText=issueItems.length?issueCoverage:(summary|| (typeof r.summary==="string"?r.summary:""));
   elements.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(summaryText||"No narrative summary was supplied by this execution.")+'</p></section>');
-  if(sections["Issue/Question"]||sections["Answer Status"]||sections.Category){
+  if(issueItems.length){
+    elements.push('<section class="report-section"><h4>Findings</h4><div class="issue-findings">');
+    for(const issue of issueItems){
+      const link=issue.url?'<a href="'+escapeHTML(issue.url)+'" rel="noopener noreferrer" target="_blank">'+escapeHTML("#"+issue.number)+" — "+escapeHTML(issue.title)+'</a>':escapeHTML("#"+issue.number+" — "+issue.title);
+      elements.push('<article class="issue-finding"><h5>'+link+'</h5>');
+      if(issue.priority)elements.push('<p class="report-meta"><strong>Priority (AI assessment):</strong> '+escapeHTML(issue.priority)+'</p>');
+      elements.push('<p>'+escapeHTML(issue.finding||"No detailed finding supplied.")+'</p></article>');
+    }
+    elements.push('</div></section>');
+  }else if(sections["Issue/Question"]||sections["Answer Status"]||sections.Category){
     elements.push('<section class="report-section"><h4>Findings</h4>');
     if(sections["Issue/Question"])elements.push('<p>'+escapeHTML(sections["Issue/Question"])+'</p>');
     if(sections.Category)elements.push('<p class="report-meta">Category: '+escapeHTML(sections.Category)+'</p>');
@@ -370,6 +409,12 @@ function taskReport(t){
     elements.push('<section class="report-section"><h4>Findings</h4><p>'+escapeHTML(String(r.evidence.length))+' evidence items in the stored result. See Sources and Technical Details for their contents.</p></section>');
   }
   const suggestions=sections["Actionable Suggestion"]||r.recommended_actions||r.recommendations;
+  if(issueItems.length){
+    const withActions=issueItems.filter(x=>x.action);
+    if(withActions.length){
+      elements.push('<section class="report-section"><h4>Recommended Actions</h4><ol class="issue-actions">'+withActions.map(x=>'<li><strong>Issue #'+escapeHTML(x.number)+':</strong> '+escapeHTML(x.action)+'</li>').join("")+'</ol></section>');
+    }
+  }else
   if(typeof suggestions==="string"&&suggestions.trim()){
     elements.push('<section class="report-section"><h4>Recommended Actions</h4><p>'+escapeHTML(suggestions.trim())+'</p></section>');
   }else if(Array.isArray(suggestions)&&suggestions.length){
@@ -386,6 +431,9 @@ function taskReport(t){
     elements.push('<section class="report-section"><h4>Sources</h4><ul>'+refs.map(link=>'<li><a href="'+escapeHTML(link)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(link)+'</a></li>').join("")+'</ul></section>');
   }
   const coverage=[];
+  if(typeof r.issue_page_count==="number")coverage.push("Issue records fetched in page: "+r.issue_page_count);
+  if(typeof r.issues_analyzed==="number")coverage.push("Issues analyzed: "+r.issues_analyzed);
+  if(r.sample_limited===true)coverage.push("Limited sample — not a full repository review");
   if(typeof r.discussions_analyzed==="number")coverage.push("Discussions analyzed: "+r.discussions_analyzed);
   if(typeof r.discussions_in_fetched_page==="number")coverage.push("Discussions in fetched page: "+r.discussions_in_fetched_page);
   if(r.total_pages_known===false)coverage.push("Total pages not verified");
