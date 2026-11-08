@@ -96,3 +96,9 @@
 /* Community Report: distinct headings and readable retained AI narrative. */
 .user-report .report-section h5{font-size:13px;margin:13px 0 6px}
 .report-prose{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px}
+
+/* Local Task management, secondary to report content. */
+.task-management{display:flex;align-items:center;gap:12px;margin:18px 0 2px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.task-delete{background:var(--panel);border:1px solid var(--error-border);color:var(--error-border);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer}
+.task-delete:hover{background:var(--surface)}
+.task-delete:disabled{opacity:.5;cursor:not-allowed}
