@@ -38,8 +38,9 @@ def test_inno_setup_only_installs_program_files_and_preserves_user_history():
     assert "AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}" in iss
     assert "Source: \"..\\..\\LICENSE\"" in iss
     assert "Source: \"..\\..\\NOTICE\"" in iss
-    assert "[UninstallDelete]" not in iss
-    assert "[Run]" not in iss
+    directives = [line.strip() for line in iss.splitlines() if not line.lstrip().startswith(";")]
+    assert "[UninstallDelete]" not in directives
+    assert "[Run]" not in directives
     assert "{app}" in iss
     assert "NATURE AI CORP" in iss
     # The installation recipe must not ship, read or erase user-specific GC data.
