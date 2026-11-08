@@ -149,7 +149,38 @@ def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
 
 def test_domain_selector_defaults_to_self_promotion():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
-    assert 'vals.includes("Self-Promotion")' in html
-    assert '$("selection").value="Self-Promotion"' in html
-    assert 'a==="Self-Promotion"?-1' in html
+    assert 'const preferred=state.route==="work_type"?"Community Management":"Self-Promotion"' in html
+    assert 'if(vals.includes(preferred))$("selection").value=preferred' in html
+    assert 'vals.sort((a,b)=>a===preferred?-1:b===preferred?1:a.localeCompare(b))' in html
     assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Self-Promotion", "Product Promotion"}
+
+
+def test_promotion_is_domain_only_not_work_type(tmp_path):
+    definitions = w.WorkService(w.Journal(tmp_path / "work.sqlite")).definitions()
+    work_types = {d["work_type"] for d in definitions if d["work_type"]}
+    domains = {d["domain"] for d in definitions if d["domain"]}
+    assert work_types == {"Community Management"}
+    assert domains == {"Self-Promotion", "Product Promotion"}
+    assert all(not d["work_type"] for d in definitions if d["id"].startswith("promote_"))
+    assert all(not d["domain"] for d in definitions if d["version"] == "V1")
+    assert len(w.task_choices("work_type", "Community Management")) == 5
+    assert not w.task_choices("work_type", "Product Promotion")
+    assert len(w.task_choices("domain", "Product Promotion")) == 2
+
+
+def test_task_details_available_for_every_definition(tmp_path):
+    definitions = w.WorkService(w.Journal(tmp_path / "work.sqlite")).definitions()
+    for definition in definitions:
+        details = definition["details"]
+        assert set(details) == {"goal", "steps", "output", "requires", "review", "limitations"}
+        assert details["goal"] and len(details["steps"]) >= 2
+        assert details["output"] and details["review"]
+        if not definition["enabled"]:
+            assert "not implemented" in details["limitations"]
+
+
+def test_task_details_are_shown_after_selection():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    for marker in ("id=\"task-details\"", "What this Task does", "Expected result",
+                   "Review and approval", "Scope / availability", "V2 planned — view details"):
+        assert marker in html
