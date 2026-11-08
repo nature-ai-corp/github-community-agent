@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import socket
 from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import urlsplit
@@ -59,7 +60,7 @@ def _endpoint(provider: str, explicit: str | None) -> str:
             or port is not None or "\\" in candidate or "@" in candidate):
         raise ToolError("AI provider endpoint must be a safe HTTPS host without credentials or parameters.")
 
-    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+    if (host == "localhost" or host.endswith((".localhost", ".local", ".internal", ".home.arpa"))):
         raise ToolError("Local endpoints are not supported by this cloud API adapter.")
     try:
         ipaddress.ip_address(host)
@@ -72,6 +73,34 @@ def _endpoint(provider: str, explicit: str | None) -> str:
     if path not in ("", "/v1"):
         raise ToolError("AI provider endpoint path must be empty or /v1.")
     return candidate.rstrip("/") + "/chat/completions"
+
+
+
+def _check_public_dns(url: str) -> None:
+    """Reject endpoints resolving to non-public IPs before sending a secret.
+
+    This is defense in depth, not a complete anti-DNS-rebinding guarantee:
+    HTTPX resolves hostnames again when connecting. A future hardened client
+    should pin the inspected address while preserving TLS SNI/verification.
+    """
+    host = urlsplit(url).hostname
+    if not host:
+        raise ToolError("Invalid AI provider endpoint.")
+    try:
+        answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except (socket.gaierror, OSError) as exc:
+        raise ToolError("Unable to resolve the configured AI provider host.") from exc
+    if not answers:
+        raise ToolError("Unable to resolve the configured AI provider host.")
+    for answer in answers:
+        try:
+            address = ipaddress.ip_address(answer[4][0])
+            if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+                address = address.ipv4_mapped
+        except (IndexError, TypeError, ValueError) as exc:
+            raise ToolError("AI provider DNS response was invalid.") from exc
+        if not address.is_global:
+            raise ToolError("AI provider host resolved to a private or non-public network address.")
 
 
 @dataclass(frozen=True)
@@ -92,10 +121,14 @@ class ChatCompletionsModel:
         self.api_key = api_key
 
     def __call__(self, instruction: str, evidence: str) -> str:
+        url = _endpoint(self.settings.provider, self.settings.endpoint)
+        # Normal production requests perform DNS screening before the key is
+        # retrieved, and never on input supplied by untrusted GitHub content.
+        if _transport is None:
+            _check_public_dns(url)
         secret = self.api_key()
         if not isinstance(secret, str) or not API_KEY_PATTERN.fullmatch(secret):
             raise ToolError("A configured AI provider API key is required.")
-        url = _endpoint(self.settings.provider, self.settings.endpoint)
         request_body = {
             "model": self.settings.model,
             "messages": [
