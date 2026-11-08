@@ -26,4 +26,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-\n[tool.setuptools.package-data]\ngithub_community_agent = ["home.html"]\n
+
+[tool.setuptools.package-data]
+github_community_agent = ["home.html"]
