@@ -85,8 +85,8 @@ def test_msix_store_python_migration_is_opt_in_and_non_destructive():
     assert "Source has no Tasks; refusing migration." in script
     assert "Cannot prove target database is empty." in script
     assert "Target already has encrypted settings" in script
-    assert "Source SQLite WAL/SHM exists" in script
-    assert "Target SQLite WAL/SHM exists" in script
+    assert "Source SQLite WAL/SHM/rollback journal exists" in script
+    assert "Target SQLite WAL/SHM/rollback journal exists" in script
     assert "ReparsePoint" in script
     assert "DRY RUN PASS. No files changed." in script
     assert "if (-not $Apply)" in script
