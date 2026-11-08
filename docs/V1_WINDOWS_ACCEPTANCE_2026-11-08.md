@@ -158,3 +158,24 @@ the existing application Work journal or GitHub remote records.
 identified, fixed (or justified), and Windows pytest exits 0. The old
 pytest temp permission issue may be environment-specific; the isolated runner
 is a diagnostic workaround rather than proof that the old path is fixed.
+
+## Windows regression confirmed PASS — November 8, 2026
+
+User-operated Windows PowerShell (native Python 3.13):
+- Checked out/pulled branch `feature/unified-task-home`, commit `97fc118`.
+- Executed `scripts/windows-test-regression.ps1` using isolated pytest
+  temporary directory.
+- Exact observed summary: **207 passed in 1.70s**, **0 failed**.
+- Script printed `GC Agent Windows regression PASS.`.
+- Prior `test_issue_report_breaks_ai_analysis_into_source_linked_findings_and_actions`
+  failure resolved by correcting the stale static test assertion; production
+  issue-reporting JS unchanged.
+- Previous wheel smoke on branch head `b567194` was PASS for independent
+  dev wheel `0.0.0.dev0`. Source changes since were test and documentation
+  only; a release candidate packaging check on the final commit remains prudent.
+
+**Windows offline pytest is accepted as PASS at commit `97fc118`.**
+This is NOT proof of signed standalone installer, clean upgrade/uninstall,
+negative security validation, third-party license review, or actual CI green.
+GitHub-hosted private CI may still be billing-blocked. Keep all Draft PRs
+unmerged and do not sign, tag, or publish.
