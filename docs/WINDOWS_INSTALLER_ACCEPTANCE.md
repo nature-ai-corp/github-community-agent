@@ -193,3 +193,58 @@ rather than moving or deleting user data. If the effective path or count
 differs, **do not copy DPAPI credential material**; identify why the
 environment differs before changing any application data. If the old frozen
 EXE is running, stop it before renaming the bundle.
+
+## Confirmed root cause — Microsoft Store Python MSIX file virtualization (Nov 8)
+
+User's two read-only diagnostics reported the **same logical** directory
+`C:\\Users\\aiuser\\AppData\\Local\\GitHubCommunityAgent`, but:
+- Frozen independent EXE: existing `work.sqlite3` with **0 Tasks**, and
+  `settings.dpapi` **not found**.
+- Python venv backed by `WindowsApps\\PythonSoftwareFoundation.Python.3.13`:
+  existing `work.sqlite3` with **10 Tasks** and
+  `settings.dpapi` **found**.
+
+This strongly matches Windows Store Python's documented MSIX AppData
+redirection. The venv interpreter can see a per-package private physical
+folder while the independent EXE sees unvirtualized AppData. See Microsoft
+MSIX documentation and Python's Windows Store guidance. To verify, use
+`os.path.realpath(data_directory())` **inside the Store Python process**.
+
+The GC Agent app's ordinary user-data target remains
+`%LOCALAPPDATA%\\GitHubCommunityAgent`; it should **not** depend on or
+hard-code the Windows Store Python package identity in normal runtime.
+
+### Controlled one-time migration (only this user / test system)
+
+1. Stop *both* Python-run and frozen GC Agent applications. Do not install the
+   Inno Setup EXE yet. Do not manually rename, erase or move the old files.
+2. Pull the branch (new script has no dependency on rebuilding EXE beyond the
+   existing `--diagnostics` frozen binary):
+   ```powershell
+   git pull --ff-only
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-store-data-migration.ps1
+   ```
+3. **Dry run is default**: it verifies the Store Python physical source has
+   Tasks and encrypted settings, source is in an MSIX package's LocalCache,
+   no WAL/SHM journal exists, target has no encrypted settings and its
+   database is absent or exactly **zero Tasks**, and refuses junctions.
+4. After reviewing the paths and preserving original files, explicitly
+   approve migration using:
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-store-data-migration.ps1 -Apply
+   ```
+5. The script stages copies, checks SHA256 equality, backs up the old empty
+   independent database, copies the 10-Task database and encrypted settings
+   to the regular Windows user data folder, and runs frozen EXE diagnostics.
+   Original Store Python data is **not modified or deleted**. Existing nonempty
+   independent data or credentials are **never overwritten**.
+6. Then run `dist\\GitHubCommunityAgent\\GitHubCommunityAgent.exe`, inspect
+   all 10 original Task IDs including Archived Work, Activity History, and
+   saved settings. Confirm that the same Windows identity can decrypt
+   `settings.dpapi`. Do not display credential values.
+7. Only after this acceptance should work resume on Inno Setup build and
+   installation/upgrade/uninstall tests.
+
+The script is opt-in, not a silently performed installer migration. If it
+reports a source path different from the expected MSIX package or refuses
+for any reason, investigate and do **not** bypass guards or delete files.
