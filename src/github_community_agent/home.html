@@ -21,7 +21,18 @@ input:focus,select:focus{outline:2px solid #5976c1;outline-offset:1px}
 .work{width:100%;border:1px solid #dce1e9;border-radius:10px;padding:17px;background:#fff;text-align:left;margin:10px 0;display:flex;justify-content:space-between;gap:12px}.work:hover{border-color:#7394c8}
 .work strong{font-size:16px}.status{font-weight:600}.status.finished{color:#16834c}.status.failed{color:#b53838}.status.needs_attention{color:#af660b}.status.running{color:#3966a8}
 .hid{display:none!important}.source{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fa;padding:14px;border-radius:8px;max-height:55vh;overflow:auto}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px}.chip{border-radius:20px;padding:4px 10px;background:#eef2f7;color:#4d627f;font-size:12px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.modal-backdrop{position:fixed;inset:0;background:#11182777;display:flex;align-items:center;justify-content:center;z-index:30;padding:18px}
+.modal{width:min(440px,100%);background:#fff;border-radius:11px;box-shadow:0 18px 60px #0003;padding:20px}
+.modal h2{margin:0 0 14px;font-size:19px}.modal .field{margin-bottom:11px;min-width:0}
+.modal .field label{font-weight:500;color:#485164}.modal .row{align-items:center}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px}
+.modal .key-note{color:#748094;font-size:11px;margin:-5px 0 12px}
+.modal details{border-top:1px solid #e9ebf0;padding-top:12px;margin-top:12px}
+.modal summary{cursor:pointer;color:#414d60;font-size:12px}
+.modal .advanced-fields{padding-top:12px}
+#settings-message{font-size:12px;min-height:20px;color:#314b73}
+.chip{border-radius:20px;padding:4px 10px;background:#eef2f7;color:#4d627f;font-size:12px}
 #error{color:#a52222;min-height:24px}.detail{border-top:1px solid #e1e5ec;margin-top:18px;padding-top:18px}
 @media(max-width:750px){.layout{display:block}.sidebar{width:100%;padding:12px}.brand{padding:0}.sidebar .muted,.sidebar .footer{display:none}.sidebar .nav{width:auto;display:inline-block}.main{padding:16px}}
 </style></head>
@@ -53,15 +64,21 @@ input:focus,select:focus{outline:2px solid #5976c1;outline-offset:1px}
 <button id="start" class="btn" disabled>Create &amp; Run Task</button>
 </div>
 </section>
-<section id="page-settings" class="hid"><div class="panel"><h2>Settings</h2><p class="note">Credentials are session-only and never saved to the Work journal. Closing the Work Center server clears access to these settings.</p>
-<div class="row"><div class="field"><label>Public repository</label><input id="settings-repo" placeholder="owner/repository"></div>
-<div class="field"><label>AI Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></div>
-<div class="field"><label>Model</label><input id="model" value="gpt-4.1-mini"></div></div>
-<div class="row" style="margin-top:14px"><div class="field"><label>AI API Key — memory only</label><input type="password" id="model-key" autocomplete="off"></div>
-<div class="field"><label>GitHub Discussions READ Token — optional</label><input type="password" id="read-key" autocomplete="off"></div></div>
-<p class="note">The app never needs GitHub write permissions in this preview. Keep secrets off screenshots and exported evidence.</p>
-<button class="btn secondary" id="return-new">Back to New Task</button>
-</div></section>
+<div id="settings-overlay" class="modal-backdrop hid" role="presentation">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+<h2 id="settings-title">Settings</h2>
+<div class="field"><label for="provider">Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></div>
+<div class="field"><label for="model">Model</label><input id="model" value="gpt-4.1-mini"></div>
+<div class="field"><label for="model-key">API key</label><input type="password" id="model-key" placeholder="Leave empty to keep current key" autocomplete="off"></div>
+<p class="key-note">Keys are held in this app session only; they are not yet stored encrypted.</p>
+<details id="settings-advanced"><summary>Advanced</summary><div class="advanced-fields">
+<div class="field"><label for="settings-repo">Public GitHub repository</label><input id="settings-repo" placeholder="owner/repository"></div>
+<div class="field"><label for="read-key">GitHub Discussions READ token</label><input type="password" id="read-key" placeholder="Leave empty to keep current token" autocomplete="off"></div>
+<p class="key-note">A read-only token is required for Discussions. GitHub posting is disabled.</p>
+</div></details>
+<p id="settings-message" role="status"></p>
+<div class="modal-actions"><button class="btn secondary" id="test-connection">Test connection</button><span style="flex:1"></span><button class="btn secondary" id="settings-cancel">Cancel</button><button class="btn" id="settings-save">Save</button></div>
+</div></div>
 <section id="page-work"><div class="panel">
 <div class="topbar"><h2 id="work-title">My Work</h2><div class="row"><select id="filter-key" aria-label="Task classification"><option value="">All classifications</option></select><select id="filter-value" aria-label="Classification value"><option value="">All</option></select></div></div>
 <div id="work-list"><p class="note">No work yet. Start with New Task.</p></div>
@@ -72,19 +89,63 @@ input:focus,select:focus{outline:2px solid #5976c1;outline-offset:1px}
 "use strict";
 const NONCE="__APP_NONCE__";
 const $=id=>document.getElementById(id);
-const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null};
+const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null,
+settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",modelKey:"",readToken:""}};
 const headers=()=>({"Content-Type":"application/json","X-App-Nonce":NONCE});
 const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function error(message){$("error").textContent=message||""}
 function unique(values){return [...new Set(values)].sort()}
 async function getJSON(path){const r=await fetch(path,{headers:headers(),cache:"no-store"});if(!r.ok)throw Error("Request failed: "+r.status);return r.json()}
 async function postJSON(path,data){const r=await fetch(path,{method:"POST",headers:headers(),body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw Error(j.error||"Request rejected");return j}
-function page(name){state.page=name;error("");for(const p of ["new","settings","work"]){$("page-"+p).classList.add("hid")}
-const isWork=!["new","settings"].includes(name);$("page-"+(isWork?"work":name)).classList.remove("hid");
-const headings={new:"New Task",settings:"Settings",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work"};
-$("heading").textContent=headings[name];$("subtitle").textContent=name==="new"?"Select a Task using Work Type OR Domain.":name==="settings"?"Configure this product once for the current application session.":"Task history and status, categorized using each product's definitions.";
+function page(name){
+if(name==="settings"){openSettings();return}
+state.page=name;error("");
+for(const p of ["new","work"])$("page-"+p).classList.add("hid");
+const isWork=name!=="new";
+$("page-"+(isWork?"work":"new")).classList.remove("hid");
+const headings={new:"New Task",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work"};
+$("heading").textContent=headings[name];
+$("subtitle").textContent=name==="new"?"Select a Task using Work Type OR Domain.":"Task history and status, categorized using each product's definitions.";
 document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
 if(isWork)renderWork();
+}
+function openSettings(){
+const st=state.settings;
+$("provider").value=st.provider;$("model").value=st.model;
+$("model-key").value="";$("read-key").value="";
+$("settings-repo").value=st.repository;
+$("settings-message").textContent="";
+$("settings-advanced").open=false;
+$("settings-overlay").classList.remove("hid");
+$("provider").focus();
+}
+function closeSettings(){
+$("model-key").value="";$("read-key").value="";
+$("settings-overlay").classList.add("hid");
+}
+function settingsDraft(){
+return {repository:$("settings-repo").value.trim(),provider:$("provider").value,
+model:$("model").value.trim(),modelKey:$("model-key").value||state.settings.modelKey,
+readToken:$("read-key").value||state.settings.readToken};
+}
+function saveSettings(){
+const st=settingsDraft();
+if(!st.repository){$("settings-message").textContent="Enter a public repository under Advanced.";return}
+if(!st.model||!st.modelKey){$("settings-message").textContent="Model and API key are required.";return}
+state.settings=st;
+$("target-repo").value=st.repository;
+closeSettings();
+error("Settings saved for this application session only.");
+}
+async function testSettings(){
+const st=settingsDraft();
+$("test-connection").disabled=true;
+$("settings-message").textContent="Testing real AI provider connection…";
+try{
+const result=await postJSON("/api/test-connection",{provider:st.provider,model_name:st.model,model_key:st.modelKey});
+$("settings-message").textContent=result.status==="connected"?"Connection succeeded (live provider check).":"Connection not verified.";
+}catch(e){$("settings-message").textContent="Connection failed: "+e.message}
+finally{$("test-connection").disabled=false}
 }
 function renderRoute(){
 state.definition=null;
@@ -114,9 +175,10 @@ async function startTask(){
 if(!state.definition)return;
 const d=state.definition;
 const n=Number($("number").value);
-const data={route:state.route,selection:$("selection").value,definition_id:d.id,repository:$("target-repo").value.trim(),provider:$("provider").value,model_name:$("model").value.trim(),model_key:$("model-key").value,discussion_token:$("read-key").value,number:d.workflow==="draft_replies"?n:null};
+const st=state.settings;
+const data={route:state.route,selection:$("selection").value,definition_id:d.id,repository:st.repository,provider:st.provider,model_name:st.model,model_key:st.modelKey,discussion_token:st.readToken,number:d.workflow==="draft_replies"?n:null};
 $("start").disabled=true;
-try{const res=await postJSON("/api/tasks",data);$("model-key").value="";$("read-key").value="";error("");state.selectedTask=res.id;await refresh();page("all")}
+try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res.id;await refresh();page("all")}
 catch(e){error(e.message)}
 finally{$("start").disabled=false}
 }
@@ -151,11 +213,14 @@ document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page
 document.querySelectorAll('input[name="route"]').forEach(r=>r.addEventListener("change",()=>{state.route=r.value;renderRoute()}));
 $("selection").addEventListener("change",renderChoices);
 $("start").addEventListener("click",startTask);
-$("return-new").addEventListener("click",()=>page("new"));
+$("settings-cancel").addEventListener("click",closeSettings);
+$("settings-save").addEventListener("click",saveSettings);
+$("test-connection").addEventListener("click",testSettings);
+$("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
 $("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
-$("settings-repo").addEventListener("input",()=>{$("target-repo").value=$("settings-repo").value});
-$("target-repo").addEventListener("input",()=>{$("settings-repo").value=$("target-repo").value});
+$("target-repo").addEventListener("input",()=>{state.settings.repository=$("target-repo").value.trim()});
 (async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
 setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
 </script>
