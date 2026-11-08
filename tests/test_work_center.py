@@ -1,0 +1,104 @@
+"""Unified home contract: product definitions, alternate New Task routes, journal and auth."""
+import json
+from pathlib import Path
+
+import pytest
+
+from github_community_agent import work_center as w
+from github_community_agent.errors import ToolError
+
+
+def test_new_task_two_alternative_routes_select_same_definition():
+    by_type = w.task_choices("work_type", "Community Management")
+    by_domain = w.task_choices("domain", "Issues")
+    assert w.BY_ID["review_issues"] in by_type
+    assert w.BY_ID["review_issues"] in by_domain
+    assert w.BY_ID["review_discussions"] not in by_domain
+    assert any(d.version == "V2" and not d.enabled for d in w.DEFINITIONS)
+    with pytest.raises(ToolError, match="Work Type or Domain"):
+        w.task_choices("both", "Issues")
+
+
+def test_definitions_are_product_owned_and_v2_unavailable(tmp_path):
+    service = w.WorkService(w.Journal(tmp_path / "work.sqlite"))
+    with pytest.raises(ToolError, match="must match"):
+        service.start({"route": "domain", "selection": "Self-Promotion",
+                       "definition_id": "promote_self"})
+    with pytest.raises(ToolError, match="must match"):
+        service.start({"route": "domain", "selection": "Discussions",
+                       "definition_id": "review_issues"})
+    assert service.journal.list() == []
+
+
+def test_work_journal_persists_definition_classifications_and_review(tmp_path):
+    db = tmp_path / "work.sqlite"
+    j = w.Journal(db)
+    wid = j.create("draft_issue", "example/public")
+    j.finish(wid, "needs_attention", {"read_only": True, "posted": False, "draft": "hello"})
+    j2 = w.Journal(db)
+    task = j2.list()[0]
+    assert task["id"] == wid
+    assert task["classifications"] == {"work_type": "Community Management", "domain": "Issues"}
+    assert task["status"] == "needs_attention"
+    assert task["result"]["draft"] == "hello"
+    assert j2.review(wid)
+    assert j2.list()[0]["status"] == "finished"
+    assert not j2.review(wid)
+
+
+def test_real_workflow_receives_secret_but_journal_never_does(monkeypatch, tmp_path):
+    journal = w.Journal(tmp_path / "work.sqlite")
+    service = w.WorkService(journal)
+    secrets_seen = []
+    def production_runtime(**kwargs):
+        secrets_seen.append((kwargs["model_key"], kwargs["discussion_token"]))
+        return {"read_only": True, "posted": False,
+                "workflow": kwargs["workflow"], "analysis": "Source-backed example"}
+    monkeypatch.setattr(w, "execute_workflow", production_runtime)
+    class ImmediateThread:
+        def __init__(self, target, args, daemon):
+            self.target, self.args = target, args
+        def start(self):
+            self.target(*self.args)
+    monkeypatch.setattr(w.threading, "Thread", ImmediateThread)
+    secret_model = "not_a_real_model_key_123456"
+    secret_gh = "not_a_real_github_key_123456"
+    wid = service.start({
+        "route": "domain", "selection": "Issues",
+        "definition_id": "review_issues", "repository": "example/public",
+        "provider": "openai", "model_name": "gpt-4.1-mini",
+        "model_key": secret_model, "discussion_token": secret_gh,
+    })
+    assert secrets_seen == [(secret_model, secret_gh)]
+    task = journal.list()[0]
+    assert task["id"] == wid and task["status"] == "finished"
+    contents = (tmp_path / "work.sqlite").read_bytes()
+    assert secret_model.encode() not in contents and secret_gh.encode() not in contents
+
+
+def test_start_requires_selected_domain_or_work_type(tmp_path):
+    s = w.WorkService(w.Journal(tmp_path / "db.sqlite"))
+    payload = {"route": "domain", "selection": "Discussions",
+               "definition_id": "draft_issue",
+               "repository": "example/public", "provider": "openai",
+               "model_name": "gpt-4.1-mini", "model_key": "fake"}
+    with pytest.raises(ToolError, match="must match"):
+        s.start(payload)
+
+
+def test_unified_html_includes_exclusive_routes_and_standalone_navigation():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'name="route" value="work_type" checked' in html
+    assert 'name="route" value="domain"' in html
+    assert "New Task" in html and "My Work" in html
+    assert "Needs My Attention" in html
+    assert "Promotion is planned" in html
+    assert "Settings" in html
+
+
+def test_work_center_handler_rejects_cross_origin_and_bad_nonce(tmp_path):
+    journal = w.Journal(tmp_path / "db.sqlite")
+    service = w.WorkService(journal)
+    handler = w.handler_factory(service, "random_nonce")
+    assert handler.__name__ == "Handler"
+    assert journal.list() == []
