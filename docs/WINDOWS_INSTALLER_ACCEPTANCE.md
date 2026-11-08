@@ -117,3 +117,25 @@ Neither script signs or runs an installer.
   results, not assumed passes.
 
 **No merge, tag, release, or user-data mutation is authorized by this document.**
+
+## Windows user-executed builder result — 2026-11-08
+
+Observed evidence from Windows PowerShell on `feature/unified-task-home` at
+`7cab155`, native Python 3.13.14 and PyInstaller 6.22.3:
+
+- `python -m pip install -e ".[dev,build]"` completed successfully.
+- `scripts/windows-test-regression.ps1` reported **211 passed in 2.31s**,
+  **0 failures**, `GC Agent Windows regression PASS`.
+- `scripts/windows-build-exe.ps1` successfully built a Windows onedir
+  `dist\\GitHubCommunityAgent\\GitHubCommunityAgent.exe`.
+- Frozen executable self-check reported **PASS** and unsigned onedir
+  build reported **PASS**.
+- This evidence confirms initial build and embedded-resource smoke, **not**
+  real browser UI launch, network request, DPAPI load, user data retention,
+  installer compilation, installation, upgrade, uninstallation, signing or
+  official release. These remain pending.
+
+Next safe test: start the frozen EXE (without passing --self-check), verify the
+correct Work Center opens on localhost, inspect existing My Work and Archived
+Work without changing content, and close the console app. Only after this
+should Inno Setup compilation and per-user installer tests proceed.
