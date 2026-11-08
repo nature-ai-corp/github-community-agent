@@ -525,27 +525,9 @@ function taskReport(t){
   elements.push('</section>');
   return elements.join("");
 }
-async function restoreTask(t){
-  if(!t.archived)return;
-  if(!window.confirm("Restore Task #"+t.id+" to My Work?"))return;
-  const button=$("restore-task");
-  if(button)button.disabled=true;
-  try{
-    await postJSON("/api/tasks/"+t.id+"/restore",{});
-    state.selectedTask=null;
-    $("work-detail").classList.add("hid");
-    state.tasksSignature=null;
-    await refresh();
-    page("all");
-    openTask(t.id);
-  }catch(e){
-    if(button)button.disabled=false;
-    window.alert("Restore failed: "+e.message);
-  }
-}
 async function deleteTask(t){
   if(t.archived||!["finished","failed"].includes(t.status))return;
-  if(!window.confirm("Archive Task #"+t.id+" — "+t.title+"?\\n\\nThe Task will move to Archived Work, where its report remains visible and it can be restored. GitHub content is unchanged."))return;
+  if(!window.confirm("Archive Task #"+t.id+" — "+t.title+"?\\n\\nThe Task will move to Archived Work, where its report and history remain available. GitHub content is unchanged."))return;
   const button=$("delete-task");
   if(button)button.disabled=true;
   try{
@@ -571,11 +553,11 @@ const c=$("work-detail");c.classList.remove("hid");
 const source=taskSource(t);
 const hasResult=t.result!==null&&t.result!==undefined;
 const resultActions=hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
-c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(t.archived?'<div class="task-management"><button type="button" class="btn secondary" id="restore-task">Restore Task</button><span class="note">Archived locally. GitHub is unchanged.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(t.archived?'<div class="task-management"><span class="note">Archived record — view only. Original result and activity history are retained.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
 const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
 const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
 const del=$("delete-task");if(del)del.addEventListener("click",()=>deleteTask(t));
-const restore=$("restore-task");if(restore)restore.addEventListener("click",()=>restoreTask(t));
+
 const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
 }
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
