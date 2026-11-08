@@ -9,11 +9,11 @@ installation, credentials or data. Product-specific Task definitions live in
 
 In **New Task**, choose **one entry route**:
 - **Work Type**: Community Management or Product Promotion.
-- **Domain**: Issues, Discussions, Community Reports, Self-Promotion,
-  Product Promotion, Other Repository Promotion.
+- **Domain**: Self-Promotion or Product Promotion. Domain represents
+  promotion targets, not the V1 Issue/Discussion operation name.
 
-Then select the concrete Task definition returned by that route. The same
-Task, e.g. Review Issues, can be discovered through either route; only one
+Then select the concrete Task definition returned by that route. Each Task is shown through the route defined for it: V1 Community Management
+through Work Type; V2 promotion choices through Work Type or Domain. Only one
 route is active and validated when creating the Task. The Task record retains
 the product-defined classification metadata for **My Work** filtering. Other
 products may supply entirely different classification names and schemes.
@@ -52,17 +52,18 @@ using the UI; Ctrl+C exits.
    Issues**. Click **Create & Run Task**. The real GitHub Issues + OpenAI
    call runs and creates a uniquely numbered Work entry. Read its analysis
    and sources in **My Work**.
-3. Switch to **Domain → Discussions → Review Discussions**. This resolves a
-   product-defined Task through a different entry route, using real GraphQL
-   and OpenAI. Verify actual public Discussion #32 and correct coverage.
-4. Try **Domain → Issues → Draft Issue Reply**, enter #33. Work becomes
+3. Use **Work Type → Community Management → Review Discussions**. This runs
+   the real GraphQL/OpenAI workflow. Verify actual public Discussion #32 and
+   correct coverage.
+4. Try **Work Type → Community Management → Draft Issue Reply**, enter #33. Work becomes
    **Needs My Attention**; reviewing the draft in Work Detail can mark it
    reviewed and Finished, **without publishing or authorizing publication**.
 5. Verify **Work In Progress**, **Needs My Attention**, **Finished Work**.
    Try My Work classifications (Work Type and Domain filters).
 6. Close/restart the app and confirm Work history remains via local SQLite
    journal. Settings secrets must be entered again; none are saved.
-7. Choose **Work Type → Product Promotion** or **Domain → Self-Promotion**.
+7. Choose **Work Type → Product Promotion**, or switch to **Domain →
+   Self-Promotion** / **Product Promotion**.
    V2 choices must be visible and **disabled**; no mock execution or
    misleading “Finished” status for an unimplemented workflow.
 
