@@ -132,7 +132,13 @@ state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
 $("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
 const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
+// Product default: Self-Promotion is the first Domain choice and initial
+// selection. Do not change the user's selection while browsing task cards.
+if(state.route==="domain"){
+  vals.sort((a,b)=>(a==="Self-Promotion"?-1:b==="Self-Promotion"?1:a.localeCompare(b)));
+}
 $("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
+if(state.route==="domain"&&vals.includes("Self-Promotion"))$("selection").value="Self-Promotion";
 renderChoices();
 }
 function renderChoices(){
