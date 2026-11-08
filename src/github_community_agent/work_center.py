@@ -19,6 +19,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .desktop import execute_workflow
+from .model_provider import ChatCompletionsModel, ModelSettings
 from .errors import ToolError
 
 MAX_REQUEST_BYTES = 12000
@@ -237,6 +238,23 @@ def handler_factory(service: WorkService, nonce: str):
                 if not isinstance(payload, dict):
                     return self._send(400, {"error": "Expected a JSON object."})
                 path = urlsplit(self.path).path
+                if path == "/api/test-connection":
+                    provider = payload.get("provider")
+                    model_name = payload.get("model_name")
+                    model_key = payload.get("model_key")
+                    if not isinstance(model_key, str) or not model_key:
+                        return self._send(400, {"error": "Enter a model API key."})
+                    model = ChatCompletionsModel(
+                        ModelSettings(provider, model_name), api_key=lambda: model_key
+                    )
+                    answer = model(
+                        "This is a model-connection verification. Reply with the exact word OK.",
+                        "Connection test; no GitHub content or data.",
+                    )
+                    return self._send(200, {
+                        "status": "connected" if answer.strip() else "failed",
+                        "note": "Live model request completed; no GitHub operation."
+                    })
                 if path == "/api/tasks":
                     task_id = service.start(payload)
                     return self._send(202, {"id": task_id, "status": "running"})
@@ -248,7 +266,7 @@ def handler_factory(service: WorkService, nonce: str):
                 return self._send(404, {"error": "Not found."})
             except (ToolError, ValueError, TypeError):
                 # Do not echo input, secrets, or exception payload.
-                return self._send(400, {"error": "Invalid task selection or settings."})
+                return self._send(400, {"error": "Invalid task selection or connection settings."})
 
     return Handler
 
