@@ -20,37 +20,67 @@ if (-not $env:LOCALAPPDATA) {
     throw "LOCALAPPDATA is not defined."
 }
 
-# Python is run from the existing venv backed by the Store Python runtime.
-# Resolve the *physical* path while still in its MSIX virtualized context.
+# The Store Python runtime exposes a *logical* LOCALAPPDATA path. Calling
+# os.path.realpath() on it is NOT evidence of the backing MSIX LocalCache
+# location: Windows AppData redirection happens below Python's path layer.
+# Instead fingerprint the logical source's actual bytes and find the matching
+# physical source under this user's installed Store Python package(s).
 $probe = @'
-import json, os, sqlite3
+import hashlib, json, sqlite3
 from github_community_agent.work_center import data_directory
 root = data_directory()
 db = root / "work.sqlite3"
-if not db.is_file():
-    raise RuntimeError("Source Store Python work.sqlite3 not found")
+settings = root / "settings.dpapi"
+if not db.is_file() or not settings.is_file():
+    raise RuntimeError("Store Python cannot see original work and protected settings")
 with sqlite3.connect(db.as_uri()+"?mode=ro", uri=True) as con:
     count = con.execute("SELECT COUNT(*) FROM work").fetchone()[0]
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest().upper()
 print(json.dumps({
-    "source": os.path.realpath(root),
-    "count": count,
-    "settings": (root / "settings.dpapi").is_file()
+    "count": count, "db_sha256": sha256(db),
+    "settings_sha256": sha256(settings)
 }))
 '@
 $raw = ($probe | & $python -)
-if ($LASTEXITCODE -ne 0) { throw 'Source store Python database probe failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Store Python source data fingerprint failed.' }
 $info = $raw | ConvertFrom-Json
-$source = [System.IO.Path]::GetFullPath([string]$info.source)
+if ([int]$info.count -lt 1) { throw 'Store Python original database contains no Tasks.' }
 $target = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'GitHubCommunityAgent'))
-if ([string]::Equals($source, $target, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Source and destination resolve to the same physical directory. No migration should run."
-}
 $localRoot = [System.IO.Path]::GetFullPath($env:LOCALAPPDATA).TrimEnd('\')
+$packages = Join-Path $localRoot 'Packages'
+if (-not (Test-Path -LiteralPath $packages -PathType Container)) {
+    throw "Store Python package directory is not present: $packages"
+}
+$candidates = @(
+    Get-ChildItem -LiteralPath $packages -Directory -Filter 'PythonSoftwareFoundation.Python.3.13_*' |
+    ForEach-Object { Join-Path $_.FullName 'LocalCache\Local\GitHubCommunityAgent' } |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Container }
+)
+$matches = @(
+    foreach ($candidate in $candidates) {
+        $dbPath = Join-Path $candidate 'work.sqlite3'
+        $settingsPath = Join-Path $candidate 'settings.dpapi'
+        if (-not (Test-Path -LiteralPath $dbPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) { continue }
+        if (((Get-FileHash -LiteralPath $dbPath -Algorithm SHA256).Hash -eq [string]$info.db_sha256) -and
+            ((Get-FileHash -LiteralPath $settingsPath -Algorithm SHA256).Hash -eq [string]$info.settings_sha256)) {
+            $candidate
+        }
+    }
+)
+if ($matches.Count -ne 1) {
+    throw "Cannot uniquely identify Store Python's physical GC Agent data by matching both file hashes (matches=$($matches.Count)); no migration."
+}
+$source = [System.IO.Path]::GetFullPath([string]$matches[0])
+if ([string]::Equals($source, $target, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Source and destination are the same directory; no migration should run.'
+}
 $expected = $localRoot + '\Packages\'
 if (-not $source.StartsWith($expected, [StringComparison]::OrdinalIgnoreCase) -or
     -not $source.Contains('\LocalCache\Local\') -or
     -not $source.EndsWith('\GitHubCommunityAgent', [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Source was not proved to be the Windows Store MSIX redirected GC Agent directory: $source"
+    throw "Unexpected physical source directory: $source"
 }
 # Never follow a user-controlled junction/symlink for a data migration.
 foreach ($directory in @($source, $target)) {
@@ -80,7 +110,7 @@ if (-not (Test-Path -LiteralPath $sourceSettings -PathType Leaf)) {
     throw 'Physical Store Python settings.dpapi is absent.'
 }
 if ([int]$info.count -lt 1) { throw 'Source has no Tasks; refusing migration.' }
-if (-not [bool]$info.settings) { throw 'Store Python did not find encrypted settings.' }
+if (-not [bool]$info.settings_sha256) { throw 'Store Python did not find encrypted settings.' }
 if (Test-Path -LiteralPath $targetSettings) {
     throw 'Target already has encrypted settings; refusing to overwrite or merge.'
 }
