@@ -16,6 +16,7 @@
 <button class="nav-item nav" data-page="running">Work In Progress</button>
 <button class="nav-item nav" data-page="attention">Needs My Attention</button>
 <button class="nav-item nav" data-page="finished">Finished Work</button>
+<button class="nav-item nav" data-page="archived">Archived Work</button>
 </nav>
 <h2 class="nav-heading">Recent Work</h2><nav id="work-nav" aria-label="Recent Work"></nav>
 <div class="sidebar-footer"><button class="nav-item nav" data-page="settings">Settings</button><div id="model-label" class="small"></div></div>
@@ -83,7 +84,7 @@ state.page=name;error("");
 for(const p of ["new","work"])$("page-"+p).classList.add("hid");
 const isWork=name!=="new";
 $("page-"+(isWork?"work":"new")).classList.remove("hid");
-const headings={new:"New Task",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work"};
+const headings={new:"New Task",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work",archived:"Archived Work"};
 $("heading").textContent=headings[name];
 $("subtitle").textContent=name==="new"?"Select Community Management or Promotion to choose a Task.":"Task history and status, categorized using each product's definitions.";
 document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
@@ -215,7 +216,7 @@ catch(e){error(e.message)}
 finally{$("start").disabled=false}
 }
 async function refresh(){
-const obj=await getJSON("/api/tasks");
+const obj=await getJSON("/api/tasks?include_archived=1");
 // Polling must not replace interactive DOM when the work data is unchanged.
 // In particular, rebuilding <details> every two seconds closes it, loses
 // scroll position and interrupts Copy/Export actions.
@@ -225,7 +226,7 @@ state.tasksSignature=signature;
 state.tasks=obj.tasks;
 const recent=$("work-nav");
 recent.replaceChildren();
-for(const task of state.tasks.slice(0,8)){
+for(const task of state.tasks.filter(t=>!t.archived).slice(0,8)){
 const button=document.createElement("button");
 button.type="button";button.textContent="#"+task.id+" "+task.title;
 button.title=task.title;
@@ -247,8 +248,8 @@ function renderWork(){
 if(["new","settings"].includes(state.page))return;
 $("work-title").textContent=$("heading").textContent;
 renderFilters();
-const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],all:["running","needs_attention","finished","failed"]};
-const rows=state.tasks.filter(t=>(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
+const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],archived:["finished","failed"],all:["running","needs_attention","finished","failed"]};
+const rows=state.tasks.filter(t=>(state.page==="archived"?t.archived:!t.archived)&&(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
 $("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
 $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
 const selected=rows.find(t=>t.id===state.selectedTask);
@@ -524,9 +525,27 @@ function taskReport(t){
   elements.push('</section>');
   return elements.join("");
 }
+async function restoreTask(t){
+  if(!t.archived)return;
+  if(!window.confirm("Restore Task #"+t.id+" to My Work?"))return;
+  const button=$("restore-task");
+  if(button)button.disabled=true;
+  try{
+    await postJSON("/api/tasks/"+t.id+"/restore",{});
+    state.selectedTask=null;
+    $("work-detail").classList.add("hid");
+    state.tasksSignature=null;
+    await refresh();
+    page("all");
+    openTask(t.id);
+  }catch(e){
+    if(button)button.disabled=false;
+    window.alert("Restore failed: "+e.message);
+  }
+}
 async function deleteTask(t){
-  if(!["finished","failed"].includes(t.status))return;
-  if(!window.confirm("Delete Task #"+t.id+" — "+t.title+" from GC Agent work lists?\\n\\nThis hides the local Task and keeps an audit tombstone. It cannot be undone in the UI. No GitHub content is deleted."))return;
+  if(t.archived||!["finished","failed"].includes(t.status))return;
+  if(!window.confirm("Archive Task #"+t.id+" — "+t.title+"?\\n\\nThe Task will move to Archived Work, where its report remains visible and it can be restored. GitHub content is unchanged."))return;
   const button=$("delete-task");
   if(button)button.disabled=true;
   try{
@@ -541,15 +560,22 @@ async function deleteTask(t){
     window.alert("Delete failed: "+e.message);
   }
 }
+function renderActivity(t){
+  const events=Array.isArray(t.activity)?t.activity:[];
+  if(!events.length)return '<details class="technical-details"><summary>Activity History</summary><p class="note">This record predates activity tracking. Earlier events are not available.</p></details>';
+  const labels={created:"Task created",completed:"Task finished",needs_attention:"Draft needs attention",failed:"Task failed",marked_reviewed_locally:"Marked reviewed locally (not posted)",archived:"Moved to Archived Work",restored:"Restored to My Work"};
+  return '<details class="technical-details"><summary>Activity History ('+events.length+')</summary><ol class="task-activity">'+events.map(e=>'<li><strong>'+escapeHTML(labels[e.event]||e.event)+'</strong> <span class="note">'+escapeHTML(e.at_utc)+'</span></li>').join("")+'</ol></details>';
+}
 function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
 const source=taskSource(t);
 const hasResult=t.result!==null&&t.result!==undefined;
 const resultActions=hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
-c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Delete Task</button><span class="note">Removes this Task from local work lists; GitHub is unchanged.</span></div>':'');
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(t.archived?'<div class="task-management"><button type="button" class="btn secondary" id="restore-task">Restore Task</button><span class="note">Archived locally. GitHub is unchanged.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
 const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
 const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
 const del=$("delete-task");if(del)del.addEventListener("click",()=>deleteTask(t));
+const restore=$("restore-task");if(restore)restore.addEventListener("click",()=>restoreTask(t));
 const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
 }
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
