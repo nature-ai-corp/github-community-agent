@@ -155,3 +155,37 @@ selector now works as follows:
 `Community Management` Work Type remains, verify all five types and two
 Domains, and inspect the Task description for each before launching a real
 read-only V1 Task.
+
+## Delete Task — local Work management (soft delete)
+
+The GC Agent now offers **Delete Task** on a selected Task detail only if it
+has status **Finished** or **Failed**. It is not available for Running or
+Needs My Attention (the latter must be reviewed before removal). A browser
+confirmation names the selected Task and explains that the operation is local.
+Declining confirmation changes nothing.
+
+On confirmation, `POST /api/tasks/{id}/delete` requires the existing
+loopback nonce, exact Host and Origin protections, and marks `deleted_utc`
+in the GC-owned SQLite Work journal. My Work, Recent Work, Finished Work,
+and Needs My Attention exclude tombstoned records. Nothing is deleted on
+GitHub; no new GitHub or LLM call is made. The full original Work row and its
+result remain locally in SQLite for audit. **This is a soft delete, not secure
+erasure of the record or its past exports.** There is no UI Undo currently.
+
+The new column migrates existing Work journals in-place automatically.
+Do not delete test evidence needed for acceptance before exporting it.
+
+Acceptance:
+1. After updating, open an old **Failed** Task, such as Task #3 or #5.
+2. Click **Delete Task**; click **Cancel** in confirmation and verify Task
+   remains. Then repeat and confirm to hide it.
+3. Verify it disappears from all Work Center lists and Recent Work, and
+   remains hidden after restarting the app.
+4. Open a **Finished** Task such as #2, verify the Delete button is
+   available, but cancel unless you want to remove it.
+5. Open an active Running / Needs My Attention Task and verify Delete is
+   absent. Mark reviewed first if the draft should be completed.
+6. Inspect that GitHub Issues/Discussions are unchanged. The local journal
+   may still contain deleted rows and prior JSON exports remain on disk.
+
+Native Windows tests and human UI acceptance for deletion are pending.
