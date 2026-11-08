@@ -56,7 +56,8 @@ def _endpoint(provider: str, explicit: str | None) -> str:
     except (TypeError, ValueError) as exc:
         raise ToolError("Invalid AI provider endpoint.") from exc
     if (parsed.scheme != "https" or not host or len(host) > 253
-            or "." not in host or any(not HOST_LABEL_PATTERN.fullmatch(label) for label in host.split("."))
+            or "." not in host or all(label.isdigit() for label in host.split("."))
+            or any(not HOST_LABEL_PATTERN.fullmatch(label) for label in host.split("."))
             or parsed.username or parsed.password or parsed.query or parsed.fragment
             or port is not None or "\\" in candidate or "@" in candidate):
         raise ToolError("AI provider endpoint must be a safe HTTPS host without credentials or parameters.")
