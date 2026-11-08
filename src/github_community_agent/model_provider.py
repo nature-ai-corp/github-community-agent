@@ -27,7 +27,7 @@ DEFAULT_ENDPOINTS = {
     "deepseek": "https://api.deepseek.com",
 }
 MODEL_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/+-]{0,127}\Z")
-HOST_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\Z")
+HOST_LABEL_PATTERN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
 API_KEY_PATTERN = re.compile(r"[^\s\x00-\x1f\x7f]{12,4096}\Z")
 
 # Mock transport is used only by offline tests.
