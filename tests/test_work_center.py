@@ -369,3 +369,72 @@ def test_community_report_does_not_fabricate_missing_discussion_coverage():
     assert 'if(parsed.recommendations)' in html
     assert 'if(parsed.discussions)' in html
     assert 'if(parsed.issues)' in html
+
+
+def test_delete_task_soft_delete_terminal_only_and_preserve_audit(tmp_path):
+    import sqlite3
+    database = tmp_path / "work.sqlite"
+    journal = w.Journal(database)
+    running = journal.create("review_issues", "owner/repo")
+    pending = journal.create("draft_issue", "owner/repo")
+    finished = journal.create("review_issues", "owner/repo")
+    failed = journal.create("review_issues", "owner/repo")
+    journal.finish(pending, "needs_attention", {"posted": False, "draft": "test"})
+    journal.finish(finished, "finished", {"read_only": True, "posted": False})
+    journal.finish(failed, "failed", error="test failure")
+
+    assert not journal.delete(running)
+    assert not journal.delete(pending)
+    assert not journal.delete(0)
+    assert not journal.delete(True)
+    assert journal.delete(finished)
+    assert journal.delete(failed)
+    assert not journal.delete(finished)
+    assert {task["id"] for task in journal.list()} == {running, pending}
+
+    with sqlite3.connect(database) as con:
+        records = con.execute(
+            "SELECT id, status, deleted_utc, result_json, error FROM work "
+            "WHERE id IN (?,?) ORDER BY id", (finished, failed)
+        ).fetchall()
+    assert len(records) == 2
+    assert all(row[2] for row in records)
+    assert records[0][3] is not None
+    assert records[1][4] == "test failure"
+    # A clean application restart keeps deleted Tasks out of user-facing lists.
+    assert {task["id"] for task in w.Journal(database).list()} == {running, pending}
+
+
+def test_existing_database_migrates_safely_and_keeps_original_work(tmp_path):
+    import sqlite3
+    database = tmp_path / "work.sqlite"
+    with sqlite3.connect(database) as con:
+        con.execute(
+            "CREATE TABLE work (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "definition_id TEXT NOT NULL, repository TEXT NOT NULL, "
+            "status TEXT NOT NULL, created_utc TEXT NOT NULL, "
+            "updated_utc TEXT NOT NULL, result_json TEXT, error TEXT)"
+        )
+        con.execute(
+            "INSERT INTO work (definition_id,repository,status,created_utc,updated_utc) "
+            "VALUES ('review_issues','owner/repo','finished','2026-11-08','2026-11-08')"
+        )
+    journal = w.Journal(database)
+    assert len(journal.list()) == 1
+    assert journal.delete(1)
+    assert journal.list() == []
+    with sqlite3.connect(database) as con:
+        assert con.execute("SELECT count(*) FROM work").fetchone()[0] == 1
+
+
+def test_delete_button_is_confirmed_and_limited_to_terminal_tasks():
+    root = Path(w.__file__).parent
+    html = (root / "home.html").read_text(encoding="utf-8")
+    css = (root / "gc.css").read_text(encoding="utf-8")
+    assert 'id="delete-task"' in html
+    assert 'window.confirm("Delete Task #"' in html
+    assert '["finished","failed"].includes(t.status)' in html
+    assert 'postJSON("/api/tasks/"+t.id+"/delete",{})' in html
+    assert "No GitHub content is deleted." in html
+    assert "state.tasksSignature=null;" in html
+    assert ".task-management" in css and ".task-delete" in css
