@@ -80,3 +80,12 @@
 .technical-details{margin:12px 0 4px}
 .technical-details>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:7px 0}
 .technical-details[open]>summary{color:var(--text)}
+
+/* Review Issues: readable per-Issue findings and actions. */
+.issue-findings{display:flex;flex-direction:column;gap:0}
+.issue-finding{padding:12px 0;border-bottom:1px solid var(--border)}
+.issue-finding:first-child{padding-top:0}
+.issue-finding:last-child{border-bottom:0;padding-bottom:0}
+.issue-finding h5{font-size:13px;margin:0 0 5px}
+.issue-finding .report-meta{font-size:12px}
+.issue-actions li{margin:8px 0}
