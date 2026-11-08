@@ -172,9 +172,26 @@ class Journal:
             columns = {row[1] for row in con.execute("PRAGMA table_info(work)")}
             if "deleted_utc" not in columns:
                 con.execute("ALTER TABLE work ADD COLUMN deleted_utc TEXT")
+            # Append-only minimal Task activity. Older records cannot be
+            # retroactively reconstructed as witnessed events.
+            con.execute("""CREATE TABLE IF NOT EXISTS work_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                happened_utc TEXT NOT NULL,
+                FOREIGN KEY(task_id) REFERENCES work(id)
+            )""")
 
     def _connect(self):
         return sqlite3.connect(self.db, timeout=15)
+
+    @staticmethod
+    def _event(con, task_id: int, event: str, at: str):
+        # Only internal event names/timestamps. Never API keys, tokens or the
+        # source's arbitrary untrusted content.
+        con.execute(
+            "INSERT INTO work_events(task_id,event,happened_utc) VALUES (?,?,?)",
+            (task_id, event, at))
 
     def create(self, definition_id: str, repository: str) -> int:
         now = _utc()
@@ -182,21 +199,29 @@ class Journal:
             row = con.execute(
                 "INSERT INTO work(definition_id,repository,status,created_utc,updated_utc) VALUES (?,?,?,?,?)",
                 (definition_id, repository, "running", now, now))
-            return int(row.lastrowid)
+            task_id = int(row.lastrowid)
+            self._event(con, task_id, "created", now)
+            return task_id
 
     def finish(self, task_id: int, status: str, result: dict | None = None, error: str | None = None):
         if status not in ("finished", "needs_attention", "failed"):
             raise ValueError("Invalid terminal work status.")
         with self._connect() as con:
-            con.execute(
-                "UPDATE work SET status=?, updated_utc=?, result_json=?, error=? WHERE id=? AND status='running'",
-                (status, _utc(), json.dumps(result, ensure_ascii=False) if result is not None else None,
+            now = _utc()
+            row = con.execute(
+                "UPDATE work SET status=?, updated_utc=?, result_json=?, error=? WHERE id=? AND status='running' AND deleted_utc IS NULL",
+                (status, now, json.dumps(result, ensure_ascii=False) if result is not None else None,
                  error, task_id))
+            if row.rowcount == 1:
+                self._event(con, task_id, "completed" if status == "finished" else status, now)
 
     def review(self, task_id: int) -> bool:
         with self._connect() as con:
+            now = _utc()
             result = con.execute("UPDATE work SET status='finished', updated_utc=? "
-                                 "WHERE id=? AND status='needs_attention'", (_utc(), task_id))
+                                 "WHERE id=? AND status='needs_attention' AND deleted_utc IS NULL", (now, task_id))
+            if result.rowcount == 1:
+                self._event(con, task_id, "marked_reviewed_locally", now)
             return result.rowcount == 1
 
     def delete(self, task_id: int) -> bool:
@@ -207,16 +232,42 @@ class Journal:
         if type(task_id) is not int or task_id < 1:
             return False
         with self._connect() as con:
+            now = _utc()
             row = con.execute(
                 "UPDATE work SET deleted_utc=? WHERE id=? AND deleted_utc IS NULL "
                 "AND status IN ('finished','failed')",
-                (_utc(), task_id))
+                (now, task_id))
+            if row.rowcount == 1:
+                self._event(con, task_id, "archived", now)
             return row.rowcount == 1
 
-    def list(self) -> list[dict]:
+    def restore(self, task_id: int) -> bool:
+        """Return an archived finished/failed Task to normal Work views."""
+        if type(task_id) is not int or task_id < 1:
+            return False
+        with self._connect() as con:
+            now = _utc()
+            row = con.execute(
+                "UPDATE work SET deleted_utc=NULL WHERE id=? AND deleted_utc IS NOT NULL "
+                "AND status IN ('finished','failed')", (task_id,))
+            if row.rowcount == 1:
+                self._event(con, task_id, "restored", now)
+            return row.rowcount == 1
+
+    def list(self, include_archived: bool = False) -> list[dict]:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
-            rows = con.execute("SELECT * FROM work WHERE deleted_utc IS NULL ORDER BY id DESC LIMIT 200").fetchall()
+            where = "" if include_archived else "WHERE deleted_utc IS NULL"
+            rows = con.execute(f"SELECT * FROM work {where} ORDER BY id DESC LIMIT 200").fetchall()
+            ids = [row["id"] for row in rows]
+            events = {}
+            if ids:
+                marks = ",".join("?" for _ in ids)
+                for e in con.execute(
+                    f"SELECT task_id,event,happened_utc FROM work_events WHERE task_id IN ({marks}) ORDER BY id",
+                    ids):
+                    events.setdefault(e["task_id"], []).append(
+                        {"event": e["event"], "at_utc": e["happened_utc"]})
         output = []
         for row in rows:
             record = dict(row)
@@ -227,6 +278,8 @@ class Journal:
                 if definition else {})
             record["version"] = definition.version if definition else "unknown"
             record["result"] = json.loads(record.pop("result_json")) if record["result_json"] else None
+            record["archived"] = record["deleted_utc"] is not None
+            record["activity"] = events.get(record["id"], [])
             output.append(record)
         return output
 
@@ -350,7 +403,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
             if path == "/api/tasks":
                 if self.headers.get("X-App-Nonce") != nonce:
                     return self._send(403, {"error": "Unauthorized."})
-                return self._send(200, {"tasks": service.journal.list()})
+                include_archived = urlsplit(self.path).query == "include_archived=1"
+                return self._send(200, {"tasks": service.journal.list(include_archived=include_archived)})
             return self._send(404, {"error": "Not found."})
 
         def do_POST(self):
@@ -399,6 +453,15 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                                "discussion_token": saved["read_token"]}
                     task_id = service.start(payload)
                     return self._send(202, {"id": task_id, "status": "running"})
+                if path.startswith("/api/tasks/") and path.endswith("/restore"):
+                    parts = path.split("/")
+                    if len(parts) != 5 or not parts[3].isdigit():
+                        return self._send(404, {"error": "Not found."})
+                    task_id = int(parts[3])
+                    if service.journal.restore(task_id):
+                        return self._send(200, {"id": task_id, "restored": True,
+                                                "scope": "local_work_only"})
+                    return self._send(409, {"error": "Task is not archived or cannot be restored."})
                 if path.startswith("/api/tasks/") and path.endswith("/delete"):
                     parts = path.split("/")
                     if len(parts) != 5 or not parts[3].isdigit():
