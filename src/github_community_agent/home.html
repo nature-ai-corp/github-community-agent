@@ -1,90 +1,69 @@
 <!doctype html>
+<!-- Nature AI Worker v0.1.1 UI baseline (Apache-2.0); adapted for independent GitHub Community Agent -->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GitHub Community Agent — Work Center</title>
-<style nonce="__APP_NONCE__">
-:root{font:14px/1.5 "Segoe UI",Arial,sans-serif;color:#182132;background:#f5f6f9}
-*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}
-.layout{display:flex;min-height:100vh}.sidebar{width:240px;background:#171b28;color:white;padding:22px 16px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
-.brand{font-size:20px;font-weight:700;line-height:1.25;padding:4px 8px 20px}.muted{color:#929baa;font-size:11px;letter-spacing:.08em;font-weight:700;margin:14px 8px 4px}
-.nav{display:block;text-align:left;background:transparent;color:#e3e7ef;border:0;border-radius:9px;padding:10px 12px;width:100%}.nav:hover,.nav.active{background:#313a50;color:#fff}
-.nav.primary{background:#37425d;font-weight:600}.footer{margin-top:auto}.main{flex:1;padding:28px 36px;min-width:0;max-width:1500px}.heading{font-size:26px;letter-spacing:-.02em;margin:0}.sub{color:#667084;margin:4px 0 23px}
-.panel{background:white;border:1px solid #e1e5ec;border-radius:13px;padding:24px;margin-bottom:18px;box-shadow:0 2px 8px #18213206}
-.row{display:flex;gap:14px;flex-wrap:wrap}.field{display:flex;flex:1;min-width:210px;flex-direction:column;gap:6px}.field label,.smallhead{font-weight:600;font-size:12px}
-input,select{border:1px solid #cdd4df;border-radius:7px;padding:9px 11px;background:#fff;color:#192438;width:100%}
-input:focus,select:focus{outline:2px solid #5976c1;outline-offset:1px}
-.btn{background:#263e72;color:white;border:0;border-radius:8px;padding:10px 17px;font-weight:600}.btn.secondary{background:#eef1f7;color:#263e72}.btn:disabled{opacity:.45;cursor:not-allowed}
-.route{display:flex;gap:12px;margin:16px 0}.route label{border:1px solid #d4dae5;border-radius:8px;padding:11px 16px;cursor:pointer;display:flex;gap:9px;align-items:center}
-.route label.selected{background:#ecf1fb;border-color:#4765ad}.route input{width:auto}
-.note{color:#697487;font-size:12px}.taskgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.taskchoice{border:1px solid #dbe0e9;background:#fff;border-radius:10px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:6px}
-.taskchoice.selected{border:2px solid #345ba0;background:#f0f5ff;padding:13px}.taskchoice:disabled{opacity:.55;cursor:not-allowed}
-.tag{font-size:11px;border-radius:5px;background:#edf2f9;color:#35527b;padding:2px 6px;display:inline-flex;width:fit-content}.tag.planned{background:#f2edf9;color:#71599a}
-.work{width:100%;border:1px solid #dce1e9;border-radius:10px;padding:17px;background:#fff;text-align:left;margin:10px 0;display:flex;justify-content:space-between;gap:12px}.work:hover{border-color:#7394c8}
-.work strong{font-size:16px}.status{font-weight:600}.status.finished{color:#16834c}.status.failed{color:#b53838}.status.needs_attention{color:#af660b}.status.running{color:#3966a8}
-.hid{display:none!important}.source{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fa;padding:14px;border-radius:8px;max-height:55vh;overflow:auto}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px}
-.modal-backdrop{position:fixed;inset:0;background:#11182777;display:flex;align-items:center;justify-content:center;z-index:30;padding:18px}
-.modal{width:min(440px,100%);background:#fff;border-radius:11px;box-shadow:0 18px 60px #0003;padding:20px}
-.modal h2{margin:0 0 14px;font-size:19px}.modal .field{margin-bottom:11px;min-width:0}
-.modal .field label{font-weight:500;color:#485164}.modal .row{align-items:center}
-.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px}
-.modal .key-note{color:#748094;font-size:11px;margin:-5px 0 12px}
-.modal details{border-top:1px solid #e9ebf0;padding-top:12px;margin-top:12px}
-.modal summary{cursor:pointer;color:#414d60;font-size:12px}
-.modal .advanced-fields{padding-top:12px}
-#settings-message{font-size:12px;min-height:20px;color:#314b73}
-.chip{border-radius:20px;padding:4px 10px;background:#eef2f7;color:#4d627f;font-size:12px}
-#error{color:#a52222;min-height:24px}.detail{border-top:1px solid #e1e5ec;margin-top:18px;padding-top:18px}
-@media(max-width:750px){.layout{display:block}.sidebar{width:100%;padding:12px}.brand{padding:0}.sidebar .muted,.sidebar .footer{display:none}.sidebar .nav{width:auto;display:inline-block}.main{padding:16px}}
-</style></head>
-<body><div class="layout">
-<aside class="sidebar">
-<div class="brand">◉ GitHub<br>Community Agent</div>
-<button class="nav primary" data-page="new">＋ New Task</button>
-<div class="muted">WORK CENTER</div>
-<button class="nav active" data-page="all">My Work</button>
-<button class="nav" data-page="running">Work In Progress</button>
-<button class="nav" data-page="attention">Needs My Attention</button>
-<button class="nav" data-page="finished">Finished Work</button>
-<div class="footer"><button class="nav" data-page="settings">⚙ Settings</button></div>
+<title>GitHub Community Agent</title>
+<link rel="stylesheet" href="/static/worker_v011.css">
+<link rel="stylesheet" href="/static/gc.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div id="app">
+<aside id="sidebar" aria-label="Navigation">
+<div class="brand"><span class="logo" aria-hidden="true">G</span><span class="brand-name">NATURE AI</span><span class="brand-product">GC Agent</span></div>
+<button class="new-work nav" data-page="new">+ New Work</button>
+<nav id="work-center" aria-label="Work Center">
+<div class="nav-group">Work Center</div>
+<button class="nav-item nav" data-page="all">My Work</button>
+<button class="nav-item nav" data-page="running">Work In Progress</button>
+<button class="nav-item nav" data-page="attention">Needs My Attention</button>
+<button class="nav-item nav" data-page="finished">Finished Work</button>
+</nav>
+<h2 class="nav-heading">Recent Work</h2><nav id="work-nav" aria-label="Recent Work"></nav>
+<div class="sidebar-footer"><button class="nav-item nav" data-page="settings">Settings</button><div id="model-label" class="small"></div></div>
 </aside>
-<main class="main">
-<div class="topbar"><div><h1 class="heading" id="heading">My Work</h1><p class="sub" id="subtitle">Manage work from this product's Task definitions.</p></div><span class="chip">Read-only V1 · V2 planned</span></div>
-<div id="error"></div>
-<section id="page-new" class="hid">
-<div class="panel">
-<h2>New Task</h2><p class="note">Choose ONE way to find a Task: Work Type OR Domain. These are alternative entry routes, not two required selections.</p>
-<div class="route"><label class="selected" id="route-work-label"><input type="radio" name="route" value="work_type" checked> Work Type</label><label id="route-domain-label"><input type="radio" name="route" value="domain"> Domain</label></div>
-<div class="row"><div class="field"><label id="selection-label">Work Type</label><select id="selection"></select></div></div>
-<p class="smallhead">Available Tasks</p><div id="choices" class="taskgrid"></div>
+<main id="main" tabindex="-1">
+<header id="topbar"><button id="toggle-sidebar" class="icon" aria-label="Show navigation">☰</button><span class="brand"><span class="logo">G</span><span class="brand-name">NATURE AI</span><span class="brand-product">GC Agent</span></span></header>
+<section id="page-new" class="view hid">
+<header class="page-header"><h1 id="heading">New Work</h1></header>
+<div class="page-body"><p class="muted small" id="subtitle">Select a Task using Work Type OR Domain.</p><p id="error" role="alert"></p>
+<div class="card">
+<h2 class="section-title">Task definition</h2>
+<p class="muted small">Choose either Work Type or Domain, then a concrete task. Classifications are defined by this product.</p>
+<div class="route"><label id="route-work-label" class="selected"><input type="radio" name="route" value="work_type" checked>Work Type</label><label id="route-domain-label"><input type="radio" name="route" value="domain">Domain</label></div>
+<div class="field"><label id="selection-label" class="field-label" for="selection">Work Type</label><select id="selection"></select></div>
+<div id="choices" class="taskgrid"></div>
 </div>
-<div class="panel"><h3 id="selected-title">Select a Task</h3>
-<div class="row"><div class="field"><label>Target public repository</label><input id="target-repo" placeholder="owner/repository"></div>
-<div class="field" id="number-field"><label>Issue or Discussion number</label><input id="number" type="number" min="1" placeholder="e.g. 33"></div></div>
-<p class="note" id="planned-note">V1 read-only execution. V2 Promotion is shown for planning but cannot run yet.</p>
-<button id="start" class="btn" disabled>Create &amp; Run Task</button>
-</div>
+<div class="card task-start"><h2 id="selected-title" class="section-title">Select a Task</h2>
+<div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="owner/repository"></div>
+<div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
+<p class="muted small" id="planned-note">V1 uses real GitHub and AI models; V2 Promotion is planned.</p>
+<div class="form-actions"><span class="spacer"></span><button class="primary" id="start" disabled>Create &amp; Run Task</button></div>
+</div></div></section>
+<section id="page-work" class="view">
+<header class="page-header"><h1 id="work-title">My Work</h1><div class="filter-group"><select id="filter-key" aria-label="Classification"><option value="">All classifications</option></select><select id="filter-value" aria-label="Classification value"><option value="">All</option></select></div></header>
+<div class="page-body"><div id="work-list" class="work-list"></div><div id="work-detail" class="block detail hid"></div></div>
 </section>
-<div id="settings-overlay" class="modal-backdrop hid" role="presentation">
-<div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-<h2 id="settings-title">Settings</h2>
-<div class="field"><label for="provider">Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></div>
-<div class="field"><label for="model">Model</label><input id="model" value="gpt-4.1-mini"></div>
-<div class="field"><label for="model-key">API key</label><input type="password" id="model-key" placeholder="Leave empty to keep current key" autocomplete="off"></div>
-<p class="key-note">Keys are held in this app session only; they are not yet stored encrypted.</p>
-<details id="settings-advanced"><summary>Advanced</summary><div class="advanced-fields">
-<div class="field"><label for="settings-repo">Public GitHub repository</label><input id="settings-repo" placeholder="owner/repository"></div>
-<div class="field"><label for="read-key">GitHub Discussions READ token</label><input type="password" id="read-key" placeholder="Leave empty to keep current token" autocomplete="off"></div>
-<p class="key-note">A read-only token is required for Discussions. GitHub posting is disabled.</p>
-</div></details>
-<p id="settings-message" role="status"></p>
-<div class="modal-actions"><button class="btn secondary" id="test-connection">Test connection</button><span style="flex:1"></span><button class="btn secondary" id="settings-cancel">Cancel</button><button class="btn" id="settings-save">Save</button></div>
-</div></div>
-<section id="page-work"><div class="panel">
-<div class="topbar"><h2 id="work-title">My Work</h2><div class="row"><select id="filter-key" aria-label="Task classification"><option value="">All classifications</option></select><select id="filter-value" aria-label="Classification value"><option value="">All</option></select></div></div>
-<div id="work-list"><p class="note">No work yet. Start with New Task.</p></div>
-<div id="work-detail" class="detail hid"></div>
-</div></section>
 </main></div>
+<div id="settings-overlay" class="modal-backdrop hid">
+<dialog id="settings-dialog" open aria-labelledby="settings-title" aria-modal="true">
+<form id="settings-form" method="dialog">
+<h2 id="settings-title">Settings</h2>
+<label>Provider<select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></label>
+<label>Model<input id="model" value="gpt-4.1-mini" autocomplete="off"></label>
+<label>API key<input type="password" id="model-key" autocomplete="off" placeholder="Leave empty to keep current key"></label>
+<p class="muted small">Session-only in this preview; encrypted persistence is not implemented.</p>
+<details id="settings-advanced"><summary>Advanced</summary>
+<label>Public GitHub repository<input id="settings-repo" placeholder="owner/repository"></label>
+<label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label>
+<p class="muted small">Read-only access; GitHub posting is disabled.</p>
+</details>
+<div id="settings-message" role="status"></div>
+<div class="dialog-actions">
+<button type="button" id="test-connection">Test connection</button><span class="spacer"></span>
+<button type="button" id="settings-cancel">Cancel</button>
+<button type="button" id="settings-save" class="primary">Save</button>
+</div>
+</form></dialog>
+</div>
 <script nonce="__APP_NONCE__">
 "use strict";
 const NONCE="__APP_NONCE__";
@@ -223,5 +202,4 @@ $("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-val
 $("target-repo").addEventListener("input",()=>{state.settings.repository=$("target-repo").value.trim()});
 (async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
 setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
-</script>
-</body></html>
+</script></body></html>
