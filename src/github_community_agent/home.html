@@ -149,19 +149,34 @@ state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
 $("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
 const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
-// Default to a runnable Community Management Task on the Work Type route,
-// and to Self-Promotion when Domain is chosen. Neither is a mandatory field
-// in the other route.
-const preferred=state.route==="work_type"?"Community Management":"Self-Promotion";
-vals.sort((a,b)=>a===preferred?-1:b===preferred?1:a.localeCompare(b));
+// Concrete V1 Work Types appear in their defined task order; promotion
+// Domains default to Self-Promotion. No separate Community Management layer.
+if(state.route==="work_type"){
+  vals.sort((a,b)=>state.definitions.findIndex(d=>d.work_type===a)-state.definitions.findIndex(d=>d.work_type===b));
+}else{
+  vals.sort((a,b)=>a==="Self-Promotion"?-1:b==="Self-Promotion"?1:a.localeCompare(b));
+}
 $("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
-if(vals.includes(preferred))$("selection").value=preferred;
+$("selection").value=state.route==="domain"&&vals.includes("Self-Promotion")?"Self-Promotion":(vals[0]||"");
 renderChoices();
 }
 function renderChoices(){
-state.definition=null;
 const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
-$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML([d.work_type,d.domain].filter(Boolean).join(' · '))+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
+// When the Work Type uniquely defines a Task, selecting the Work Type is
+// selecting the Task. Don't render a redundant row of five Task cards.
+if(state.route==="work_type"&&items.length===1){
+  $("choices").innerHTML="";
+  choose(items[0].id);
+  return;
+}
+// A Domain may contain multiple product targets; show only those concrete
+// options. For single-task Self-Promotion, select it directly.
+if(items.length===1){
+  $("choices").innerHTML="";
+  choose(items[0].id);
+  return;
+}
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
 $("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
 choose(null);
 }
