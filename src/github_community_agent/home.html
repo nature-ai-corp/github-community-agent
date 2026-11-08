@@ -24,11 +24,11 @@
 <header id="topbar"><button id="toggle-sidebar" class="icon" aria-label="Show navigation">☰</button><span class="brand"><span class="logo">G</span><span class="brand-name">NATURE AI</span><span class="brand-product">GC Agent</span></span></header>
 <section id="page-new" class="view hid">
 <header class="page-header"><h1 id="heading">New Work</h1></header>
-<div class="page-body"><p class="muted small" id="subtitle">Select a Task using Work Type OR Domain.</p><p id="error" role="alert"></p>
+<div class="page-body"><p class="muted small" id="subtitle">Select Community Management or Promotion to choose a Task.</p><p id="error" role="alert"></p>
 <div class="card">
 <h2 class="section-title">Task definition</h2>
-<p class="muted small">Choose either Work Type or Domain, then a concrete task. Classifications are defined by this product.</p>
-<div class="route"><label id="route-work-label" class="selected"><input type="radio" name="route" value="work_type" checked>Work Type</label><label id="route-domain-label"><input type="radio" name="route" value="domain">Domain</label></div>
+<p class="muted small">Choose Community Management or Promotion. Each offers its own Task definitions.</p>
+<div class="route"><label id="route-work-label" class="selected"><input type="radio" name="route" value="work_type" checked>Community Management</label><label id="route-domain-label"><input type="radio" name="route" value="domain">Promotion</label></div>
 <div class="field"><label id="selection-label" class="field-label" for="selection">Work Type</label><select id="selection"></select></div>
 <div id="choices" class="taskgrid"></div>
 </div>
@@ -85,7 +85,7 @@ const isWork=name!=="new";
 $("page-"+(isWork?"work":"new")).classList.remove("hid");
 const headings={new:"New Task",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work"};
 $("heading").textContent=headings[name];
-$("subtitle").textContent=name==="new"?"Select a Task using Work Type OR Domain.":"Task history and status, categorized using each product's definitions.";
+$("subtitle").textContent=name==="new"?"Select Community Management or Promotion to choose a Task.":"Task history and status, categorized using each product's definitions.";
 document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
 if(isWork)renderWork();
 }
@@ -147,7 +147,7 @@ finally{$("test-connection").disabled=false}
 function renderRoute(){
 state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
-$("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
+$("selection-label").textContent=state.route==="work_type"?"Community Management — Work Type":"Promotion — Domain";
 const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
 // Concrete V1 Work Types appear in their defined task order; promotion
 // Domains default to Self-Promotion. No separate Community Management layer.
