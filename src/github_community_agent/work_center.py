@@ -52,6 +52,93 @@ DEFINITIONS = (
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
+# Each Task owns its own user-facing definition. The Work Center only renders
+# these records; another product can supply different classification/fields.
+TASK_DETAILS = {
+    "review_issues": {
+        "goal": "Review recent public GitHub Issues and identify items that may need maintainer attention.",
+        "steps": ["Read a bounded page of Issues from the configured repository.",
+                  "Analyze the retrieved issues with the configured AI model.",
+                  "Return prioritized findings grounded in actual GitHub evidence."],
+        "output": "Issue analysis with evidence and source references; no GitHub changes.",
+        "requires": "Public repository, configured AI model and API key.",
+        "review": "Human review recommended before acting on findings.",
+        "limitations": "Only fetched issues are covered; not a complete audit of every Issue."
+    },
+    "review_discussions": {
+        "goal": "Review recent GitHub Discussions and identify questions or conversations needing follow-up.",
+        "steps": ["Read a bounded page of Discussions and selected available details/comments.",
+                  "Analyze topics and unanswered or pending conversations.",
+                  "Produce a source-backed review for a maintainer."],
+        "output": "Discussion analysis with actual links; no replies are published.",
+        "requires": "Public repository, AI model, and GitHub Discussions READ token.",
+        "review": "Human review required before any community reply.",
+        "limitations": "Only fetched discussions and comments are covered."
+    },
+    "draft_issue": {
+        "goal": "Prepare a suggested maintainer reply to one specific GitHub Issue.",
+        "steps": ["Read the selected Issue and its existing context.",
+                  "Generate a relevant reply draft using the AI model.",
+                  "Place the draft in Needs My Attention for human review."],
+        "output": "Unposted reply draft and associated GitHub source evidence.",
+        "requires": "Public repository, Issue number, AI model and API key.",
+        "review": "Must be reviewed by a person; Mark reviewed never posts to GitHub.",
+        "limitations": "Read-only: no comments or replies are sent."
+    },
+    "draft_discussion": {
+        "goal": "Prepare a suggested maintainer reply to one specific GitHub Discussion.",
+        "steps": ["Read the selected Discussion and available context.",
+                  "Generate a context-specific reply draft.",
+                  "Place the draft in Needs My Attention for human review."],
+        "output": "Unposted discussion reply draft and source evidence.",
+        "requires": "Public repository, Discussion number, Discussions READ token, AI model and API key.",
+        "review": "Must be reviewed by a person; Mark reviewed never posts to GitHub.",
+        "limitations": "Read-only: no discussion replies are sent."
+    },
+    "community_report": {
+        "goal": "Summarize observed community activity and follow-up opportunities.",
+        "steps": ["Retrieve bounded available Issue and Discussion evidence.",
+                  "Analyze observed activity with the configured AI model.",
+                  "Report findings with coverage limitations and source evidence."],
+        "output": "Community activity report, based only on retrieved data.",
+        "requires": "Public repository, AI model; Discussions READ token needed for Discussion coverage.",
+        "review": "Human review recommended; no changes are published.",
+        "limitations": "A missing Discussions token or limited fetched data makes coverage incomplete."
+    },
+    "promote_self": {
+        "goal": "Plan promotion of GitHub Community Agent itself.",
+        "steps": ["V2 planned: assess the project's current public materials.",
+                  "V2 planned: propose promotion opportunities and prepare content.",
+                  "V2 planned: require review before any publication."],
+        "output": "Future promotion plan and draft materials; not yet available.",
+        "requires": "V2 Promotion implementation and explicit review/approval safeguards.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+    "promote_worker": {
+        "goal": "Plan promotion of the separate Nature AI Worker product.",
+        "steps": ["V2 planned: analyze product positioning and public materials.",
+                  "V2 planned: prepare tailored outreach and community content.",
+                  "V2 planned: require review and approval before publication."],
+        "output": "Future promotion plan and drafts; not yet available.",
+        "requires": "V2 Promotion implementation and approved target scope.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+    "promote_other": {
+        "goal": "Plan promotion of another explicitly selected GitHub repository.",
+        "steps": ["V2 planned: review the specified repository and audience.",
+                  "V2 planned: prepare an evidence-based promotion plan and content.",
+                  "V2 planned: require approval before any external action."],
+        "output": "Future promotion plan and drafts; not yet available.",
+        "requires": "V2 Promotion implementation and an explicitly authorized target repository.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+}
+
+
+
 
 def task_choices(route: str, value: str) -> list[TaskDefinition]:
     """Choice route is mutually exclusive; Task definitions own both classifications."""
@@ -130,7 +217,7 @@ class WorkService:
         self.journal = journal
 
     def definitions(self) -> list[dict]:
-        return [asdict(d) for d in DEFINITIONS]
+        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in DEFINITIONS]
 
     def start(self, payload: dict) -> int:
         """Create a real Work record then launch one existing production workflow."""
