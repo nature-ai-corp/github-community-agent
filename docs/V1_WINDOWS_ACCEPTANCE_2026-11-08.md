@@ -129,3 +129,32 @@ and Activity History remain usable.
 
 No real GitHub comment/promotion posting is part of V1. Nature AI Worker
 v0.1.1 remains unchanged.
+
+## Native Windows test failure found in user log (2026-11-08)
+
+The user executed the previous pytest command repeatedly and encountered:
+- **one real test failure** (the terminal progress shows `F`);
+- during session cleanup an additional `PermissionError [WinError 5]` on
+  `%LOCALAPPDATA%\\Temp\\pytest-of-aiuser\\pytest-current`, which
+  masked the test failure summary.
+- **wheel packaging smoke PASS** for independent 0.0.0.dev0 package
+  (console-script entries and UI assets); still not an official release.
+
+**Recovery for diagnosis:** run the new isolated Windows script from the
+repository, without deleting or changing pytest's old temp folder:
+
+```powershell
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\windows-test-regression.ps1
+```
+
+The script uses a unique directory under
+`%LOCALAPPDATA%\\GitHubCommunityAgent\\test-runs` for each invocation,
+with `pytest --basetemp`, `--tb=short`, `-ra`, and propagates the real
+pytest exit code. It preserves failed-run diagnostics and **does not modify**
+the existing application Work journal or GitHub remote records.
+
+**Do not declare regression PASS** until the underlying test `F` is
+identified, fixed (or justified), and Windows pytest exits 0. The old
+pytest temp permission issue may be environment-specific; the isolated runner
+is a diagnostic workaround rather than proof that the old path is fixed.
