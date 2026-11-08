@@ -45,6 +45,23 @@ python -m venv .venv
 .\.venv\Scripts\github-community-agent-home.exe
 ```
 
+## Windows independent installer — internal preview only
+
+This repository now contains **source-only build recipes** for a separate
+per-user GC Agent EXE and an unsigned Inno Setup 6 installer. The build output
+has **not yet been verified on the target Windows machine** and is **not**
+an official downloadable release. See
+[Windows Installer Acceptance](docs/WINDOWS_INSTALLER_ACCEPTANCE.md).
+
+To build locally after Windows tests pass, install optional build tools with
+`.\\.venv\\Scripts\\python.exe -m pip install -e ".[dev,build]"`, run
+`scripts/windows-build-exe.ps1`, then with independently installed Inno
+Setup 6 run `scripts/windows-build-installer.ps1`. The installer has its
+own AppId and installs under the current user's program directory. Upgrade
+and uninstall must preserve `%LOCALAPPDATA%\\GitHubCommunityAgent`
+Work history and DPAPI-encrypted settings. **Do not distribute this unsigned
+developer installer**.
+
 A Windows isolated wheel-build/resource preflight is provided at
 `scripts/windows-v1-preflight.ps1`. It is **not** an installer or code-signing
 step. See [V1 Windows acceptance](docs/V1_WINDOWS_ACCEPTANCE_2026-11-08.md)
