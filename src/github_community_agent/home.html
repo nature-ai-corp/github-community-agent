@@ -216,6 +216,12 @@ finally{$("start").disabled=false}
 }
 async function refresh(){
 const obj=await getJSON("/api/tasks");
+// Polling must not replace interactive DOM when the work data is unchanged.
+// In particular, rebuilding <details> every two seconds closes it, loses
+// scroll position and interrupts Copy/Export actions.
+const signature=JSON.stringify(obj.tasks);
+if(signature===state.tasksSignature)return;
+state.tasksSignature=signature;
 state.tasks=obj.tasks;
 const recent=$("work-nav");
 recent.replaceChildren();
@@ -245,7 +251,21 @@ const allowed={running:["running"],attention:["needs_attention","failed"],finish
 const rows=state.tasks.filter(t=>(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
 $("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
 $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
-const selected=rows.find(t=>t.id===state.selectedTask);if(selected)showDetail(selected);else $("work-detail").classList.add("hid");
+const selected=rows.find(t=>t.id===state.selectedTask);
+if(selected){
+// Real state changes may require updating the detail. Preserve the user's
+// expanded technical JSON and its scroll position across that update.
+const opened=$("work-detail").querySelector(".technical-details");
+const wasOpen=Boolean(opened?.open);
+const priorScroll=$("work-detail").querySelector("#task-result-json")?.scrollTop??0;
+showDetail(selected);
+const next=$("work-detail").querySelector(".technical-details");
+if(next){
+next.open=wasOpen;
+const result=$("work-detail").querySelector("#task-result-json");
+if(result&&wasOpen)result.scrollTop=priorScroll;
+}
+}else $("work-detail").classList.add("hid");
 }
 function openTask(id){state.selectedTask=id;const t=state.tasks.find(x=>x.id===id);if(t)showDetail(t)}
 function exportRecord(t){
