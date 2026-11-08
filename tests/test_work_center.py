@@ -286,3 +286,55 @@ def test_issue_report_breaks_ai_analysis_into_source_linked_findings_and_actions
     # Original raw evidence remains accessible for full provenance and export.
     assert '<summary>Technical Details</summary>' in html
     assert 'result:t.result' in html
+
+
+def test_draft_reply_is_visible_and_never_claims_publication():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    css = (Path(w.__file__).parent / "gc.css").read_text(encoding="utf-8")
+    assert 'typeof r.draft==="string"' in html
+    assert "Draft Reply — Not Published" in html
+    assert 'escapeHTML(r.draft)' in html
+    assert "Needs your review. No GitHub reply has been posted." in html
+    assert "Marked reviewed locally. No GitHub reply has been posted." in html
+    assert "To publish, use GitHub manually" in html
+    assert '.draft-reply-text' in css
+
+
+def test_both_draft_definitions_require_human_attention(tmp_path, monkeypatch):
+    journal = w.Journal(tmp_path / "work.sqlite")
+    service = w.WorkService(journal)
+    produced = []
+    def fake_production_runtime(**kwargs):
+        produced.append(kwargs)
+        return {"workflow": "draft_replies", "read_only": True,
+                "posted": False, "requires_human_review": True,
+                "source_url": "https://github.com/example/public/issues/33",
+                "draft": "This is a proposed reply, not posted."}
+    monkeypatch.setattr(w, "execute_workflow", fake_production_runtime)
+    class ImmediateThread:
+        def __init__(self, target, args, daemon):
+            self.target, self.args = target, args
+        def start(self):
+            self.target(*self.args)
+    monkeypatch.setattr(w.threading, "Thread", ImmediateThread)
+    for definition_id, work_type, target in (
+        ("draft_issue", "Draft Issue Reply", "issue"),
+        ("draft_discussion", "Draft Discussion Reply", "discussion"),
+    ):
+        task_id = service.start({
+            "route": "work_type", "selection": work_type,
+            "definition_id": definition_id, "repository": "example/public",
+            "provider": "openai", "model_name": "gpt-4.1-mini",
+            "model_key": "test-only-credential", "number": 33,
+        })
+        record = next(t for t in journal.list() if t["id"] == task_id)
+        assert record["status"] == "needs_attention"
+        assert record["result"]["posted"] is False
+        assert record["result"]["draft"].startswith("This is a proposed")
+        assert produced[-1]["target"] == target
+        assert journal.review(task_id)
+        updated = next(t for t in journal.list() if t["id"] == task_id)
+        assert updated["status"] == "finished"
+        assert updated["result"]["posted"] is False
+        assert updated["result"]["requires_human_review"] is True
+        assert not journal.review(task_id)
