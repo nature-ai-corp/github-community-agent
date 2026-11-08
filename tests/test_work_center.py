@@ -143,5 +143,5 @@ def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
     assert 'id="work-center"' in html
     assert 'id="settings-dialog"' in html
     assert 'id="settings-form"' in html
-    assert "domain" in custom.lower()
+    assert "#choices" in custom and ".taskchoice" in custom
     assert "GitHub Community Agent" in html
