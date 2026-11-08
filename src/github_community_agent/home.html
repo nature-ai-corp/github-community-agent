@@ -372,6 +372,69 @@ function issueReviewItems(analysis, issues){
   }
   return items;
 }
+// Render the ALREADY SAVED Community Report into user sections. No AI call,
+// invented activity, or assumptions about subsequent implementation status.
+function communityReportSections(analysis){
+  if(typeof analysis!=="string")return {};
+  const keys={
+    "Data Scope":"scope",
+    "Issue Activity Summary":"issues",
+    "Discussion Activity Summary":"discussions",
+    "Key Observations and Themes":"observations",
+    "Recommendations (with uncertainty)":"recommendations",
+    "Recommendations":"recommendations",
+    "Sources":"sources"
+  };
+  const lines=analysis.split(/\r?\n/), sections={};
+  let current=null;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(Object.hasOwn(keys,line)&&i+1<lines.length&&/^-{3,}$/.test(lines[i+1].trim())){
+      current=keys[line];sections[current]=[];i++;continue;
+    }
+    if(current)sections[current].push(lines[i]);
+  }
+  return Object.fromEntries(Object.entries(sections).map(([k,v])=>[k,v.join("\n").trim()]));
+}
+function reportLines(text){
+  // Preserve text & line breaks without treating model-produced Markdown
+  // or HTML as executable markup.
+  return '<div class="report-prose">'+escapeHTML(text||"No observed data in this section.")+'</div>';
+}
+function communityReportBody(t){
+  const r=t.result||{}, parsed=communityReportSections(r.analysis);
+  const issues=typeof r.issues_analyzed==="number"?r.issues_analyzed:null;
+  const read=typeof r.issue_page_count==="number"?r.issue_page_count:null;
+  const discussions=Array.isArray(r.discussions)?r.discussions.length:null;
+  const synopsis=[
+    issues!==null?"Analyzed "+issues+" recent Issues"+(read!==null?" from "+read+" fetched Issue records":""):null,
+    discussions!==null?"Read "+discussions+" Discussion records":null
+  ].filter(Boolean).join(" · ");
+  const items=[];
+  items.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(synopsis||"Community evidence report from a bounded GitHub sample.")+'</p></section>');
+  items.push('<section class="report-section"><h4>Findings</h4>');
+  if(parsed.issues)items.push('<h5>Issue Activity</h5>'+reportLines(parsed.issues));
+  if(parsed.discussions)items.push('<h5>Discussion Activity</h5>'+reportLines(parsed.discussions));
+  if(parsed.observations)items.push('<h5>Key Observations</h5>'+reportLines(parsed.observations));
+  if(!parsed.issues&&!parsed.discussions&&!parsed.observations)items.push(reportLines(r.analysis));
+  items.push('</section>');
+  if(parsed.recommendations)items.push('<section class="report-section"><h4>Recommended Actions — AI Assessment</h4>'+reportLines(parsed.recommendations)+'</section>');
+  items.push('<section class="report-section"><h4>Next Step</h4><p>Review the proposed actions against current repository state before acting. GitHub Issue descriptions may represent earlier plans, not current implementation or release status.</p></section>');
+  const refs=new Set();
+  const add=url=>{if(typeof url==="string"&&/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|discussions)\/\d+$/.test(url))refs.add(url)};
+  for(const record of [...(Array.isArray(r.issues)?r.issues:[]),...(Array.isArray(r.discussions)?r.discussions:[])])add(record?.url);
+  if(refs.size)items.push('<section class="report-section"><h4>Sources</h4><ul>'+[...refs].map(url=>'<li><a href="'+escapeHTML(url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(url)+'</a></li>').join("")+'</ul></section>');
+  const caveats=[];
+  if(read!==null)caveats.push("Issue records fetched in page: "+read);
+  if(issues!==null)caveats.push("Issues analyzed: "+issues);
+  if(typeof r.discussion_page_count==="number")caveats.push("Discussion records fetched in page: "+r.discussion_page_count);
+  caveats.push("Limited sample — not a full repository audit");
+  if(r.total_pages_known===false)caveats.push("Total pages unverified");
+  if(r.incomplete===true)caveats.push("Coverage incomplete");
+  if(r.discussions_checked===false)caveats.push("Discussions not checked");
+  items.push('<p class="report-coverage">'+escapeHTML(caveats.join(" · "))+'</p>');
+  return items.join("");
+}
 function taskReport(t){
   const r=t.result||{};
   const {summary,sections}=reportSections(r.analysis);
@@ -397,6 +460,11 @@ function taskReport(t){
       elements.push('<section class="report-section"><h4>Sources</h4><a href="'+escapeHTML(r.source_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(r.source_url)+'</a></section>');
     }
     elements.push('<p class="report-coverage">Read-only: '+escapeHTML(String(r.read_only===true))+' · Posted: '+escapeHTML(String(r.posted===true))+'</p>');
+    elements.push('</section>');
+    return elements.join("");
+  }
+  if(t.definition_id==="community_report"){
+    elements.push(communityReportBody(t));
     elements.push('</section>');
     return elements.join("");
   }
