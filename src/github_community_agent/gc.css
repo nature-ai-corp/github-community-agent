@@ -45,3 +45,12 @@
 #app{display:block;height:auto}#work-center{display:flex;flex-direction:row;flex-wrap:wrap}
 #work-center .nav-item{width:auto}#work-nav{display:none}#main{min-height:70vh}
 #topbar{display:none}.filter-group{flex-wrap:wrap}}
+
+/* Product-owned Task details; styling extends the shared Worker v0.1.1 UI. */
+.task-details{margin:10px 0 16px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.task-details .smallhead{font-size:12px;font-weight:700;color:var(--text);margin:12px 0 3px}
+.task-details .smallhead:first-child{margin-top:0}
+.task-details p{margin:0 0 5px;font-size:13px;line-height:1.5}
+.task-details ol{margin:5px 0 8px;padding-left:20px;font-size:13px}
+.task-details li{margin:2px 0}
+.taskchoice .planned{color:#966628}
