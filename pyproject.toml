@@ -20,6 +20,7 @@ github-community-agent-home = "github_community_agent.work_center:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+build = ["pyinstaller>=6,<7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
