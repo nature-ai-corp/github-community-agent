@@ -268,3 +268,21 @@ def test_polling_does_not_reset_expanded_technical_details():
     assert 'const wasOpen=Boolean(opened?.open);' in html
     assert 'next.open=wasOpen;' in html
     assert 'if(result&&wasOpen)result.scrollTop=priorScroll;' in html
+
+
+def test_issue_report_breaks_ai_analysis_into_source_linked_findings_and_actions():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    css = (Path(w.__file__).parent / "gc.css").read_text(encoding="utf-8")
+    assert 'function issueReviewItems(analysis, issues)' in html
+    assert 't.definition_id==="review_issues"?issueReviewItems(r.analysis,r.issues):[]' in html
+    assert 'Issue records fetched in page:' in html
+    assert 'Issues analyzed:' in html
+    assert 'Limited sample — not a full repository review' in html
+    assert "Priority (AI assessment):" in html
+    assert 'issue.finding' in html and 'issue.action' in html
+    assert 'class="issue-finding"' in html
+    assert 'class="issue-actions"' in html
+    assert '.issue-finding' in css
+    # Original raw evidence remains accessible for full provenance and export.
+    assert '<summary>Technical Details</summary>' in html
+    assert 'result:t.result' in html
