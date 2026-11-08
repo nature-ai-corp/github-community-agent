@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHub Community Agent — Work Center</title>
+<style nonce="__APP_NONCE__">
+:root{font:14px/1.5 "Segoe UI",Arial,sans-serif;color:#182132;background:#f5f6f9}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}
+.layout{display:flex;min-height:100vh}.sidebar{width:240px;background:#171b28;color:white;padding:22px 16px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+.brand{font-size:20px;font-weight:700;line-height:1.25;padding:4px 8px 20px}.muted{color:#929baa;font-size:11px;letter-spacing:.08em;font-weight:700;margin:14px 8px 4px}
+.nav{display:block;text-align:left;background:transparent;color:#e3e7ef;border:0;border-radius:9px;padding:10px 12px;width:100%}.nav:hover,.nav.active{background:#313a50;color:#fff}
+.nav.primary{background:#37425d;font-weight:600}.footer{margin-top:auto}.main{flex:1;padding:28px 36px;min-width:0;max-width:1500px}.heading{font-size:26px;letter-spacing:-.02em;margin:0}.sub{color:#667084;margin:4px 0 23px}
+.panel{background:white;border:1px solid #e1e5ec;border-radius:13px;padding:24px;margin-bottom:18px;box-shadow:0 2px 8px #18213206}
+.row{display:flex;gap:14px;flex-wrap:wrap}.field{display:flex;flex:1;min-width:210px;flex-direction:column;gap:6px}.field label,.smallhead{font-weight:600;font-size:12px}
+input,select{border:1px solid #cdd4df;border-radius:7px;padding:9px 11px;background:#fff;color:#192438;width:100%}
+input:focus,select:focus{outline:2px solid #5976c1;outline-offset:1px}
+.btn{background:#263e72;color:white;border:0;border-radius:8px;padding:10px 17px;font-weight:600}.btn.secondary{background:#eef1f7;color:#263e72}.btn:disabled{opacity:.45;cursor:not-allowed}
+.route{display:flex;gap:12px;margin:16px 0}.route label{border:1px solid #d4dae5;border-radius:8px;padding:11px 16px;cursor:pointer;display:flex;gap:9px;align-items:center}
+.route label.selected{background:#ecf1fb;border-color:#4765ad}.route input{width:auto}
+.note{color:#697487;font-size:12px}.taskgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.taskchoice{border:1px solid #dbe0e9;background:#fff;border-radius:10px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:6px}
+.taskchoice.selected{border:2px solid #345ba0;background:#f0f5ff;padding:13px}.taskchoice:disabled{opacity:.55;cursor:not-allowed}
+.tag{font-size:11px;border-radius:5px;background:#edf2f9;color:#35527b;padding:2px 6px;display:inline-flex;width:fit-content}.tag.planned{background:#f2edf9;color:#71599a}
+.work{width:100%;border:1px solid #dce1e9;border-radius:10px;padding:17px;background:#fff;text-align:left;margin:10px 0;display:flex;justify-content:space-between;gap:12px}.work:hover{border-color:#7394c8}
+.work strong{font-size:16px}.status{font-weight:600}.status.finished{color:#16834c}.status.failed{color:#b53838}.status.needs_attention{color:#af660b}.status.running{color:#3966a8}
+.hid{display:none!important}.source{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fa;padding:14px;border-radius:8px;max-height:55vh;overflow:auto}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px}.chip{border-radius:20px;padding:4px 10px;background:#eef2f7;color:#4d627f;font-size:12px}
+#error{color:#a52222;min-height:24px}.detail{border-top:1px solid #e1e5ec;margin-top:18px;padding-top:18px}
+@media(max-width:750px){.layout{display:block}.sidebar{width:100%;padding:12px}.brand{padding:0}.sidebar .muted,.sidebar .footer{display:none}.sidebar .nav{width:auto;display:inline-block}.main{padding:16px}}
+</style></head>
+<body><div class="layout">
+<aside class="sidebar">
+<div class="brand">◉ GitHub<br>Community Agent</div>
+<button class="nav primary" data-page="new">＋ New Task</button>
+<div class="muted">WORK CENTER</div>
+<button class="nav active" data-page="all">My Work</button>
+<button class="nav" data-page="running">Work In Progress</button>
+<button class="nav" data-page="attention">Needs My Attention</button>
+<button class="nav" data-page="finished">Finished Work</button>
+<div class="footer"><button class="nav" data-page="settings">⚙ Settings</button></div>
+</aside>
+<main class="main">
+<div class="topbar"><div><h1 class="heading" id="heading">My Work</h1><p class="sub" id="subtitle">Manage work from this product's Task definitions.</p></div><span class="chip">Read-only V1 · V2 planned</span></div>
+<div id="error"></div>
+<section id="page-new" class="hid">
+<div class="panel">
+<h2>New Task</h2><p class="note">Choose ONE way to find a Task: Work Type OR Domain. These are alternative entry routes, not two required selections.</p>
+<div class="route"><label class="selected" id="route-work-label"><input type="radio" name="route" value="work_type" checked> Work Type</label><label id="route-domain-label"><input type="radio" name="route" value="domain"> Domain</label></div>
+<div class="row"><div class="field"><label id="selection-label">Work Type</label><select id="selection"></select></div></div>
+<p class="smallhead">Available Tasks</p><div id="choices" class="taskgrid"></div>
+</div>
+<div class="panel"><h3 id="selected-title">Select a Task</h3>
+<div class="row"><div class="field"><label>Target public repository</label><input id="target-repo" placeholder="owner/repository"></div>
+<div class="field" id="number-field"><label>Issue or Discussion number</label><input id="number" type="number" min="1" placeholder="e.g. 33"></div></div>
+<p class="note" id="planned-note">V1 read-only execution. V2 Promotion is shown for planning but cannot run yet.</p>
+<button id="start" class="btn" disabled>Create &amp; Run Task</button>
+</div>
+</section>
+<section id="page-settings" class="hid"><div class="panel"><h2>Settings</h2><p class="note">Credentials are session-only and never saved to the Work journal. Closing the Work Center server clears access to these settings.</p>
+<div class="row"><div class="field"><label>Public repository</label><input id="settings-repo" placeholder="owner/repository"></div>
+<div class="field"><label>AI Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></div>
+<div class="field"><label>Model</label><input id="model" value="gpt-4.1-mini"></div></div>
+<div class="row" style="margin-top:14px"><div class="field"><label>AI API Key — memory only</label><input type="password" id="model-key" autocomplete="off"></div>
+<div class="field"><label>GitHub Discussions READ Token — optional</label><input type="password" id="read-key" autocomplete="off"></div></div>
+<p class="note">The app never needs GitHub write permissions in this preview. Keep secrets off screenshots and exported evidence.</p>
+<button class="btn secondary" id="return-new">Back to New Task</button>
+</div></section>
+<section id="page-work"><div class="panel">
+<div class="topbar"><h2 id="work-title">My Work</h2><div class="row"><select id="filter-key" aria-label="Task classification"><option value="">All classifications</option></select><select id="filter-value" aria-label="Classification value"><option value="">All</option></select></div></div>
+<div id="work-list"><p class="note">No work yet. Start with New Task.</p></div>
+<div id="work-detail" class="detail hid"></div>
+</div></section>
+</main></div>
+<script nonce="__APP_NONCE__">
+"use strict";
+const NONCE="__APP_NONCE__";
+const $=id=>document.getElementById(id);
+const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null};
+const headers=()=>({"Content-Type":"application/json","X-App-Nonce":NONCE});
+const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function error(message){$("error").textContent=message||""}
+function unique(values){return [...new Set(values)].sort()}
+async function getJSON(path){const r=await fetch(path,{headers:headers(),cache:"no-store"});if(!r.ok)throw Error("Request failed: "+r.status);return r.json()}
+async function postJSON(path,data){const r=await fetch(path,{method:"POST",headers:headers(),body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw Error(j.error||"Request rejected");return j}
+function page(name){state.page=name;error("");for(const p of ["new","settings","work"]){$("page-"+p).classList.add("hid")}
+const isWork=!["new","settings"].includes(name);$("page-"+(isWork?"work":name)).classList.remove("hid");
+const headings={new:"New Task",settings:"Settings",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work"};
+$("heading").textContent=headings[name];$("subtitle").textContent=name==="new"?"Select a Task using Work Type OR Domain.":name==="settings"?"Configure this product once for the current application session.":"Task history and status, categorized using each product's definitions.";
+document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
+if(isWork)renderWork();
+}
+function renderRoute(){
+state.definition=null;
+document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
+$("selection-label").textContent=state.route==="work_type"?"Work Type":"Domain";
+const vals=unique(state.definitions.map(d=>d[state.route]));
+$("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
+renderChoices();
+}
+function renderChoices(){
+state.definition=null;
+const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" data-id="'+escapeHTML(d.id)+'" '+(!d.enabled?'disabled':'')+'><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+' · '+escapeHTML(d.domain)+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned')+'</span></button>').join("");
+$("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
+choose(null);
+}
+function choose(id){
+state.definition=state.definitions.find(d=>d.id===id)||null;
+document.querySelectorAll(".taskchoice").forEach(b=>b.classList.toggle("selected",b.dataset.id===id));
+$("selected-title").textContent=state.definition?state.definition.title:"Select a Task";
+const needNumber=state.definition&&state.definition.workflow==="draft_replies";
+$("number-field").classList.toggle("hid",!needNumber);
+$("start").disabled=!state.definition||!state.definition.enabled;
+$("planned-note").textContent=state.definition?.version==="V2"?"V2 Promotion is planned; execution has not been implemented.":"V1: actual GitHub/OpenAI runtime; no GitHub posting.";
+}
+async function startTask(){
+if(!state.definition)return;
+const d=state.definition;
+const n=Number($("number").value);
+const data={route:state.route,selection:$("selection").value,definition_id:d.id,repository:$("target-repo").value.trim(),provider:$("provider").value,model_name:$("model").value.trim(),model_key:$("model-key").value,discussion_token:$("read-key").value,number:d.workflow==="draft_replies"?n:null};
+$("start").disabled=true;
+try{const res=await postJSON("/api/tasks",data);$("model-key").value="";$("read-key").value="";error("");state.selectedTask=res.id;await refresh();page("all")}
+catch(e){error(e.message)}
+finally{$("start").disabled=false}
+}
+async function refresh(){const obj=await getJSON("/api/tasks");state.tasks=obj.tasks;renderWork()}
+function renderFilters(){
+const keys=unique(state.definitions.flatMap(d=>Object.keys({work_type:d.work_type,domain:d.domain})));
+const labels={work_type:"Work Type",domain:"Domain"};
+$("filter-key").innerHTML='<option value="">All classifications</option>'+keys.map(k=>'<option value="'+k+'">'+escapeHTML(labels[k]||k)+'</option>').join("");
+$("filter-key").value=state.filterKey;
+const values=unique(state.tasks.map(t=>t.classifications[state.filterKey]).filter(Boolean));
+$("filter-value").innerHTML='<option value="">All</option>'+values.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
+$("filter-value").value=state.filterValue;
+}
+function renderWork(){
+if(["new","settings"].includes(state.page))return;
+$("work-title").textContent=$("heading").textContent;
+renderFilters();
+const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],all:["running","needs_attention","finished","failed"]};
+const rows=state.tasks.filter(t=>(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
+$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML(t.classifications.work_type)+' · '+escapeHTML(t.classifications.domain)+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
+$("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
+const selected=rows.find(t=>t.id===state.selectedTask);if(selected)showDetail(selected);else $("work-detail").classList.add("hid");
+}
+function openTask(id){state.selectedTask=id;const t=state.tasks.find(x=>x.id===id);if(t)showDetail(t)}
+function showDetail(t){
+const c=$("work-detail");c.classList.remove("hid");
+const source=t.result?.source_url||t.result?.issues?.[0]?.url||t.result?.discussions?.[0]?.url;
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Work Type: '+escapeHTML(t.classifications.work_type)+' · Domain: '+escapeHTML(t.classifications.domain)+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+(t.result?'<p class="smallhead">Actual application result</p><pre>'+escapeHTML(JSON.stringify(t.result,null,2))+'</pre>':'<p class="note">No result yet.</p>')+(t.status==="needs_attention"?'<button class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'');
+const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
+}
+document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
+document.querySelectorAll('input[name="route"]').forEach(r=>r.addEventListener("change",()=>{state.route=r.value;renderRoute()}));
+$("selection").addEventListener("change",renderChoices);
+$("start").addEventListener("click",startTask);
+$("return-new").addEventListener("click",()=>page("new"));
+$("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
+$("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
+$("settings-repo").addEventListener("input",()=>{$("target-repo").value=$("settings-repo").value});
+$("target-repo").addEventListener("input",()=>{$("settings-repo").value=$("target-repo").value});
+(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
+setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
+</script>
+</body></html>
