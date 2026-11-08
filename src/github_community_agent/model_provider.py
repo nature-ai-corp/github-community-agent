@@ -55,7 +55,8 @@ def _endpoint(provider: str, explicit: str | None) -> str:
         port = parsed.port
     except (TypeError, ValueError) as exc:
         raise ToolError("Invalid AI provider endpoint.") from exc
-    if (parsed.scheme != "https" or not host or not HOST_PATTERN.fullmatch(host)
+    if (parsed.scheme != "https" or not host or len(host) > 253
+            or "." not in host or any(not HOST_LABEL_PATTERN.fullmatch(label) for label in host.split("."))
             or parsed.username or parsed.password or parsed.query or parsed.fragment
             or port is not None or "\\" in candidate or "@" in candidate):
         raise ToolError("AI provider endpoint must be a safe HTTPS host without credentials or parameters.")
@@ -160,10 +161,17 @@ class ChatCompletionsModel:
 
         try:
             payload = json.loads(raw)
-            choices = payload["choices"]
-            content = choices[0]["message"]["content"]
+            if not isinstance(payload, dict):
+                raise ValueError("not an object")
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+                raise ValueError("bad choices")
+            message = choices[0].get("message")
+            if not isinstance(message, dict):
+                raise ValueError("bad message")
+            content = message.get("content")
         except (ValueError, TypeError, KeyError, IndexError) as exc:
-            raise ToolError("Unexpected AI provider response format.") from exc
+            raise ToolError("Unexpected AI provider response format.") from None
         if not isinstance(content, str) or not content.strip():
             raise ToolError("The configured AI model returned no usable text.")
         # Exact token must never appear in the returned draft, even if a provider
