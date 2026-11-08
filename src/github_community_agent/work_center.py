@@ -37,18 +37,18 @@ class TaskDefinition:
     enabled: bool
 
 
-# Work Type is the V1 Community Management entry route. Domain is the
-# V2 promotion target taxonomy, not Issues/Discussions task operations.
-# An empty domain means this product task does not use a Domain classification.
+# Product-specific alternative entry routes: Work Type is Community Management
+# only, while Domain groups V2 promotion tasks. Neither field is universal.
+# Blank means this Task is not classified in the other route.
 DEFINITIONS = (
     TaskDefinition("review_issues", "Review Issues", "Community Management", "", "review_issues", "V1", True),
     TaskDefinition("review_discussions", "Review Discussions", "Community Management", "", "review_discussions", "V1", True),
     TaskDefinition("draft_issue", "Draft Issue Reply", "Community Management", "", "draft_replies", "V1", True),
     TaskDefinition("draft_discussion", "Draft Discussion Reply", "Community Management", "", "draft_replies", "V1", True),
     TaskDefinition("community_report", "Community Report", "Community Management", "", "community_report", "V1", True),
-    TaskDefinition("promote_self", "Promote GitHub Community Agent", "Product Promotion", "Self-Promotion", None, "V2", False),
-    TaskDefinition("promote_worker", "Promote Nature AI Worker", "Product Promotion", "Product Promotion", None, "V2", False),
-    TaskDefinition("promote_other", "Promote Other Repository", "Product Promotion", "Product Promotion", None, "V2", False),
+    TaskDefinition("promote_self", "Promote GitHub Community Agent", "", "Self-Promotion", None, "V2", False),
+    TaskDefinition("promote_worker", "Promote Nature AI Worker", "", "Product Promotion", None, "V2", False),
+    TaskDefinition("promote_other", "Promote Other Repository", "", "Product Promotion", None, "V2", False),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
