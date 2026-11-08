@@ -52,10 +52,27 @@ if (-not $source.StartsWith($expected, [StringComparison]::OrdinalIgnoreCase) -o
     -not $source.EndsWith('\GitHubCommunityAgent', [StringComparison]::OrdinalIgnoreCase)) {
     throw "Source was not proved to be the Windows Store MSIX redirected GC Agent directory: $source"
 }
+# Never follow a user-controlled junction/symlink for a data migration.
+foreach ($directory in @($source, $target)) {
+    if (Test-Path -LiteralPath $directory) {
+        $entry = Get-Item -LiteralPath $directory -Force
+        if ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing reparse-point data directory: $directory"
+        }
+    }
+}
 $sourceDb = Join-Path $source 'work.sqlite3'
 $sourceSettings = Join-Path $source 'settings.dpapi'
 $targetDb = Join-Path $target 'work.sqlite3'
 $targetSettings = Join-Path $target 'settings.dpapi'
+foreach ($name in @($sourceDb, $sourceSettings, $targetDb, $targetSettings)) {
+    if (Test-Path -LiteralPath $name) {
+        $entry = Get-Item -LiteralPath $name -Force
+        if ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing linked data file: $name"
+        }
+    }
+}
 if (-not (Test-Path -LiteralPath $sourceDb -PathType Leaf)) {
     throw 'Physical source work.sqlite3 is not visible to PowerShell.'
 }
