@@ -226,3 +226,31 @@ def test_no_work_result_does_not_offer_copy_or_export():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     assert 'const resultActions=hasResult?' in html
     assert "No result yet." in html
+
+
+def test_my_work_displays_human_readable_report_before_raw_json():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    css = (Path(w.__file__).parent / "gc.css").read_text(encoding="utf-8")
+    assert 'function taskReport(t)' in html
+    assert 'function reportSections(analysis)' in html
+    assert 'Community Review Report' in html
+    for heading in ("Summary", "Findings", "Recommended Actions",
+                    "Next Step", "Sources", "Technical Details"):
+        assert heading in html
+    assert '<details class="technical-details"><summary>Technical Details</summary>' in html
+    assert 'taskReport(t)+' in html
+    assert 'escapeHTML(summaryText' in html
+    assert 'escapeHTML(suggestions.trim())' in html
+    assert 'r.total_pages_known===false' in html
+    assert 'No GitHub action has been performed.' in html
+    assert 'id="copy-result"' in html and 'id="export-result"' in html
+    assert '.user-report' in css and '.report-section' in css
+
+
+def test_report_is_presentational_and_technical_result_is_preserved():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'function resultText(t)' in html
+    assert 'return JSON.stringify(t.result,null,2);' in html
+    assert 'result:t.result' in html
+    assert 'Copy JSON' in html and 'Export JSON' in html
+    assert 'r.requires_human_review?' in html
