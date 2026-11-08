@@ -161,7 +161,7 @@ renderChoices();
 function renderChoices(){
 state.definition=null;
 const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
-$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML(d.work_type)+(d.domain?' · '+escapeHTML(d.domain):'')+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><small>'+escapeHTML([d.work_type,d.domain].filter(Boolean).join(' · '))+'</small><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
 $("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
 choose(null);
 }
@@ -228,7 +228,7 @@ $("work-title").textContent=$("heading").textContent;
 renderFilters();
 const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],all:["running","needs_attention","finished","failed"]};
 const rows=state.tasks.filter(t=>(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
-$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML(t.classifications.work_type)+(t.classifications.domain?' · '+escapeHTML(t.classifications.domain):'')+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
+$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
 $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
 const selected=rows.find(t=>t.id===state.selectedTask);if(selected)showDetail(selected);else $("work-detail").classList.add("hid");
 }
