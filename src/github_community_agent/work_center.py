@@ -35,15 +35,18 @@ class TaskDefinition:
     enabled: bool
 
 
+# Work Type is the V1 Community Management entry route. Domain is the
+# V2 promotion target taxonomy, not Issues/Discussions task operations.
+# An empty domain means this product task does not use a Domain classification.
 DEFINITIONS = (
-    TaskDefinition("review_issues", "Review Issues", "Community Management", "Issues", "review_issues", "V1", True),
-    TaskDefinition("review_discussions", "Review Discussions", "Community Management", "Discussions", "review_discussions", "V1", True),
-    TaskDefinition("draft_issue", "Draft Issue Reply", "Community Management", "Issues", "draft_replies", "V1", True),
-    TaskDefinition("draft_discussion", "Draft Discussion Reply", "Community Management", "Discussions", "draft_replies", "V1", True),
-    TaskDefinition("community_report", "Community Report", "Community Management", "Community Reports", "community_report", "V1", True),
+    TaskDefinition("review_issues", "Review Issues", "Community Management", "", "review_issues", "V1", True),
+    TaskDefinition("review_discussions", "Review Discussions", "Community Management", "", "review_discussions", "V1", True),
+    TaskDefinition("draft_issue", "Draft Issue Reply", "Community Management", "", "draft_replies", "V1", True),
+    TaskDefinition("draft_discussion", "Draft Discussion Reply", "Community Management", "", "draft_replies", "V1", True),
+    TaskDefinition("community_report", "Community Report", "Community Management", "", "community_report", "V1", True),
     TaskDefinition("promote_self", "Promote GitHub Community Agent", "Product Promotion", "Self-Promotion", None, "V2", False),
     TaskDefinition("promote_worker", "Promote Nature AI Worker", "Product Promotion", "Product Promotion", None, "V2", False),
-    TaskDefinition("promote_other", "Promote Other Repository", "Product Promotion", "Other Repository Promotion", None, "V2", False),
+    TaskDefinition("promote_other", "Promote Other Repository", "Product Promotion", "Product Promotion", None, "V2", False),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
@@ -52,7 +55,7 @@ def task_choices(route: str, value: str) -> list[TaskDefinition]:
     """Choice route is mutually exclusive; Task definitions own both classifications."""
     if route not in ("work_type", "domain"):
         raise ToolError("Choose Work Type or Domain, not both.")
-    return [d for d in DEFINITIONS if getattr(d, route) == value]
+    return [d for d in DEFINITIONS if value and getattr(d, route) == value]
 
 
 def data_directory() -> Path:
