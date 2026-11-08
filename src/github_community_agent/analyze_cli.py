@@ -10,6 +10,7 @@ import os
 import sys
 
 from .ai_review import CommunityAnalyst
+from .discussion_review import review_discussions
 from .errors import ToolError
 from .model_provider import ChatCompletionsModel, ModelSettings
 from .runtime import CommunityRuntime, CommunitySettings
@@ -21,7 +22,7 @@ READ_TOKEN_ENV = "GITHUB_COMMUNITY_AGENT_READ_TOKEN"
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="github-community-agent-analyze")
     parser.add_argument("--repo", required=True, help="Explicit public owner/repository")
-    parser.add_argument("--workflow", choices=("review_issues", "community_report"),
+    parser.add_argument("--workflow", choices=("review_issues", "review_discussions", "community_report"),
                         required=True)
     parser.add_argument("--provider", choices=("openai", "deepseek", "compatible"),
                         required=True)
@@ -36,7 +37,10 @@ def main(argv: list[str] | None = None) -> int:
         model = ChatCompletionsModel(model_settings, api_key=lambda: os.getenv(MODEL_KEY_ENV))
         runtime = CommunityRuntime(
             settings, discussion_token=lambda: os.getenv(READ_TOKEN_ENV))
-        result = CommunityAnalyst(runtime, model).run(args.workflow)
+        if args.workflow == "review_discussions":
+            result = review_discussions(runtime, model)
+        else:
+            result = CommunityAnalyst(runtime, model).run(args.workflow)
     except ToolError as exc:
         print(f"Community analysis unavailable: {exc}", file=sys.stderr)
         return 2
