@@ -29,6 +29,8 @@ ChangesEnvironment=no
 
 [Files]
 Source: "..\..\dist\GitHubCommunityAgent\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\GitHub Community Agent"; Filename: "{app}\GitHubCommunityAgent.exe"
