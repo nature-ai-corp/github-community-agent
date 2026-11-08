@@ -63,3 +63,20 @@
 .result-action-buttons button:hover{border-color:var(--accent);color:var(--accent)}
 .result-action-status{color:var(--muted);font-size:12px;min-height:1.2em;margin:0 0 5px}
 #task-result-json{margin-top:0}
+
+/* Source-grounded, user-facing Work Report, not the raw developer JSON. */
+.user-report{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:19px;margin:14px 0}
+.user-report-title{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:17px}
+.report-status{font-size:12px;font-weight:600;border-radius:18px;padding:3px 9px;background:var(--surface);color:var(--ok);text-transform:capitalize}
+.report-subtitle{color:var(--muted);font-size:12px;margin:4px 0 12px}
+.report-section{padding:13px 0;border-top:1px solid var(--border)}
+.report-section h4{margin:0 0 8px;font-size:13px;font-weight:700}
+.report-section p,.report-section ul,.report-section ol{font-size:13px;line-height:1.6;margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.report-section ul,.report-section ol{padding-left:20px}
+.report-section li{margin:4px 0}
+.report-section a{overflow-wrap:anywhere}
+.report-meta{color:var(--muted)}
+.report-coverage{font-size:11px;line-height:1.5;color:var(--muted);margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
+.technical-details{margin:12px 0 4px}
+.technical-details>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:7px 0}
+.technical-details[open]>summary{color:var(--text)}
