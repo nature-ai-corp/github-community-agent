@@ -42,3 +42,18 @@ To connect an OpenAI API model, substitute `--provider openai --model gpt-4.1-mi
 - No automatic retries, streaming/chat history, pricing estimation or unattended actions.
 - Model output is untrusted, potentially inaccurate and always requires human review.
 - No GitHub posting, label mutation, approval or durable write outbox.
+
+## Endpoint security review note (PR #6)
+
+Production requests now perform a best-effort public-IP DNS check before obtaining
+the API key. Endpoints resolving to localhost, RFC1918, link-local, loopback,
+non-global IPv6 or mixed public/private addresses are rejected. The mocked
+transport in tests bypasses live DNS; the dedicated DNS tests mock the resolver.
+
+**Limitation:** this is *not* complete protection against DNS rebinding / DNS
+time-of-check-to-time-of-use changes, because the HTTPS client resolves again
+when connecting. Therefore only configure **trusted, operator-approved public
+model-service domains**. Do not configure untrusted compatible endpoints or
+expose this capability to GitHub issue authors. A future hardened deployment
+can pin validated destination IPs while retaining hostname-based TLS SNI and
+certificate verification, and/or restrict outbound traffic at a network layer.
