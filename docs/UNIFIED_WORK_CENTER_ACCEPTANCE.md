@@ -189,3 +189,44 @@ Acceptance:
    may still contain deleted rows and prior JSON exports remain on disk.
 
 Native Windows tests and human UI acceptance for deletion are pending.
+
+## Archived Work + lightweight Activity History (user-accessible retained data)
+
+The previous 'Delete Task' hid the record as a local SQLite soft delete but
+provided no user path to see or recover it. That was unsuitable for customers.
+The Work Center now includes **Archived Work**. The same action is labeled
+**Archive Task** to honestly describe what happens.
+
+1. In My Work, open an eligible Finished/Failed Task and click Archive Task,
+   confirm. The Task disappears from active lists and Recent Work.
+2. Click **Archived Work** (same left Work Center). The Task and its original
+   report, error and Technical Details remain available.
+3. Open that Task and click **Restore Task**. Confirm it returns to My Work
+   without recomputing the AI result or touching GitHub.
+4. Both archived and restored state remain stable across app restart.
+5. Open **Activity History** in Task Detail to view minimal lifecycle events:
+   created, completed/failed, marked reviewed locally, archived, restored.
+   This is an application operation log, not an enterprise or regulated
+   immutable audit trail. It never claims to have observed past events for
+   older records before Activity History was introduced.
+
+SQLite migration adds a separate `work_events` table; events contain only
+Task ID, a fixed event name, and UTC timestamp. They intentionally contain
+**no user tokens, API keys, arbitrary GitHub content, or model prompt**.
+The existing `deleted_utc` soft-delete field remains supported; previously
+hidden Tasks appear automatically in Archived Work after upgrade.
+
+Deleting *permanently* is not a feature in this revision. Exports already
+downloaded to the user's computer are not altered. There is no GitHub
+posting/deletion action.
+
+**Why an activity log?** Users should be able to understand who/what initiated
+work and when its state changed. This simple single-user GC Agent stores the
+application's event and time; it does not claim identity attribution beyond
+the local Windows user or compliance-grade tamper evidence. Platform-level
+governance/auditing belongs in NATURE AI Platform, not this product.
+
+**Native Windows acceptance pending:** verify Archived Work displays previously
+hidden Task #3/#5/#7, inspect retained result/error, restore one and archive
+it again, restart, ensure consistency and no GitHub change. Run latest
+`python -m pytest -q` and record the exact count.
