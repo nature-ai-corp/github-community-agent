@@ -16,6 +16,7 @@ from .runtime import (
 )
 
 MAX_ITEM_BODY = 900
+MAX_ISSUE_DETAILS = 5
 MAX_ANALYSIS_CHARS = 7000
 
 
@@ -66,7 +67,18 @@ class CommunityAnalyst:
         issue_source = self.runtime._issues()
         issue_rows = _items(issue_source, "issues")
         issue_references = _evidence(issue_rows)
-        issue_inputs = _bounded_records(issue_rows, kind="issue")
+        # GitHub's issue LIST endpoint excludes body text. Read real details
+        # for a bounded set before using AI to analyze issue content.
+        detailed_rows: list[dict] = []
+        for item in issue_rows[:MAX_ISSUE_DETAILS]:
+            number = item.get("number")
+            if type(number) is not int or number < 1:
+                raise ToolError("Unexpected issue number in GitHub list.")
+            detail_records = _items(self.runtime._issues("issue", number), "issues")
+            if len(detail_records) != 1 or detail_records[0].get("number") != number:
+                raise ToolError("GitHub issue detail did not match the selected item.")
+            detailed_rows.append(detail_records[0])
+        issue_inputs = _bounded_records(detailed_rows, kind="issue")
         issue_page_count = len(issue_source["issues"])
 
         discussion_references: list[dict] = []
@@ -127,6 +139,7 @@ class CommunityAnalyst:
             "issue_page_count": issue_page_count,
             "issues_analyzed": len(issue_inputs),
             "sample_limited": issue_page_count > len(issue_inputs),
+            "detail_reads": len(issue_inputs),
             "requires_human_review": True,
             "posted": False,
             "note": "AI-generated assessment based on a bounded latest-page sample; independently verify suggestions.",
