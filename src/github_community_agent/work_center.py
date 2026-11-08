@@ -205,6 +205,16 @@ def handler_factory(service: WorkService, nonce: str):
             path = urlsplit(self.path).path
             if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
                 return self._send(403, {"error": "Invalid host."})
+            if path in ("/static/worker_v011.css", "/static/gc.css"):
+                name = path.removeprefix("/static/")
+                raw = (Path(__file__).parent / name).read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/css; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                return self.wfile.write(raw)
             if path == "/":
                 html = (Path(__file__).parent / "home.html").read_text(encoding="utf-8")
                 html = html.replace("__APP_NONCE__", nonce)
@@ -214,7 +224,7 @@ def handler_factory(service: WorkService, nonce: str):
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'nonce-" + nonce +
-                                 "'; style-src 'nonce-" + nonce + "'; connect-src 'self'; "
+                                 "'; style-src 'self' 'nonce-" + nonce + "'; connect-src 'self'; "
                                  "img-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'")
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
