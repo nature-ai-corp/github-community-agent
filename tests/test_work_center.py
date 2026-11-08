@@ -338,3 +338,34 @@ def test_both_draft_definitions_require_human_attention(tmp_path, monkeypatch):
         assert updated["result"]["posted"] is False
         assert updated["result"]["requires_human_review"] is True
         assert not journal.review(task_id)
+
+
+def test_community_report_renders_sections_not_raw_ai_text_as_summary():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    css = (Path(w.__file__).parent / "gc.css").read_text(encoding="utf-8")
+    assert "function communityReportSections(analysis)" in html
+    assert 't.definition_id==="community_report"' in html
+    assert 'elements.push(communityReportBody(t));' in html
+    assert "Issue Activity Summary" in html
+    assert "Discussion Activity Summary" in html
+    assert "Key Observations and Themes" in html
+    assert "Recommendations (with uncertainty)" in html
+    assert "Recommended Actions — AI Assessment" in html
+    assert "GitHub Issue descriptions may represent earlier plans" in html
+    assert "Coverage incomplete" in html
+    assert "Limited sample — not a full repository audit" in html
+    assert "Total pages unverified" in html
+    assert "Discussions not checked" in html
+    assert 'escapeHTML(text||"No observed data in this section.")' in html
+    assert "function reportLines(text)" in html
+    assert ".report-prose" in css
+    assert "<summary>Technical Details</summary>" in html
+
+
+def test_community_report_does_not_fabricate_missing_discussion_coverage():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'if(r.discussions_checked===false)caveats.push("Discussions not checked")' in html
+    assert 'if(r.incomplete===true)caveats.push("Coverage incomplete")' in html
+    assert 'if(parsed.recommendations)' in html
+    assert 'if(parsed.discussions)' in html
+    assert 'if(parsed.issues)' in html
