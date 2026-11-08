@@ -9,7 +9,7 @@ from github_community_agent.errors import ToolError
 
 
 def test_new_task_alternative_routes_use_product_defined_taxonomies():
-    by_type = w.task_choices("work_type", "Community Management")
+    by_type = w.task_choices("work_type", "Review Issues")
     self_promotion = w.task_choices("domain", "Self-Promotion")
     product_promotion = w.task_choices("domain", "Product Promotion")
     assert w.BY_ID["review_issues"] in by_type
@@ -44,7 +44,7 @@ def test_work_journal_persists_definition_classifications_and_review(tmp_path):
     j2 = w.Journal(db)
     task = j2.list()[0]
     assert task["id"] == wid
-    assert task["classifications"] == {"work_type": "Community Management", "domain": ""}
+    assert task["classifications"] == {"work_type": "Draft Issue Reply", "domain": ""}
     assert task["status"] == "needs_attention"
     assert task["result"]["draft"] == "hello"
     assert j2.review(wid)
@@ -70,7 +70,7 @@ def test_real_workflow_receives_secret_but_journal_never_does(monkeypatch, tmp_p
     secret_model = "not_a_real_model_key_123456"
     secret_gh = "not_a_real_github_key_123456"
     wid = service.start({
-        "route": "work_type", "selection": "Community Management",
+        "route": "work_type", "selection": "Review Issues",
         "definition_id": "review_issues", "repository": "example/public",
         "provider": "openai", "model_name": "gpt-4.1-mini",
         "model_key": secret_model, "discussion_token": secret_gh,
@@ -147,24 +147,30 @@ def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
     assert "GitHub Community Agent" in html
 
 
-def test_domain_selector_defaults_to_self_promotion():
+def test_ui_routes_select_five_concrete_work_types_and_promotion_domains():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
-    assert 'const preferred=state.route==="work_type"?"Community Management":"Self-Promotion"' in html
-    assert 'if(vals.includes(preferred))$("selection").value=preferred' in html
-    assert 'vals.sort((a,b)=>a===preferred?-1:b===preferred?1:a.localeCompare(b))' in html
+    assert 'state.route==="work_type"&&items.length===1' in html
+    assert 'if(state.route==="work_type"){' in html
+    assert 'vals.sort((a,b)=>a==="Self-Promotion"?-1' in html
+    assert '$("selection").value=state.route==="domain"&&vals.includes("Self-Promotion")?"Self-Promotion":(vals[0]||"")' in html
+    assert 'choose(items[0].id)' in html
     assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Self-Promotion", "Product Promotion"}
 
 
-def test_promotion_is_domain_only_not_work_type(tmp_path):
+def test_concrete_work_types_and_separate_promotion_domains(tmp_path):
     definitions = w.WorkService(w.Journal(tmp_path / "work.sqlite")).definitions()
     work_types = {d["work_type"] for d in definitions if d["work_type"]}
     domains = {d["domain"] for d in definitions if d["domain"]}
-    assert work_types == {"Community Management"}
+    assert work_types == {
+        "Review Issues", "Review Discussions", "Draft Issue Reply",
+        "Draft Discussion Reply", "Community Report",
+    }
     assert domains == {"Self-Promotion", "Product Promotion"}
     assert all(not d["work_type"] for d in definitions if d["id"].startswith("promote_"))
     assert all(not d["domain"] for d in definitions if d["version"] == "V1")
-    assert len(w.task_choices("work_type", "Community Management")) == 5
-    assert not w.task_choices("work_type", "Product Promotion")
+    assert len(w.task_choices("work_type", "Review Issues")) == 1
+    assert len(w.task_choices("work_type", "Community Management")) == 0
+    assert len(w.task_choices("work_type", "Product Promotion")) == 0
     assert len(w.task_choices("domain", "Product Promotion")) == 2
 
 
