@@ -139,3 +139,57 @@ Next safe test: start the frozen EXE (without passing --self-check), verify the
 correct Work Center opens on localhost, inspect existing My Work and Archived
 Work without changing content, and close the console app. Only after this
 should Inno Setup compilation and per-user installer tests proceed.
+
+## Frozen Work Center opens but shows no Work records (investigation)
+
+The user showed that frozen `GitHubCommunityAgent.exe` launched localhost UI
+successfully but the **My Work and Recent Work lists were empty**; the prior
+Python Work Center had Task #1 through #10. This is **not** successful Work
+data continuity acceptance and **installer compilation/installation must be
+held** pending diagnosis.
+
+Native and frozen `work_center.data_directory()` are intended to use the
+same `%LOCALAPPDATA%\\GitHubCommunityAgent` directory, regardless of
+executable path, but the runtime environment/path and any Settings failure
+have not been confirmed.
+
+New frozen launcher option `--diagnostics` is read-only. It prints the
+effective user name, LOCALAPPDATA path, Work database existence, encrypted
+settings existence and stored Task row count. It never prints secrets,
+accesses GitHub, creates a new SQLite file or alters the journal.
+
+**Existing already-built EXE does not have this new option.** Rebuild safely
+by renaming the old program output folder (not the user's AppData):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+.\.venv\Scripts\python.exe -m pytest -q --basetemp "$env:LOCALAPPDATA\\GitHubCommunityAgent\\test-runs\\manual-diagnostic"
+Rename-Item -LiteralPath .\dist\GitHubCommunityAgent -NewName GitHubCommunityAgent-before-diagnostics
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-build-exe.ps1
+.\dist\GitHubCommunityAgent\GitHubCommunityAgent.exe --diagnostics
+```
+
+Compare with native Python in the same Windows session:
+
+```powershell
+@'
+from github_community_agent.work_center import data_directory
+from pathlib import Path
+import sqlite3
+p = data_directory()
+db = p / "work.sqlite3"
+print("Native data directory:", p)
+print("Native database exists:", db.is_file())
+if db.is_file():
+    with sqlite3.connect(db.as_uri()+"?mode=ro", uri=True) as con:
+        print("Native Task count:", con.execute("SELECT COUNT(*) FROM work").fetchone()[0])
+print("Native protected settings exists:", (p / "settings.dpapi").is_file())
+'@ | .\.venv\Scripts\python.exe -
+```
+
+If both report 10 Tasks, investigate frontend API/initialization errors
+rather than moving or deleting user data. If the effective path or count
+differs, **do not copy DPAPI credential material**; identify why the
+environment differs before changing any application data. If the old frozen
+EXE is running, stop it before renaming the bundle.
