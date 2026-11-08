@@ -108,3 +108,21 @@ def test_work_center_handler_rejects_cross_origin_and_bad_nonce(tmp_path):
     handler = w.handler_factory(service, "random_nonce")
     assert handler.__name__ == "Handler"
     assert journal.list() == []
+
+
+def test_worker_style_settings_modal_and_real_connection_control():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'id="settings-overlay"' in html
+    assert 'role="dialog"' in html
+    assert 'id="provider"' in html
+    assert 'id="model"' in html
+    assert 'id="model-key"' in html
+    assert 'id="settings-advanced"' in html
+    assert 'id="settings-repo"' in html
+    assert 'id="read-key"' in html
+    assert 'id="test-connection"' in html
+    assert 'id="settings-cancel"' in html
+    assert 'id="settings-save"' in html
+    assert "/api/test-connection" in html
+    assert 'id="page-settings"' not in html
+    assert 'Leave empty to keep current key' in html
