@@ -145,3 +145,11 @@ def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
     assert 'id="settings-form"' in html
     assert "#choices" in custom and ".taskchoice" in custom
     assert "GitHub Community Agent" in html
+
+
+def test_domain_selector_defaults_to_self_promotion():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'vals.includes("Self-Promotion")' in html
+    assert '$("selection").value="Self-Promotion"' in html
+    assert 'a==="Self-Promotion"?-1' in html
+    assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Self-Promotion", "Product Promotion"}
