@@ -72,3 +72,60 @@ Open **My Work → Task #9 — Community Report** and confirm:
 
 Record the exact pytest summary and screenshot. Security/release gates remain
 separate even if that visual check passes.
+
+## Release-preparation checkpoint — November 8, 2026
+
+**Status: functional proof-of-concept validated; Windows release NOT approved.**
+
+This branch adds a six-job cross-platform offline test matrix:
+Ubuntu and Windows on Python 3.11, 3.12 and 3.13, plus a **separate Windows
+wheel preflight**. GitHub Actions in this private repository previously had
+billing restrictions; do not assume CI jobs ran just because a workflow file
+exists. The source tests are not substitutes for a real Windows run.
+
+The release preflight is **not an installer or code-signing step**. It builds
+an ordinary Python wheel and installs it into a disposable temporary folder;
+then checks console-script metadata and the packaged UI's HTML/CSS assets.
+It neither launches the browser nor uses GitHub/OpenAI credentials.
+
+### Run on the user's actual Windows testing computer
+
+Stop the GC Agent local server before testing any new build. In PowerShell:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-v1-preflight.ps1
+```
+
+Record the exact test count, any skipped tests and the wheel preflight's
+PASS/FAIL output; do not paste or print API keys. The preflight selects the
+repository's `.venv\Scripts\python.exe` if it exists.
+
+Then restart the existing `github-community-agent-home.exe` and verify the
+same retained Tasks #1, #2, #8, #10 and Archived Work remain accessible.
+Confirm that Archived Work is **view-only**, not restorable; that API-key
+Settings remain DPAPI encrypted; and that Technical Details, Copy, Export JSON
+and Activity History remain usable.
+
+### Important release blockers
+
+1. **Development version** is still `0.0.0.dev0`; no GC Agent V1 release
+   tag or final version approved. Do not distribute the wheel as official.
+2. **No signed standalone Windows installer** has been produced or tested.
+   PyPI/wheel packaging is *not* the same as a Windows installer.
+3. **Full Windows pytest and preflight output for this latest head** have
+   not yet been received.
+4. **Windows signed installer trust/Smart App Control**, installation,
+   uninstallation, upgrades, clean data isolation and Windows Defender tests
+   remain to be designed and executed.
+5. **GitHub non-posting verification**, least-privilege token handling,
+   request error recovery and user-facing reports need final acceptance.
+6. Hosted CI in the private repository might not run until billing is fixed.
+7. Parent stacked Draft PRs remain unmerged. Review dependency order before
+   any final merge or release.
+
+No real GitHub comment/promotion posting is part of V1. Nature AI Worker
+v0.1.1 remains unchanged.
