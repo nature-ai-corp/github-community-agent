@@ -92,3 +92,7 @@
 
 /* Unposted draft is the user deliverable, not developer JSON. */
 .draft-reply-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:13px;padding:14px;border-radius:7px;background:var(--surface);border:1px solid var(--border)}
+
+/* Community Report: distinct headings and readable retained AI narrative. */
+.user-report .report-section h5{font-size:13px;margin:13px 0 6px}
+.report-prose{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px}
