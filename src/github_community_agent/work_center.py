@@ -241,19 +241,6 @@ class Journal:
                 self._event(con, task_id, "archived", now)
             return row.rowcount == 1
 
-    def restore(self, task_id: int) -> bool:
-        """Return an archived finished/failed Task to normal Work views."""
-        if type(task_id) is not int or task_id < 1:
-            return False
-        with self._connect() as con:
-            now = _utc()
-            row = con.execute(
-                "UPDATE work SET deleted_utc=NULL WHERE id=? AND deleted_utc IS NOT NULL "
-                "AND status IN ('finished','failed')", (task_id,))
-            if row.rowcount == 1:
-                self._event(con, task_id, "restored", now)
-            return row.rowcount == 1
-
     def list(self, include_archived: bool = False) -> list[dict]:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
@@ -453,15 +440,6 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                                "discussion_token": saved["read_token"]}
                     task_id = service.start(payload)
                     return self._send(202, {"id": task_id, "status": "running"})
-                if path.startswith("/api/tasks/") and path.endswith("/restore"):
-                    parts = path.split("/")
-                    if len(parts) != 5 or not parts[3].isdigit():
-                        return self._send(404, {"error": "Not found."})
-                    task_id = int(parts[3])
-                    if service.journal.restore(task_id):
-                        return self._send(200, {"id": task_id, "restored": True,
-                                                "scope": "local_work_only"})
-                    return self._send(409, {"error": "Task is not archived or cannot be restored."})
                 if path.startswith("/api/tasks/") and path.endswith("/delete"):
                     parts = path.split("/")
                     if len(parts) != 5 or not parts[3].isdigit():
