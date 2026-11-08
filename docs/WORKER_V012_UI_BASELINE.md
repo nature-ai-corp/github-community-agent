@@ -13,7 +13,7 @@ product-specific parts.
 
 ## Actual source reviewed
 
-The previously inspected source was `nature-ai-corp/nature-ai-worker` @ `release/v0.1.2-rc` (which contains GC extensions). For implementation, **compare the actual v0.1.1 sources** and use their common UI as the baseline:
+Verified the actual `nature-ai-corp/nature-ai-worker` tag `v0.1.1` and compared its common UI to `release/v0.1.2-rc` (which contains GC extensions). For implementation, **v0.1.1** is the baseline:
 - `src/nature_worker/static/index.html` — sidebar, Work Center, New Work,
   Work Detail, Settings modal
 - `src/nature_worker/static/style.css` — standard Worker-family theme,
@@ -53,8 +53,16 @@ depend on a running Worker server.
 - Worker's encrypted credential behavior is NOT automatically inherited
   by copying UI, and must be reimplemented or securely adapted and tested.
 - Do not edit the Nature AI Worker repo.
-- Existing `home.html` is an intermediate prototype and does **not yet**
-  satisfy this actual v0.1.1 base UI-reuse decision. Avoid claiming it does.
-- Next change should replace duplicated custom generic front-end pieces with
-  vendored/adapted v0.1.1 UI assets; keep only product-specific selectors,
-  workflows and APIs. Windows GUI E2E regression must follow.
+- **Implemented in this branch:** `worker_v011.css` is an exact copy of
+  the Apache-2.0 Worker `v0.1.1` style.css (text equality checked); `home.html`
+  has an adapted version of the v0.1.1 sidebar, Work Center and Settings
+  dialog markup, with GC-specific tasks and real workflows. `gc.css` contains
+  GC-specific styling rather than editing the original baseline CSS.
+- **Not copied:** Worker's `app.js`, because its conversations, tools,
+  messages, storage and API endpoints belong to a different runtime. GC
+  browser actions are implemented locally against GC's independent backend.
+- **Status:** code updated and JavaScript syntax validated, but no post-change
+  Windows automated or real UI E2E results have been received. No claim of
+  full feature-for-feature Worker UI parity; unnecessary Worker-only features
+  (Workspace Files, general agent chat) are deliberately omitted.
+- Original Nature AI Worker repository remains unchanged. Windows GUI E2E regression must follow.
