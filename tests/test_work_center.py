@@ -279,7 +279,10 @@ def test_issue_report_breaks_ai_analysis_into_source_linked_findings_and_actions
     assert 'Issues analyzed:' in html
     assert 'Limited sample — not a full repository review' in html
     assert "Priority (AI assessment):" in html
-    assert 'issue.finding' in html and 'issue.action' in html
+    # Findings use the `issue` loop variable; action rows use `x` in map().
+    assert 'escapeHTML(issue.finding' in html
+    assert 'withActions.map(x=>' in html
+    assert 'escapeHTML(x.action)' in html
     assert 'class="issue-finding"' in html
     assert 'class="issue-actions"' in html
     assert '.issue-finding' in css
