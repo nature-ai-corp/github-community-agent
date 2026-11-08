@@ -33,7 +33,7 @@
 <div id="choices" class="taskgrid"></div>
 </div>
 <div class="card task-start"><h2 id="selected-title" class="section-title">Select a Task</h2>
-<div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="owner/repository"></div>
+<div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="Configure repository in Settings → Advanced" readonly></div>
 <div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
 <p class="muted small" id="planned-note">V1 uses real GitHub and AI models; V2 Promotion is planned.</p>
 <div class="form-actions"><span class="spacer"></span><button class="primary" id="start" disabled>Create &amp; Run Task</button></div>
@@ -49,11 +49,11 @@
 <h2 id="settings-title">Settings</h2>
 <label>Provider<select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></label>
 <label>Model<input id="model" value="gpt-4.1-mini" autocomplete="off"></label>
-<label>API key<input type="password" id="model-key" autocomplete="off" placeholder="Leave empty to keep current key"></label>
+<label>API key<input type="password" id="model-key" autocomplete="off" placeholder="Leave empty to keep current key"></label><p class="muted small" id="s-key-status"></p>
 <p class="muted small">API keys are stored encrypted for this Windows user. Leave blank to keep the saved key.</p>
 <details id="settings-advanced"><summary>Advanced</summary>
 <label>Public GitHub repository<input id="settings-repo" placeholder="owner/repository"></label>
-<label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label>
+<label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label><p class="muted small" id="s-read-status"></p>
 <p class="muted small">Read-only access; GitHub posting is disabled.</p>
 </details>
 <div id="settings-message" role="status"></div>
@@ -93,6 +93,8 @@ const st=state.settings;
 $("provider").value=st.provider;$("model").value=st.model;
 $("model-key").value="";$("read-key").value="";
 $("settings-repo").value=st.repository;
+$("s-key-status").textContent=st.hasModelKey?"A key is stored encrypted. Leave empty to keep it.":"No API key saved yet.";
+$("s-read-status").textContent=st.hasReadToken?"GitHub READ token stored encrypted. Leave empty to keep it.":"No GitHub Discussions READ token saved.";
 $("settings-message").textContent="";
 $("settings-advanced").open=false;
 $("settings-overlay").classList.remove("hid");
@@ -233,7 +235,7 @@ $("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-ove
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
 $("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
-$("target-repo").addEventListener("input",()=>{state.settings.repository=$("target-repo").value.trim()});
+
 (async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await loadSettings();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
 setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
 </script></body></html>
