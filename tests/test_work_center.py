@@ -432,9 +432,66 @@ def test_delete_button_is_confirmed_and_limited_to_terminal_tasks():
     html = (root / "home.html").read_text(encoding="utf-8")
     css = (root / "gc.css").read_text(encoding="utf-8")
     assert 'id="delete-task"' in html
-    assert 'window.confirm("Delete Task #"' in html
+    assert 'window.confirm("Archive Task #"' in html
     assert '["finished","failed"].includes(t.status)' in html
     assert 'postJSON("/api/tasks/"+t.id+"/delete",{})' in html
-    assert "No GitHub content is deleted." in html
+    assert "GitHub content is unchanged." in html
     assert "state.tasksSignature=null;" in html
     assert ".task-management" in css and ".task-delete" in css
+
+
+def test_archived_work_restore_and_minimal_activity_visible(tmp_path):
+    db = tmp_path / "db.sqlite"
+    journal = w.Journal(db)
+    task_id = journal.create("draft_issue", "example/repository")
+    journal.finish(task_id, "needs_attention", {"draft": "sample", "posted": False})
+    assert journal.review(task_id)
+    assert journal.delete(task_id)
+    assert journal.list() == []
+    archived = journal.list(include_archived=True)
+    assert len(archived) == 1
+    assert archived[0]["archived"] is True
+    assert archived[0]["result"]["draft"] == "sample"
+    assert [e["event"] for e in archived[0]["activity"]] == [
+        "created", "needs_attention", "marked_reviewed_locally", "archived"
+    ]
+    assert not journal.restore(9999)
+    assert journal.restore(task_id)
+    assert not journal.restore(task_id)
+    restored = w.Journal(db).list()
+    assert restored[0]["archived"] is False
+    assert [e["event"] for e in restored[0]["activity"]][-1] == "restored"
+
+
+def test_archived_existing_database_has_no_fake_historical_events(tmp_path):
+    import sqlite3
+    db = tmp_path / "db.sqlite"
+    with sqlite3.connect(db) as con:
+        con.execute(
+            "CREATE TABLE work (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "definition_id TEXT NOT NULL, repository TEXT NOT NULL, "
+            "status TEXT NOT NULL, created_utc TEXT NOT NULL, "
+            "updated_utc TEXT NOT NULL, result_json TEXT, error TEXT)"
+        )
+        con.execute(
+            "INSERT INTO work (definition_id,repository,status,created_utc,updated_utc) "
+            "VALUES ('review_issues','example/repository','finished','2026-11-08','2026-11-08')"
+        )
+    journal = w.Journal(db)
+    assert journal.list()[0]["activity"] == []
+    assert journal.delete(1)
+    archived = journal.list(include_archived=True)[0]
+    assert [e["event"] for e in archived["activity"]] == ["archived"]
+
+
+def test_archive_ui_exposes_retained_records_and_restoration():
+    html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
+    assert 'data-page="archived">Archived Work' in html
+    assert 'getJSON("/api/tasks?include_archived=1")' in html
+    assert 'state.page==="archived"?t.archived:!t.archived' in html
+    assert 'id="restore-task"' in html
+    assert 'postJSON("/api/tasks/"+t.id+"/restore",{})' in html
+    assert 'Activity History (' in html
+    assert 'This record predates activity tracking.' in html
+    assert 'Marked reviewed locally (not posted)' in html
+    assert 'Archive Task' in html
