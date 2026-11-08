@@ -8,12 +8,18 @@ from github_community_agent import work_center as w
 from github_community_agent.errors import ToolError
 
 
-def test_new_task_two_alternative_routes_select_same_definition():
+def test_new_task_alternative_routes_use_product_defined_taxonomies():
     by_type = w.task_choices("work_type", "Community Management")
-    by_domain = w.task_choices("domain", "Issues")
+    self_promotion = w.task_choices("domain", "Self-Promotion")
+    product_promotion = w.task_choices("domain", "Product Promotion")
     assert w.BY_ID["review_issues"] in by_type
-    assert w.BY_ID["review_issues"] in by_domain
-    assert w.BY_ID["review_discussions"] not in by_domain
+    assert w.BY_ID["review_issues"] not in self_promotion
+    assert self_promotion == [w.BY_ID["promote_self"]]
+    assert w.BY_ID["promote_worker"] in product_promotion
+    assert w.BY_ID["promote_other"] in product_promotion
+    domains = {d.domain for d in w.DEFINITIONS if d.domain}
+    assert domains == {"Self-Promotion", "Product Promotion"}
+    assert not w.task_choices("domain", "Issues")
     assert any(d.version == "V2" and not d.enabled for d in w.DEFINITIONS)
     with pytest.raises(ToolError, match="Work Type or Domain"):
         w.task_choices("both", "Issues")
@@ -38,7 +44,7 @@ def test_work_journal_persists_definition_classifications_and_review(tmp_path):
     j2 = w.Journal(db)
     task = j2.list()[0]
     assert task["id"] == wid
-    assert task["classifications"] == {"work_type": "Community Management", "domain": "Issues"}
+    assert task["classifications"] == {"work_type": "Community Management", "domain": ""}
     assert task["status"] == "needs_attention"
     assert task["result"]["draft"] == "hello"
     assert j2.review(wid)
@@ -64,7 +70,7 @@ def test_real_workflow_receives_secret_but_journal_never_does(monkeypatch, tmp_p
     secret_model = "not_a_real_model_key_123456"
     secret_gh = "not_a_real_github_key_123456"
     wid = service.start({
-        "route": "domain", "selection": "Issues",
+        "route": "work_type", "selection": "Community Management",
         "definition_id": "review_issues", "repository": "example/public",
         "provider": "openai", "model_name": "gpt-4.1-mini",
         "model_key": secret_model, "discussion_token": secret_gh,
