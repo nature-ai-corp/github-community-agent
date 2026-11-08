@@ -102,3 +102,7 @@
 .task-delete{background:var(--panel);border:1px solid var(--error-border);color:var(--error-border);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer}
 .task-delete:hover{background:var(--surface)}
 .task-delete:disabled{opacity:.5;cursor:not-allowed}
+
+/* Archived Work: keep local history legible without building an audit dashboard. */
+.task-activity{padding-left:20px;font-size:12px;line-height:1.65}
+.task-activity li{margin:5px 0;overflow-wrap:anywhere}
