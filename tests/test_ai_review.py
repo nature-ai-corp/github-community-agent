@@ -100,3 +100,21 @@ def test_unsupported_ai_workflow_no_network(monkeypatch):
     with pytest.raises(ToolError, match="currently supports"):
         ar.CommunityAnalyst(runtime, lambda *_: "text").run("draft_replies")
     assert not calls
+
+
+def test_report_input_disambiguates_issue_count_and_unverified_release(monkeypatch):
+    _mock_issues(monkeypatch, include_two=True)
+    observed = []
+    def model(instruction, evidence):
+        observed.append((instruction, json.loads(evidence)))
+        return "Two issue records inspected; release signing status not independently verified."
+    runtime = rt.CommunityRuntime(rt.CommunitySettings(REPO))
+    result = ar.CommunityAnalyst(runtime, model).run("community_report")
+    instruction, evidence = observed[0]
+    assert "not the number of pages" in instruction.lower()
+    assert "never call an installer signed" in instruction.lower()
+    assert evidence["issue_page_count"] == 2
+    assert evidence["total_pages_known"] is False
+    assert "NOT number of pages" in evidence["issue_page_count_meaning"]
+    assert result["total_pages_known"] is False
+    assert result["issue_page_count"] == 2
