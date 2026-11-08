@@ -44,10 +44,17 @@ using the UI; Ctrl+C exits.
 
 ### Actual application E2E walkthrough
 
-1. Open **Settings**: repository `nature-ai-corp/nature-ai-worker`,
-   OpenAI / `gpt-4.1-mini`, enter model API key, and optional GitHub
-   Discussions READ token. These keys are input fields for the local session,
-   not persisted to the database. Avoid sharing keys in screenshots.
+1. Open **Settings**: a centered modal like the AI Worker Settings dialog
+   appears (Provider, Model, API key, Advanced, Test connection, Cancel, Save).
+   Enter OpenAI / `gpt-4.1-mini` and the API key. Expand **Advanced** to set
+   repository `nature-ai-corp/nature-ai-worker` and optional GitHub Discussions
+   READ token. Click **Test connection** to make a **real, billable model API
+   request**; it does not post to GitHub. Click **Save** to retain settings in
+   browser memory for this session. **Cancel** discards edits. Reopening Settings
+   leaves the existing key in memory if the password field is left empty.
+   This preview does **not** implement the AI Worker's encrypted persistent
+   credential vault; do not infer persistence or security equivalence. Avoid
+   sharing keys in screenshots.
 2. Open **New Task**, select **Work Type → Community Management → Review
    Issues**. Click **Create & Run Task**. The real GitHub Issues + OpenAI
    call runs and creates a uniquely numbered Work entry. Read its analysis
@@ -61,7 +68,8 @@ using the UI; Ctrl+C exits.
 5. Verify **Work In Progress**, **Needs My Attention**, **Finished Work**.
    Try My Work classifications (Work Type and Domain filters).
 6. Close/restart the app and confirm Work history remains via local SQLite
-   journal. Settings secrets must be entered again; none are saved.
+   journal. Refreshing or closing the browser discards in-memory credentials;
+   settings secrets must be entered again. None are saved to the work journal.
 7. Choose **Work Type → Product Promotion**, or switch to **Domain →
    Self-Promotion** / **Product Promotion**.
    V2 choices must be visible and **disabled**; no mock execution or
