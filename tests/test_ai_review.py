@@ -78,9 +78,8 @@ def test_ai_community_report_without_discussion_access_is_explicitly_partial(mon
 
 def test_issue_mismatch_fails_closed(monkeypatch):
     def fake(repo, args):
-        return json.dumps({"issues": [{"number": 7, "title": "Issue"}]
-                           if args["mode"] == "list" else
-                           {"issues": [{"number": 77, "body": "unrelated"}]})
+        items = [{"number": 7, "title": "Issue"}] if args["mode"] == "list" else [{"number": 77, "body": "unrelated"}]
+        return json.dumps({"issues": items})
     monkeypatch.setattr(rt, "github_issues", fake)
     runtime = rt.CommunityRuntime(rt.CommunitySettings(REPO))
     with pytest.raises(ToolError, match="did not match"):
