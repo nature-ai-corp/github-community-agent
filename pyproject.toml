@@ -28,4 +28,4 @@ where = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-github_community_agent = ["home.html"]
+github_community_agent = ["home.html", "worker_v011.css", "gc.css"]
