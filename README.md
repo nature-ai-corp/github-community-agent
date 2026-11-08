@@ -4,16 +4,16 @@
 
 GitHub Community Agent helps project maintainers understand and respond to their communities. Product promotion is planned for V2; it is **not** part of V1.
 
-> **Development status:** Independent repository initialized. Existing community tooling and starter workflows are being inventoried for migration. No independently installable V1 release is published yet.
+> **Development status:** V1 has real Windows application execution evidence for all five read-only Work Types. Security, packaging, regression and release acceptance remain pending. **No official independent Windows installer or V1 release has been published.**
 
 ## V1 — Community Management
 
 - **Review Issues:** inspect open GitHub issues, identify priorities and summarize findings.
 - **Review Discussions:** understand questions, requests, and unanswered discussions.
-- **Draft Replies:** prepare evidence-based replies; posting supported comments requires precise approval.
+- **Draft Issue Reply / Draft Discussion Reply:** prepare unposted, source-grounded AI drafts and route them through local human review. **Mark reviewed never posts to GitHub. V1 has no GitHub writing capability.**
 - **Community Report:** summarize community needs and suggested follow-up, with links to real GitHub evidence.
 
-We will reuse and finish the relevant work already prototyped in Nature AI Worker. This is an **independent product**, not an optional AI Worker module.
+The app uses the general UI baseline of Nature AI Worker v0.1.1, with independent GC Agent functions, configuration, database, credentials and release process. It does not modify or ship the original Worker application.
 
 ## V2 — Promotion
 
@@ -33,4 +33,27 @@ This project must have its **own** installation, UI/product identity, configurat
 - [Migration sources, boundaries and acceptance criteria](docs/MIGRATION_PLAN.md)
 - [Nature AI Worker source repository](https://github.com/nature-ai-corp/nature-ai-worker)
 
-Maintained by **NATURE AI CORP**. Open-source distribution is planned; license and third-party notices will be finalized alongside the reviewed source migration.
+## Local Windows developer testing (not an official installer)
+
+Use a clean Python 3.11–3.13 virtual environment on Windows. This is source
+testing only and must not be represented as a signed Windows application:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\github-community-agent-home.exe
+```
+
+A Windows isolated wheel-build/resource preflight is provided at
+`scripts/windows-v1-preflight.ps1`. It is **not** an installer or code-signing
+step. See [V1 Windows acceptance](docs/V1_WINDOWS_ACCEPTANCE_2026-11-08.md)
+for verified functional evidence and remaining release gates.
+
+Work Center provides **Archived Work**, a view-only record of previously
+completed or failed tasks, with retained reports, sources, and limited local
+Activity History. Archived records cannot be restored from the UI.
+
+Maintained by **NATURE AI CORP**. Apache-2.0 source and attribution are retained
+as listed in LICENSE and NOTICE. Official independent Windows distribution,
+versioning and signing are pending acceptance.
