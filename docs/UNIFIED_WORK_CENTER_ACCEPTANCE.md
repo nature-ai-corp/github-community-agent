@@ -190,43 +190,41 @@ Acceptance:
 
 Native Windows tests and human UI acceptance for deletion are pending.
 
-## Archived Work + lightweight Activity History (user-accessible retained data)
+## Archived Work — view-only record history
 
-The previous 'Delete Task' hid the record as a local SQLite soft delete but
-provided no user path to see or recover it. That was unsuitable for customers.
-The Work Center now includes **Archived Work**. The same action is labeled
-**Archive Task** to honestly describe what happens.
+The user-facing Archive Task action moves an inactive Finished/Failed Task out
+of My Work into the **Archived Work** section. It does not delete the original
+result, original failure message, GitHub source links, or local Activity History.
+No customer needs to open SQLite.
 
-1. In My Work, open an eligible Finished/Failed Task and click Archive Task,
-   confirm. The Task disappears from active lists and Recent Work.
-2. Click **Archived Work** (same left Work Center). The Task and its original
-   report, error and Technical Details remain available.
-3. Open that Task and click **Restore Task**. Confirm it returns to My Work
-   without recomputing the AI result or touching GitHub.
-4. Both archived and restored state remain stable across app restart.
-5. Open **Activity History** in Task Detail to view minimal lifecycle events:
-   created, completed/failed, marked reviewed locally, archived, restored.
-   This is an application operation log, not an enterprise or regulated
-   immutable audit trail. It never claims to have observed past events for
-   older records before Activity History was introduced.
+**Archived Work is read-only and has no Restore Task button.** This simplifies
+ordinary record management and avoids returning old completed/failed work to
+current work lists. If the user needs to retry, create a new Task; the original
+Task ID and saved evidence remain unchanged.
 
-SQLite migration adds a separate `work_events` table; events contain only
-Task ID, a fixed event name, and UTC timestamp. They intentionally contain
-**no user tokens, API keys, arbitrary GitHub content, or model prompt**.
-The existing `deleted_utc` soft-delete field remains supported; previously
-hidden Tasks appear automatically in Archived Work after upgrade.
+Activity History shows only events captured after the event-log feature was
+introduced: created, finished/failed, needs attention, reviewed locally, and
+archived. Older archived Tasks show their preserved record, and only genuine
+post-upgrade events; the UI explicitly states when the record predates activity
+tracking. This is a local user-facing operation trail, **not** an immutable or
+independently audited compliance log. It stores event type, Task ID, UTC time,
+not keys, tokens or arbitrary untrusted GitHub content.
 
-Deleting *permanently* is not a feature in this revision. Exports already
-downloaded to the user's computer are not altered. There is no GitHub
-posting/deletion action.
+### Windows acceptance
 
-**Why an activity log?** Users should be able to understand who/what initiated
-work and when its state changed. This simple single-user GC Agent stores the
-application's event and time; it does not claim identity attribution beyond
-the local Windows user or compliance-grade tamper evidence. Platform-level
-governance/auditing belongs in NATURE AI Platform, not this product.
+1. Run full pytest, stop/restart the GC Agent, navigate to Archived Work.
+2. Open an older archived Task (e.g. #3 or #9) and inspect retained error or
+   report, original ID, source, Technical Details and Activity History.
+3. Confirm **no Restore Task control** and no Archive Task control on already
+   archived records. The record cannot be modified through these controls.
+4. Export JSON from an archived successful Task, and check it retains evidence.
+5. Open an active Finished Task and choose Archive Task; confirm it disappears
+   from My Work and appears in Archived Work across application restart.
+6. Confirm Running and Needs My Attention cannot be archived.
+7. Confirm no GitHub content changed as a result of archive operations.
 
-**Native Windows acceptance pending:** verify Archived Work displays previously
-hidden Task #3/#5/#7, inspect retained result/error, restore one and archive
-it again, restart, ensure consistency and no GitHub change. Run latest
-`python -m pytest -q` and record the exact count.
+The API does not expose a restore route. Physical erasure is not part of V1.
+Existing SQLite work_events entries named 'restored' from any earlier version
+are preserved as historical events only, not as a currently available action.
+
+Native Windows acceptance on the latest revision is pending.
