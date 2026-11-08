@@ -167,6 +167,11 @@ class Journal:
                 status TEXT NOT NULL, created_utc TEXT NOT NULL,
                 updated_utc TEXT NOT NULL, result_json TEXT, error TEXT
             )""")
+            # Backward-compatible in-place migration of existing local Work
+            # history. A tombstone hides deleted items but preserves evidence.
+            columns = {row[1] for row in con.execute("PRAGMA table_info(work)")}
+            if "deleted_utc" not in columns:
+                con.execute("ALTER TABLE work ADD COLUMN deleted_utc TEXT")
 
     def _connect(self):
         return sqlite3.connect(self.db, timeout=15)
@@ -194,10 +199,24 @@ class Journal:
                                  "WHERE id=? AND status='needs_attention'", (_utc(), task_id))
             return result.rowcount == 1
 
+    def delete(self, task_id: int) -> bool:
+        """Soft-delete an inactive record; never delete running or pending work.
+
+        Retain a tombstone for history/audit; no GitHub API or filesystem action.
+        """
+        if type(task_id) is not int or task_id < 1:
+            return False
+        with self._connect() as con:
+            row = con.execute(
+                "UPDATE work SET deleted_utc=? WHERE id=? AND deleted_utc IS NULL "
+                "AND status IN ('finished','failed')",
+                (_utc(), task_id))
+            return row.rowcount == 1
+
     def list(self) -> list[dict]:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
-            rows = con.execute("SELECT * FROM work ORDER BY id DESC LIMIT 200").fetchall()
+            rows = con.execute("SELECT * FROM work WHERE deleted_utc IS NULL ORDER BY id DESC LIMIT 200").fetchall()
         output = []
         for row in rows:
             record = dict(row)
@@ -380,6 +399,17 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                                "discussion_token": saved["read_token"]}
                     task_id = service.start(payload)
                     return self._send(202, {"id": task_id, "status": "running"})
+                if path.startswith("/api/tasks/") and path.endswith("/delete"):
+                    parts = path.split("/")
+                    if len(parts) != 5 or not parts[3].isdigit():
+                        return self._send(404, {"error": "Not found."})
+                    task_id = int(parts[3])
+                    if service.journal.delete(task_id):
+                        return self._send(200, {"id": task_id, "deleted": True,
+                                                "scope": "local_work_only"})
+                    return self._send(409, {
+                        "error": "Only finished or failed tasks can be deleted."
+                    })
                 if path.startswith("/api/tasks/") and path.endswith("/review"):
                     task_id = int(path.split("/")[3])
                     if task_id > 0 and service.journal.review(task_id):
