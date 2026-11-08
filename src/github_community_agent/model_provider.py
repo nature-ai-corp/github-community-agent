@@ -135,4 +135,4 @@ class ChatCompletionsModel:
             raise ToolError("The configured AI model returned no usable text.")
         # Exact token must never appear in the returned draft, even if a provider
         # echoes it in source text. Output remains a *reviewable*, unposted draft.
-        return content.strip()[:MAX_RESPONSE_CHARS].replace(secret, "[REDACTED]")
+        return content.strip().replace(secret, "[REDACTED]")[:MAX_RESPONSE_CHARS]
