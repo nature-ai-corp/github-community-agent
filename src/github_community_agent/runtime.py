@@ -77,7 +77,19 @@ def _evidence(items: list[dict]) -> list[dict]:
 def _model_draft(model: DraftModel | None, instruction: str, evidence: dict) -> str:
     if model is None:
         raise ToolError("Drafting requires a configured AI model. No reply was generated or posted.")
-    content = json.dumps(evidence, ensure_ascii=False)[:MAX_MODEL_INPUT_CHARS]
+    # Bound untrusted source text BEFORE serialization so the model always gets
+    # a complete JSON envelope, including repository/target and safety warning.
+    payload = dict(evidence)
+    source = payload.get("source")
+    if isinstance(source, dict):
+        safe_source = dict(source)
+        body = safe_source.get("body")
+        if isinstance(body, str):
+            safe_source["body"] = body[:8000]
+        payload["source"] = safe_source
+    content = json.dumps(payload, ensure_ascii=False)
+    if len(content) > MAX_MODEL_INPUT_CHARS:
+        raise ToolError("The GitHub evidence is too large for a safe draft.")
     result = model(instruction, content)
     if not isinstance(result, str) or not result.strip():
         raise ToolError("The AI model did not return a usable draft.")
@@ -107,7 +119,7 @@ class CommunityRuntime:
             number: int | None = None) -> dict:
         try:
             workflow = Workflow(workflow)
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise ToolError("Unsupported community workflow.") from exc
 
         repo = self.settings.repository
@@ -171,7 +183,7 @@ class CommunityRuntime:
             discussion_items: list[dict] = []
             # No Discussions token: produce an explicitly partial report without
             # silently implying that Discussions were checked.
-            if self.discussion_token() is not None:
+            if self.discussion_token():
                 discussions = self._discussions()
                 discussion_items = _evidence(_items(discussions, "discussions"))
                 discussions_available = True
