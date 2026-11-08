@@ -85,12 +85,14 @@ if (Test-Path -LiteralPath $targetSettings) {
     throw 'Target already has encrypted settings; refusing to overwrite or merge.'
 }
 if ((Test-Path -LiteralPath ($sourceDb + '-wal')) -or
-    (Test-Path -LiteralPath ($sourceDb + '-shm'))) {
-    throw 'Source SQLite WAL/SHM exists. Close both apps; do not raw-copy a live database.'
+    (Test-Path -LiteralPath ($sourceDb + '-shm')) -or
+    (Test-Path -LiteralPath ($sourceDb + '-journal'))) {
+    throw 'Source SQLite WAL/SHM/rollback journal exists. Close both apps; do not raw-copy a live database.'
 }
 if ((Test-Path -LiteralPath ($targetDb + '-wal')) -or
-    (Test-Path -LiteralPath ($targetDb + '-shm'))) {
-    throw 'Target SQLite WAL/SHM exists. Close the independent EXE before migrating.'
+    (Test-Path -LiteralPath ($targetDb + '-shm')) -or
+    (Test-Path -LiteralPath ($targetDb + '-journal'))) {
+    throw 'Target SQLite WAL/SHM/rollback journal exists. Close the independent EXE before migrating.'
 }
 
 # Only an already-empty independent database can be replaced.
