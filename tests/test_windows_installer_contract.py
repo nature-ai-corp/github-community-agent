@@ -166,3 +166,44 @@ def test_upgrade_uninstall_verifier_does_not_uninstall_or_modify_work_files():
     assert "READ-ONLY VERIFICATION COMPLETE" in script
     for dangerous in ("Remove-Item", "Copy-Item", "Move-Item", "Start-Process", "Stop-Process"):
         assert dangerous not in script
+
+
+
+def test_release_security_preflight_does_not_bypass_security_or_sign_release():
+    path = ROOT / "scripts/windows-release-security-preflight.ps1"
+    script = path.read_text(encoding="utf-8")
+    assert "Get-AuthenticodeSignature" in script
+    assert "Get-MpComputerStatus" in script
+    assert "Get-FileHash" in script
+    assert "PrivilegesRequired=lowest" in script
+    assert "release_dependency_inventory.py" in script
+    assert "RELEASE PREFLIGHT INCOMPLETE" in script
+    assert "No scan results claimed" in script
+    for forbidden in (
+        "Set-MpPreference", "Add-MpPreference", "Start-MpScan", "Remove-Item",
+        "Stop-Process", "Copy-Item", "Move-Item", "Start-Process",
+        "Set-AuthenticodeSignature",
+    ):
+        assert forbidden not in script
+
+
+def test_license_inventory_is_not_misrepresented_as_frozen_exe_sbom(tmp_path):
+    import importlib.util
+    import json
+    path = ROOT / "scripts/release_dependency_inventory.py"
+    script = path.read_text(encoding="utf-8")
+    assert "NOT a final frozen-binary SBOM" in script
+    assert "License-Expression" in script
+    assert "License" in script
+    assert "metadata" in script
+    assert "destination.exists()" in script
+    spec = importlib.util.spec_from_file_location("release_inventory_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    inventory = mod.build_inventory()
+    assert inventory["scope"].endswith("NOT a final frozen-binary SBOM")
+    assert inventory["dependencies"]
+    assert isinstance(inventory["missing_license_metadata"], list)
+    assert any("unsigned" in x for x in inventory["release_blockers"])
+    # Inventory must not collect user data or local secrets.
+    assert "api_key" not in json.dumps(inventory)
