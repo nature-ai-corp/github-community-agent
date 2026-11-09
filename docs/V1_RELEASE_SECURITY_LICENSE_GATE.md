@@ -966,3 +966,52 @@ path/hash and isolated LOCALAPPDATA root.
 
 No release authorization is implied. PR #11 remains Draft with no
 merge, signature, tag or release.
+
+## EXE/process and isolated data provenance check (prepared, Windows run pending)
+
+The five real V1 Task exports and user-verified Needs My Attention
+transition remain accepted as **application-level evidence**. Their
+source EXE path was not embedded, and a previous attempt to pull
+the new isolated launcher failed with DNS resolution errors. It would
+be incorrect to retroactively claim those exports were generated
+by the optimized isolated build.
+
+A new **read-only** diagnostic is available:
+`scripts/windows-check-exclusion-candidate-provenance.ps1`.
+It prints SHA256 and paths of the original build and independently
+optimized candidate, attempts to identify running
+`GitHubCommunityAgent.exe` process executable paths through Windows
+CIM, and inspects ONLY
+`build/gc-agent-e2e-trials/trial-*/GitHubCommunityAgent/work.sqlite3`
+using SQLite `mode=ro`. It outputs aggregate Task definition/status
+counts and `work_events` event-name/count totals, NOT Task content,
+DB mutations, protected settings, credentials or tokens.
+
+Run after the updated branch is available:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-check-exclusion-candidate-provenance.ps1
+```
+
+If `git pull` fails again, do not assume local new scripts exist;
+fix/check DNS and only run scripts verified to be present.
+No process may be running when inspected, in which case record that
+provenance remains unresolved.
+
+For **future newly launched isolated trials**, the updated
+`windows-run-exclusion-candidate-isolated.ps1` writes a
+non-secret `candidate-launch-attestation.json` within the unique
+trial directory before EXE launch, containing actual candidate EXE
+path/hash, UTC launch intent, and isolated data-root path. This file
+is **not** retrospective evidence for older Tasks; by itself it also
+does not prove that each Task used that process or that no GitHub post
+occurred. Correlate the attestation with new Task events and
+running-process path; security/side-effect acceptance stays separate.
+
+**No existing executable, installer, database, protected settings or
+Nature AI Worker repo was modified.** Diagnostic and attestation scripts
+have static guard tests but native Windows verification is pending.
+All PRs remain Draft. No signing, merge, tagging or release.
