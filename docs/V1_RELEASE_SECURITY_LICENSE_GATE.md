@@ -322,3 +322,37 @@ software components or licensing obligations.
 **Status:** file list reviewed in part, release still BLOCKED on complete
 provenance, licenses, signing, frozen security/AV assessment and additional
 Windows acceptance.
+
+## Remaining 926 onedir 'other' resources — Windows user evidence (Nov 8, 2026)
+
+A read-only PowerShell grouping of the existing frozen-bundle manifest
+shows **all 926** items categorized `other` are in just four directories:
+
+| Directory | Other files |
+| --- | ---: |
+| `_tcl_data` | 832 |
+| `_tk_data` | 88 |
+| `tcl8` | 5 |
+| `certifi` | 1 |
+| **Total** | **926** |
+
+Therefore **925/926** of the `other` entries (99.9%) are concentrated
+under Tcl/Tk-related directory names. Folder names are *origin clues*,
+not a formal mapping of all files to a verified upstream distribution,
+version, notice or license. The remaining one item is in `certifi`;
+the already classified public `cacert.pem` is counted **separately**
+from these 926 `other` files.
+
+This supports preserving current Tkinter/Tcl/Tk dependencies while the
+application still imports `execute_workflow` from `desktop.py` and that
+module imports Tkinter. A smaller, Web-only distribution may be possible
+**only after** separating the workflow logic from Tkinter UI in a separate
+reviewed change and performing full frozen Windows reacceptance. No
+current installer cleanup, rebuild or code exclusion is authorized.
+
+Remaining work on **actual frozen binary SBOM** includes mapping each
+embedded archive Python module to a package/version, inspecting the full
+licenses and required notices for Tcl/Tk, CPython, OpenSSL, libffi, zlib,
+Microsoft runtime, certifi, PyInstaller and any other real bundled
+dependency, and verifying the installer's own included documentation.
+The archive listing alone is not a signed or complete SBOM.
