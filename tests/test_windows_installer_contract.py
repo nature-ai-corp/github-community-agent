@@ -125,3 +125,8 @@ def test_installed_windows_acceptance_is_read_only_and_preserves_data():
     assert "Move-Item" not in script
     assert "Start-Process" not in script
     assert "Test Connection checks are still REQUIRED" in script
+    assert "Work database SHA256 INCOMPLETE" in script
+    assert "Get-FileHash -LiteralPath $current -Algorithm SHA256 -ErrorAction Stop" in script
+    assert "if ($hashIncomplete)" in script
+    assert "exit 2" in script
+    assert "Stop the app and rerun" in script
