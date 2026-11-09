@@ -366,3 +366,46 @@ appropriate local security policy, and record warning/blocker outcomes
 rather than bypassing protection. Verify Start menu launch and Task
 continuity, then design an independent clean-account acceptance.
 No destructive uninstall/upgrade before continuity has passed.
+
+## Installed app first-run user evidence and non-destructive verification
+
+The user installed the unsigned Inno Setup developer package on Windows and
+provided a screenshot of the installed Work Center at localhost. The screenshot
+shows the original **five active Task IDs #10, #8, #6, #2, #1**, all Finished,
+with Recent Work and the saved model label. This supports a successful initial
+per-user installed-app UI launch and *active* task continuity. It does NOT
+yet confirm the five archived records, a live DPAPI-decrypted model
+connection, upgrade or uninstall behavior.
+
+Use the added **read-only** local verification script. It never installs,
+moves or deletes files:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-installed-acceptance.ps1
+```
+
+The installed-acceptance script:
+- Runs `--self-check` on the actual per-user installed EXE.
+- Compares installed EXE SHA256 to the original onedir EXE, if available.
+- Runs `--diagnostics` for user data and existing Task count without reading
+  or printing secrets.
+- Checks presence of work.sqlite3 and settings.dpapi, and compares their
+  hashes with the pre-install backups (when present). Work file hashes may
+  differ after legitimate changes; investigate differences instead of
+  automatically reverting anything.
+- Prints the Authenticode signature status; `NotSigned` is expected for this
+  internal build and **not** an official release approval.
+- Never performs uninstall, upgrade, copy, GitHub posting or model requests.
+
+**Manual checks are still required**: in Archived Work verify Task
+#3/#4/#5/#7/#9 and Activity History; in Settings verify credentials are
+reported as saved and use Test Connection for a live model request without
+revealing the API key. Do not confuse saved model label with credential
+decryption proof.
+
+Only after these checks pass should an independent, separately staged
+upgrade and uninstall validation be planned. Never remove existing data
+without a specific explicit user decision. Keep PR Draft and version dev0.
