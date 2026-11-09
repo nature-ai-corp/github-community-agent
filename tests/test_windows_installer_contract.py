@@ -104,3 +104,24 @@ def test_msix_store_python_migration_is_opt_in_and_non_destructive():
     assert "Remove-Item" not in script
     assert "Copy-Item -LiteralPath $sourceDb" in script
     assert "Copy-Item -LiteralPath $sourceSettings" in script
+
+
+
+def test_installed_windows_acceptance_is_read_only_and_preserves_data():
+    script = (ROOT / "scripts/windows-installed-acceptance.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "Programs\\GitHub Community Agent\\GitHubCommunityAgent.exe" in script
+    assert "GC-Agent-PreInstall-Backup" in script
+    assert "work.sqlite3" in script
+    assert "settings.dpapi" in script
+    assert "Get-FileHash" in script
+    assert "Get-AuthenticodeSignature" in script
+    assert "--self-check" in script
+    assert "--diagnostics" in script
+    assert "No files were modified." in script
+    assert "Remove-Item" not in script
+    assert "Copy-Item" not in script
+    assert "Move-Item" not in script
+    assert "Start-Process" not in script
+    assert "Test Connection checks are still REQUIRED" in script
