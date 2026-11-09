@@ -1015,3 +1015,59 @@ running-process path; security/side-effect acceptance stays separate.
 Nature AI Worker repo was modified.** Diagnostic and attestation scripts
 have static guard tests but native Windows verification is pending.
 All PRs remain Draft. No signing, merge, tagging or release.
+
+## Actual read-only Windows provenance-inspection results (2026-11-09)
+
+The user pulled branch `feature/unified-task-home` through
+`939a99e` and ran the newly added read-only script, with this
+observed native Windows output:
+
+- `windows-test-regression.ps1`: **242 passed in 1.82s**,
+  zero failures.
+- Baseline EXE path:
+  `dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256:
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Optimized candidate EXE path:
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256:
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- No `GitHubCommunityAgent.exe` process was running at inspection.
+- Unique retained trial folder:
+  `build/gc-agent-e2e-trials/trial-5b5fbee064604fe2acf85ff4deea42c8`.
+  Its `GitHubCommunityAgent/work.sqlite3` was inspected read-only,
+  without any protected settings or Task body access.
+- **Five total Task records**, one each for
+  `review_issues`, `review_discussions`, `draft_issue`,
+  `draft_discussion`, and `community_report`, all currently
+  `finished`.
+- Verified event-name counts from the real isolated trial SQLite
+  database: `created=5`, `completed=3`,
+  `needs_attention=2`, `marked_reviewed_locally=2`.
+- The two local review events are consistent with the user's
+  explicit confirmation of reviewing both drafts through
+  **Needs My Attention**, resolving the earlier review-state
+  question at the stored-event level, not just status/export level.
+
+**Disposition:** accept **isolated trial dataset** and persisted
+local approval event evidence plus source regression **242 PASS**.
+The trial database is demonstrably distinct from the ordinary
+`%LOCALAPPDATA%/GitHubCommunityAgent` storage location.
+
+**Remaining precise limitation:** because this trial predates the
+new `candidate-launch-attestation.json` addition and no process was
+running at inspection, the database and frozen-candidate hashes
+cannot *cryptographically link* the historical Task executions to
+the optimized candidate EXE. Historical candidate identity remains
+strongly consistent with user workflow but formally unproven.
+Independent GitHub no-write verification, signed installer, second
+Windows-account DPAPI protection and full versioned installer
+upgrade/NOTICE/SBOM reviews also remain open.
+
+Do not require all five real workflows to be rerun merely to repeat
+already validated business behavior. A newly instrumented, minimal
+isolated trial with an EXE hash attestation may address formal
+candidate-source provenance separately.
+
+No software installation/release or existing user's saved data changed.
+PR #11 stays Draft; no merge, tag, signing or publication.
