@@ -24,6 +24,22 @@ New-Item -ItemType Directory -Path $trial -Force | Out-Null
 if (-not (Test-Path -LiteralPath $trial -PathType Container)) {
     throw 'Failed to create independent trial root.'
 }
+# Record non-secret execution attribution BEFORE starting the candidate. This
+# evidence is only for a NEW trial, never inferred from historical exports.
+$candidateSha = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
+$attestation = Join-Path $trial 'candidate-launch-attestation.json'
+$record = [ordered]@{
+    purpose = 'isolated_frozen_candidate_manual_V1_trial'
+    launched_utc = [DateTime]::UtcNow.ToString('o')
+    executable = (Resolve-Path -LiteralPath $candidate).Path
+    executable_sha256 = $candidateSha
+    isolated_localappdata = $trial
+    task_data_root = $trialData
+    evidence_scope = 'launch intent only; task execution and GitHub nonwrite must be verified separately'
+}
+$record | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $attestation -Encoding UTF8
+Write-Host 'Candidate executable SHA256:' $candidateSha
+Write-Host 'Non-secret launch attestation:' $attestation
 Write-Host 'GC Agent ISOLATED candidate UI trial. No release or installer.'
 Write-Host 'Existing user data root (WILL NOT BE USED):' $realData
 Write-Host 'NEW empty trial data root:' $trialData
