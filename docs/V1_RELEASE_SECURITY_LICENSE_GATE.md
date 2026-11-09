@@ -1125,3 +1125,40 @@ five model/GitHub workflow calls is unnecessary just to confirm process
 identity: a minimal separately attested candidate launch plus
 read-only inspection is preferable, clearly labeled as **new**
 evidence, not retrospective proof.
+
+## Live running optimized EXE process identity and fresh trial data isolation PASS (2026-11-09)
+
+User supplied a Windows screenshot of
+`scripts/windows-check-exclusion-candidate-provenance.ps1` while the
+optimized GC Agent was actively running. The read-only OS/CIM query
+actually returned:
+
+- `PID 23796 : EXCLUSION_CANDIDATE`, whose executable path was
+  `C:\Users\aiuser\projects\github-community-agent\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent\GitHubCommunityAgent.exe`.
+- Optimized candidate SHA256
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- Original baseline EXE SHA256 remained
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Fresh trial directory
+  `trial-0c7e076a671c47aba78cbdd9071ef237` contained a database
+  with **Task total: 0**.
+- Previous separate trial
+  `trial-5b5fbee064604fe2acf85ff4deea42c8` still contained the
+  five finished V1 Task definitions and events:
+  `created=5`, `completed=3`,
+  `needs_attention=2`, `marked_reviewed_locally=2`.
+
+**Accepted at live-evidence level**: operating-system observation of a
+real running optimized candidate EXE process; separate newly initialized
+trial data with zero tasks; preserved earlier five-task test data;
+unchanged baseline EXE hash. No launch provenance from historical
+Task timestamps to the old process was independently established, so
+DO NOT label the earlier five Task results as cryptographically
+authenticated executions of the candidate. The new zero-task trial
+is not an additional five-workflow E2E pass.
+
+Remaining independent security and release gates: GitHub no-write
+side-effect verification, separate-Windows-user DPAPI denial, live
+Host/Origin/nonce attack-path checks, genuine changed-code installer
+upgrade, binary/component SBOM/license NOTICE, signed public version.
+No installed files or original Nature AI Worker files touched.
