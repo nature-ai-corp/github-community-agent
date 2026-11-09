@@ -700,3 +700,61 @@ or rebuilding has been undertaken in this review.
 **SBOM licensing, notices, publisher signing and independent Windows-user
 security remain blocked.** This xref evidence is specifically a build
 hygiene finding, not a security certification.
+
+## Isolated unsigned exclusion experiment prepared — Windows run pending (2026-11-09)
+
+The actual PyInstaller xref shows `httpx._main` importing
+`pygments.lexers`, and `anyio._backends._asyncio` importing
+`_pytest.outcomes`. The previously accepted EXE and installer remain
+unchanged.
+
+A separate test-only builder is available:
+`scripts/windows-build-exclusion-candidate.ps1`.
+
+- Precondition: existing accepted `dist/GitHubCommunityAgent` onedir
+  bundle and original executable must exist.
+- All NEW output is under
+  `build/gc-agent-exclusion-candidate/` (distinct `dist`, `work`,
+  `spec` folders). The script REFUSES to overwrite that directory.
+- Uses the same source launcher and UI-data inclusion as the baseline,
+  but excludes `pygments`, `pytest` and `_pytest` for an experiment.
+- Candidate EXE must pass `--self-check`, and PyInstaller archive
+  inspection MUST independently verify zero matching `pygments`,
+  `pytest` and `_pytest` module names. Inspecting the archive is not
+  equivalent to validating real V1 workflows.
+- Prints baseline/candidate file counts and total file bytes, and
+  verifies the original baseline EXE hash is unchanged. It does
+  **not** run Inno Setup, install or uninstall, sign, publish, access
+  AppData/DPAPI/work.sqlite3, or modify the original Nature AI Worker.
+- Uses current development environment, so package upgrade drift and
+  other changes could affect the outcome; reported size savings cannot
+  automatically be attributed solely to exclude flags.
+- Source guardrail tests have been added but **real native Windows
+  execution is pending**.
+
+### User-operated native Windows trial
+
+First close any unnecessary GC Agent development windows, then use the
+original project folder:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-build-exclusion-candidate.ps1
+```
+
+If an old `build/gc-agent-exclusion-candidate` folder is present,
+the script fails safely. Do NOT erase prior evidence just to rerun.
+Report the exact Windows test totals, candidate self-check, archive
+exclusion check, candidate/baseline file counts and sizes.
+A failed candidate is **not** a release candidate; keep existing
+installed app and original accepted bundle as-is.
+
+After a candidate succeeds, *before* any decision to replace the
+previous build, confirm full V1 real GitHub read-only tasks, local
+approvals, saved DPAPI key live model connection, nonwrite behavior,
+Windows Host/Origin/nonce controls, upgrade/uninstall/reinstall
+retention, included third-party LICENSE/NOTICE texts and code
+signing prerequisites. No automatic deployment or promotion is
+authorized. All PRs remain Draft, no merge/tag/sign/public release.
