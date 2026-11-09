@@ -207,3 +207,52 @@ def test_license_inventory_is_not_misrepresented_as_frozen_exe_sbom(tmp_path):
     assert any("unsigned" in x for x in inventory["release_blockers"])
     # Inventory must not collect user data or local secrets.
     assert "api_key" not in json.dumps(inventory)
+
+
+def test_project_declares_own_apache_license_in_package_metadata():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert project["project"]["license"] == "Apache-2.0"
+    assert set(project["project"]["license-files"]) >= {"LICENSE", "NOTICE"}
+    assert (ROOT / "LICENSE").is_file()
+    assert (ROOT / "NOTICE").is_file()
+
+
+def test_dependency_audit_distinguishes_first_party_and_duplicate_metadata():
+    import importlib.util
+    from unittest.mock import patch
+    path = ROOT / "scripts/release_dependency_inventory.py"
+    spec = importlib.util.spec_from_file_location("gc_inventory_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class FakeDist:
+        def __init__(self, name, version, license_expression):
+            self.version = version
+            self.metadata = {
+                "Name": name, "License-Expression": license_expression,
+            }
+
+            class Metadata(dict):
+                def get_all(self, key, default=None):
+                    return default or []
+            self.metadata = Metadata(self.metadata)
+
+    fixtures = [
+        FakeDist("github-community-agent", "0.0.0.dev0", ""),
+        FakeDist("github_community_agent", "0.0.0.dev0", ""),
+        FakeDist("sample-third-party", "1.0", "MIT"),
+        FakeDist("missing-third-party", "2.0", ""),
+    ]
+    with patch.object(mod.md, "distributions", return_value=fixtures):
+        report = mod.build_inventory()
+
+    assert report["metadata_instance_count"] == 4
+    assert len(report["dependencies"]) == 3
+    assert report["duplicate_distribution_metadata"] == [
+        {"name": "github-community-agent", "version": "0.0.0.dev0", "metadata_instances": 2}
+    ]
+    own = next(x for x in report["dependencies"] if x["first_party"])
+    assert own["metadata_instances"] == 2
+    assert own["license_metadata_missing"] is True  # old installed metadata; never fabricated
+    assert report["missing_third_party_license_metadata"] == ["missing-third-party"]
+    assert report["missing_license_metadata"] == ["github-community-agent", "missing-third-party"]
