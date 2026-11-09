@@ -32,7 +32,14 @@ def extract_names(lines: list[str]) -> tuple[list[str], int]:
         # Some archive metadata entries contain multiple quotes. Keep only
         # conservatively recognized package-like names, no inferred meaning
         # for path strings, binary names or optional metadata.
-        names.extend(candidates)
+        # The first quoted identifier is generally the member; later
+        # quoted tokens may be PyInstaller type labels such as PYMODULE.
+        # Never count these labels as separate Python packages.
+        item = candidates[0]
+        if item in {"PYMODULE", "PYPACKAGE", "PYZ", "BINARY", "DATA", "EXTENSION", "SPLASH"}:
+            unmatched += 1
+            continue
+        names.append(item)
     return names, unmatched
 
 
