@@ -495,3 +495,28 @@ UI detail to inspect if full activity visibility is required.
 **Outstanding:** live provider Test Connection using the encrypted,
 previously saved API Key, without entering it again; independent
 upgrade and uninstall retention tests. No formal release or signing.
+
+## Installed-app encrypted credential and live provider check — PASS
+
+On November 8, 2026, the user showed the **installed** GC Agent Settings UI:
+- Provider `OpenAI`, model `gpt-4.1-mini`.
+- API key input was blank by design, with the UI message
+  `A key is stored encrypted. Leave empty to keep it.`
+- They clicked **Test connection** without entering or replacing the saved
+  API key. The UI displayed
+  **`Connection succeeded (live provider check).`**
+
+This confirms actual installed-runtime access to the previously stored
+encrypted credential and a successful live model connection (not merely
+presence of the DPAPI file or displayed model name).
+
+Combined with the already established Windows 214-passed regression,
+installed frozen EXE integrity, full My Work/Archived Work Task-ID
+continuity and unchanged database/settings hashes, **initial Windows
+per-user installation and data continuity acceptance is PASS**.
+
+Remaining separate gates: installed Activity History event-row detail
+inspection; controlled real upgrade to a distinct, approved test version;
+uninstall retaining user data; reinstall; clean separate-user acceptance;
+negative security tests, dependency and NOTICE review, signed final
+installer and release approval. Do not merge, sign, tag or release yet.
