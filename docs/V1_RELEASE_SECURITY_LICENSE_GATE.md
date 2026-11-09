@@ -476,3 +476,38 @@ Preserve the old invalid report for audit traceability. The printed
 High unmatched count or unexpected classified names mean the report is
 still incomplete. This only reads the already generated archive listing,
 not customer data, and makes no installed-product changes.
+
+## Follow-up: archive triage regex escaping failure and precise fix
+
+Native Windows test at `06967e1` reported **231 passed / 5 failed**
+(total 236). All five failures were the new archive triage tests.
+The same triage script matched **zero** of 717 lines; its report
+therefore has no SBOM value and is retained as failed audit evidence.
+
+Root cause confirmed in the source: raw regex literals accidentally
+contained *double backslashes* (`\\\\s`, `\\\\d`, `\\\\.`),
+so they matched literal escape characters rather than whitespace,
+digits, or module-name periods. This affected both the bare-name
+regex and the quoted-list prefix.
+
+Commit `b59e366` replaces these with the intended single-backslash
+raw regex sequences. Local isolated expression checks confirmed
+matching sample bare names `_pytest.outcomes` and
+`gc_agent_launcher`, quoted sample `0, 'httpx'`, while the archive
+name `PYZ.pyz` remains excluded as a module by the existing filter.
+These local checks are **not a replacement for the full native Windows
+regression**, which must be rerun.
+
+User Windows steps (preserving the previous unsuccessful triage JSON):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\frozen-module-triage.json -NewName frozen-module-triage-before-regex-fix.json
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+Do not remove the suspected `_pytest` modules or alter the installed
+application before confirming the corrected inventory and its provenance.
+All release gates remain open.
