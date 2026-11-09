@@ -611,3 +611,46 @@ valid; do not rebuild existing accepted EXE just to create it.
 Optimization should use a separate candidate build and require
 repeat frozen functional/security/installer acceptance. No current
 code exclusion or official release is authorized.
+
+## Initial xref excerpt confirms pytest origin, not complete import chain (2026-11-09)
+
+The user located the PyInstaller build-time module graph under
+`build/gc-agent-pyi/GitHubCommunityAgent/xref-GitHubCommunityAgent.html`
+and supplied the first 15 pattern matches from a `Select-String`
+search for `_pytest|pygments`. The excerpt includes actual nodes
+`_pytest`, `_pytest._version`, `_pytest.outcomes` and source
+URLs under the Windows repository's
+`.venv/Lib/site-packages/_pytest/` directory.
+
+This establishes that those pytest modules are included from the
+development Python environment; the excerpt does **not** reveal the
+full directed path from `gc_agent_launcher` to the pytest/Pygments
+root nodes. The `pygments.formatters.img` match in the early output
+appears as an importer of a different missing module and does not
+by itself show who imports Pygments. Avoid assigning responsibility
+to httpx, hooks, or the application without directed evidence.
+
+### Targeted importer extraction using the existing xref, no rebuild
+
+```powershell
+$xref = ".\build\gc-agent-pyi\GitHubCommunityAgent\xref-GitHubCommunityAgent.html"
+$html = Get-Content -LiteralPath $xref -Raw
+foreach ($module in @("pygments","pygments.lexers","_pytest","_pytest.outcomes")) {
+    $marker = '<a name="' + $module + '"></a>'
+    $start = $html.IndexOf($marker, [StringComparison]::Ordinal)
+    if ($start -lt 0) { Write-Host "$module : node not found"; continue }
+    $next = $html.IndexOf('<div class="node">', $start + $marker.Length, [StringComparison]::Ordinal)
+    if ($next -lt 0) { $next = $html.Length }
+    $node = $html.Substring($start, $next - $start)
+    $match = [regex]::Match($node, '(?s)imported by:\s*(.*?)</div>')
+    if (-not $match.Success) { Write-Host "$module : no imported-by section"; continue }
+    $parents = [regex]::Matches($match.Groups[1].Value, '<a href="#([^"]+)">') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+    Write-Host "$module imported by: $($parents -join ', ')"
+}
+```
+
+This displays *immediate importers*, not a full transitive entrypoint
+trace. If it shows PyInstaller hooks or runtime helpers, follow them
+only with evidence. Do not edit the installed EXE or delete existing
+PyInstaller files; the full reviewed signed/licensed SBOM is still open.
