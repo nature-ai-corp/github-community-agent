@@ -113,3 +113,35 @@ should identify zero missing third-party license metadata **if no other
 packages changed**; the actual Windows output controls acceptance. Even
 zero metadata gaps is not proof of complete redistribution notices, a
 bundled-binary SBOM, malware scan, code signing or release approval.
+
+## Native Windows license metadata remediation verified — 2026-11-08
+
+User ran `pip install -e ".[dev,build]"` on branch
+`feature/unified-task-home` at `e9eb271`, followed by
+`windows-test-regression.ps1` and the read-only
+`windows-release-security-preflight.ps1`.
+
+Exact reported results:
+- **220 passed in 1.80s**, 0 failed — `GC Agent Windows regression PASS`.
+- Frozen onedir and installed EXE self-check PASS; installed EXE equals built
+  EXE SHA256.
+- Environment inventory: **21 unique distributions**, **22 metadata
+  instances**, **one duplicated name/version metadata**.
+- **Missing license metadata: 0**.
+- **Missing third-party license metadata: 0**.
+- Windows Defender AntivirusEnabled=True, RealTimeProtectionEnabled=True,
+  but no malware scan was executed.
+- Authenticode `NotSigned` — public release BLOCKER.
+- The local preflight still correctly reports
+  `RELEASE PREFLIGHT INCOMPLETE` because exact frozen payload, required
+  third-party redistribution notices, signing and broader security assessment
+  remain open.
+
+The previously missing two entries were duplicate first-party
+`github-community-agent 0.0.0.dev0` metadata. The SPDX metadata addition
+and unique-distribution accounting are therefore **verified as successful
+for the build environment**. This result must **not** be extrapolated into
+a completed frozen-binary SBOM, malware/security clearance or public-release
+approval. The application currently installed for user testing remains the
+existing unsigned build; updating editable packaging metadata does not
+magically rebuild/sign that installed EXE.
