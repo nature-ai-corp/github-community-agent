@@ -654,3 +654,49 @@ This displays *immediate importers*, not a full transitive entrypoint
 trace. If it shows PyInstaller hooks or runtime helpers, follow them
 only with evidence. Do not edit the installed EXE or delete existing
 PyInstaller files; the full reviewed signed/licensed SBOM is still open.
+
+## PyInstaller xref: importer evidence for Pygments and pytest (2026-11-09)
+
+Actual Windows user-run `xref-GitHubCommunityAgent.html` importer
+extraction (after 236 native tests PASS) identifies the following **direct
+static import edges**:
+
+- `httpx._main` → `pygments.lexers`.
+  The large set of `pygments.lexers.*` submodules imports
+  `pygments.lexers` and `pygments`, explaining the candidate
+  340-module Pygments footprint. Static imports alone do not establish
+  that all lexers are used at runtime.
+- `anyio._backends._asyncio` → `_pytest.outcomes` →
+  `_pytest`; also `_pytest.outcomes` → `_pytest` and
+  `_pytest._version` → `_pytest`.
+  This explains the three observed `_pytest` module candidates in
+  the frozen archive.
+
+These are **immediate importer relationships**, not proof that removing
+dependencies would preserve every executed code path. In particular the
+xref does not prove if `httpx._main` CLI highlighting is reached by
+GC Agent or whether AnyIO's pytest reference is exercised. The original
+source uses `httpx` as an HTTP client and does not directly import
+Pygments or pytest in the reviewed entrypoints.
+
+### Release engineering decision
+
+**Do not remove files from the currently accepted frozen EXE, signed
+installer or installed user files**. For an independently reviewable
+future optimization, create a **separate isolated candidate** build in
+a new directory (not the current `dist/GitHubCommunityAgent`) with
+explicit PyInstaller excludes for `pytest`, `_pytest`, `pygments`,
+then inspect its new archive. If it fails self-check or any actual
+V1 workflow, reject that candidate. An accepted optimized build would
+still require the full Windows installed-app functional/DPAPI/data-
+retention, tests, negative-security and installer acceptance again
+before it supersedes the prior candidate.
+
+Before building, review whether the PyInstaller `--exclude-module`
+flags have the intended behavior and whether `pygments` or
+`_pytest` is needed in a selected optional code path. No exclusion
+or rebuilding has been undertaken in this review.
+
+**SBOM licensing, notices, publisher signing and independent Windows-user
+security remain blocked.** This xref evidence is specifically a build
+hygiene finding, not a security certification.
