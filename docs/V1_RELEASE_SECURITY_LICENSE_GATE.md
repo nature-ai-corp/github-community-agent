@@ -560,3 +560,54 @@ functional acceptance, installer continuity and security review.
 Release remains blocked on full binary/component provenance, licenses
 and notices, signed artifacts, security checks, independent user isolation,
 real changed-code upgrade and approved version.
+
+## Follow-up provenance from actual Windows triage JSON (2026-11-09)
+
+User ran read-only queries against the corrected
+`frozen-module-triage.json`. All **10** items classified
+`unresolved` are identifiable as the first-party launcher or
+PyInstaller runtime/bootstrap helpers:
+
+`gc_agent_launcher`, `pyi_rth__tkinter`,
+`pyi_rth_inspect`, `pyi_rth_multiprocessing`,
+`pyi_rth_pkgutil`, `pyiboot01_bootstrap`,
+`pyimod01_archive`, `pyimod02_importers`,
+`pyimod03_ctypes`, `pyimod04_pywin32`.
+
+They should not be reported as ten unknown unrelated third-party
+distribution packages. The triage tool's generic category remains
+literal; this human-origin attribution does not prove the exact bundled
+PyInstaller build hash or its license obligations.
+
+Installed-environment candidate distribution names extracted from the
+archive module list: `anyio`, `certifi`, `h11`, `httpcore`,
+`httpx`, `idna`, `packaging`, `Pygments`, `pytest`,
+`typing_extensions`. This candidate list is **not** a validated set
+of exact bundled versioned components.
+
+Of **343** flagged dev module names, **340** have top-level
+`pygments` and **3** have `_pytest`. 343 is the number of **module
+names**, not the number of Python distributions. Read-only GitHub
+source inspection of launcher, Work Center, desktop and core model/
+analyst modules showed no direct `pytest` or `pygments` import in
+those entry paths; this does **not** rule out indirect imports,
+metadata hooks or PyInstaller auto-collection.
+
+### Next diagnostic: inspect existing PyInstaller import-reference graph
+
+Existing build work directory should contain a PyInstaller import graph
+`xref-GitHubCommunityAgent.html`. Avoid editing or deleting it.
+Check for the file first:
+
+```powershell
+Get-ChildItem ".\build\gc-agent-pyi" -Filter "xref-*.html" |
+    Select-Object Name, Length, FullName
+```
+
+If present, inspect locally for the import chains into `pygments`
+and `_pytest`. Do not infer a removable production dependency from
+module name alone. If absent, the current real audit evidence is still
+valid; do not rebuild existing accepted EXE just to create it.
+Optimization should use a separate candidate build and require
+repeat frozen functional/security/installer acceptance. No current
+code exclusion or official release is authorized.
