@@ -72,3 +72,36 @@ def test_frozen_audit_windows_script_uses_official_archive_viewer_without_writes
     for prohibited in ("Remove-Item", "Stop-Process", "Start-Process",
                        "Set-MpPreference", "Set-AuthenticodeSignature"):
         assert prohibited not in script
+
+
+def test_frozen_audit_accepts_only_public_certifi_ca_bundle(tmp_path):
+    bundle = tmp_path / "GitHubCommunityAgent"
+    bundle.mkdir()
+    (bundle / "GitHubCommunityAgent.exe").write_bytes(b"safe")
+    public = bundle / "_internal" / "certifi" / "cacert.pem"
+    public.parent.mkdir(parents=True)
+    public.write_bytes(b"# public trust store\n-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----\n")
+    result = mod.inventory(bundle)
+    ca = next(f for f in result["files"] if f["path"].endswith("cacert.pem"))
+    assert ca["kind"] == "public_ca_certificates"
+
+
+def test_frozen_audit_rejects_private_key_even_at_certifi_location(tmp_path):
+    bundle = tmp_path / "GitHubCommunityAgent"
+    bundle.mkdir()
+    (bundle / "GitHubCommunityAgent.exe").write_bytes(b"safe")
+    file = bundle / "_internal" / "certifi" / "cacert.pem"
+    file.parent.mkdir(parents=True)
+    file.write_bytes(b"-----BEGIN PRIVATE KEY-----\nQUJD\n-----END PRIVATE KEY-----\n")
+    with pytest.raises(ValueError, match="certifi/cacert.pem"):
+        mod.inventory(bundle)
+
+
+def test_frozen_audit_rejects_arbitrary_pem_and_reports_only_relative_name(tmp_path):
+    bundle = tmp_path / "GitHubCommunityAgent"
+    bundle.mkdir()
+    (bundle / "GitHubCommunityAgent.exe").write_bytes(b"safe")
+    (bundle / "customer.pem").write_text("NEVER LOG CONTENTS", encoding="utf-8")
+    with pytest.raises(ValueError, match="customer.pem") as exc:
+        mod.inventory(bundle)
+    assert "NEVER LOG CONTENTS" not in str(exc.value)
