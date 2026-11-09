@@ -34,7 +34,12 @@ def extract_names(lines: list[str]) -> tuple[list[str], int]:
     for line in lines:
         bare = BARE_MEMBER.fullmatch(line)
         if bare:
-            names.append(bare.group(1))
+            item = bare.group(1)
+            # PYZ.pyz is the embedded archive filename, not a module.
+            if item.lower().endswith((".pyz", ".zip", ".dll", ".pyd", ".exe")):
+                unmatched += 1
+                continue
+            names.append(item)
             continue
         # Preserve old fixture support; never interpret quoted archive
         # metadata labels (PYMODULE, BINARY etc.) as actual dependencies.
