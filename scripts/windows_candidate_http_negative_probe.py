@@ -78,7 +78,7 @@ def run(base: str) -> list[tuple[str, int, int]]:
     wrong_origin = {"Origin": "https://foreign.invalid",
                     "X-App-Nonce": "not-a-real-nonce",
                     "Content-Type": "application/json"}
-    check("settings POST foreign Origin refused", 403,
+    check("settings POST foreign Origin plus invalid nonce refused", 403,
           probe(base, "/api/settings", method="POST",
                 headers=wrong_origin, payload=b"{}")[0])
     check("tasks POST forged Host refused", 403,
@@ -101,6 +101,7 @@ def main() -> int:
     failures = sum(expected != actual for _, expected, actual in checks)
     print(f"Local HTTP negative checks: {len(checks) - failures} / {len(checks)} PASS")
     print("No valid nonce, authorized POST, model key or GitHub token was used.")
+    print("Foreign-Origin check also has an invalid nonce; origin enforcement is not independently isolated.")
     print("No independent GitHub API side-effect audit was performed.")
     return int(failures != 0)
 
