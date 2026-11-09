@@ -1417,3 +1417,35 @@ OPEN. Cross-Windows-user DPAPI isolation, optimized installer upgrade,
 real frozen SBOM/NOTICE and signing remain OPEN as well.
 
 No code signing, PR merge, release tagging or publishing performed.
+
+## Native Windows GitHub read-only transport source audit — PASS (2026-11-09)
+
+The user ran `scripts/github_readonly_transport_audit.py` natively
+from `C:\Users\aiuser\projects\github-community-agent` and
+supplied the complete PowerShell result screenshot:
+
+- `GitHub transport source audit: PASS`
+- `Source send methods: GET, POST`
+- `GraphQL fixed documents: DISCUSSIONS_QUERY, DISCUSSION_QUERY`
+- Report saved to `build/release-audit/github-readonly-transport-v1.json`
+- Tool explicitly confirms:
+  `INDEPENDENT GITHUB NO-WRITE EVIDENCE STILL REQUIRED.`
+
+**Gate 2 substep ACCEPTED:** static analysis of the current source
+GitHub adapter's bounded REST GET and fixed GraphQL query transport
+contract. GraphQL's HTTP POST is not a publication or mutation.
+This is not a frozen-runtime network capture and not a GitHub
+server-side before/after mutation audit. Therefore **Gate 2 as a
+whole is still OPEN** until independently observed server-side
+activity or a sufficiently controlled test can corroborate the lack
+of writes without initiating a write.
+
+Suggested next evidence path: use a dedicated, explicitly authorized
+test repository and strictly read-only GitHub token; record server-side
+comment/discussion/issue state or audit activity before and after
+bounded live V1 read/draft/review runs. Do not perform a GitHub write
+for the sake of testing, and do not claim a historical before-state
+from a later snapshot. Where immutable/reliable audit visibility is
+unavailable, document that uncertainty rather than marking independent
+no-write as proven. All PRs remain Draft, no merge, signing, tag or
+publication.
