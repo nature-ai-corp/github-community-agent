@@ -609,3 +609,38 @@ never erase database or DPAPI files. Full application-code upgrade across
 different application binaries and actual database-schema upgrades are
 separate future tests. No merge, tag, signing or release until the
 broader release gates are explicitly approved.
+
+## Upgrade Trial Windows acceptance PASS — 2026-11-08
+
+The user executed the unsigned `0.0.1-devtrial` Inno Setup upgrade over the
+previous per-user developer installation and supplied three independent
+screenshots from the Windows test machine:
+
+1. **Installed Settings UI** still shows OpenAI/`gpt-4.1-mini`, a previously
+   encrypted/saved API key, and `Connection succeeded (live provider check).`
+2. **Archived Work UI** still shows all original five archived Task IDs
+   #9/#7/#5/#4/#3 with the same report/work types and terminal statuses.
+3. The read-only `windows-upgrade-uninstall-verify.ps1 -Phase AfterUpgrade`
+   emitted:
+   - `AfterUpgrade GC Agent user-data byte continuity PASS.`
+   - `work.sqlite3 and settings.dpapi are SHA256-identical to the baseline.`
+   - `GC Agent frozen executable self-check PASS`
+   - `Stored Task count (including archived): 10`
+   - `READ-ONLY VERIFICATION COMPLETE. No user data or installed files were changed.`
+
+**Accepted:** Inno Setup per-user installer replacement/upgrade behavior,
+continued readability of archived history and encrypted provider setting,
+and byte-identical Work/DPAPI data files.
+
+**Scope qualification:** this trial changed only Inno Setup version and
+installer identity metadata, while bundling the same GC Agent app code.
+It is not evidence for real application-code or schema migration safety.
+
+**Next controlled gate:** After confirming an independently stored backup,
+close all GC Agent executable instances. Uninstall ONLY the independently
+installed GitHub Community Agent (not Nature AI Worker) through Windows
+Installed Apps. After uninstall, run
+`windows-upgrade-uninstall-verify.ps1 -Phase AfterUninstall`, verifying
+the installed EXE was removed and work.sqlite3/settings.dpapi are
+still SHA256-identical to the baseline. Stop before reinstall if this
+verification fails. No automated removal of user data is authorized.
