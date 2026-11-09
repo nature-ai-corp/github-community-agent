@@ -394,3 +394,35 @@ manifests unchanged. Provide the console summary and (optionally) only the
 unresolved *module names*, not the entire report or any secrets.
 This source audit **does not close SBOM, version/provenance, licenses, third-party
 NOTICE, code signing or public release gates**.
+
+## Windows archive-triage result — parser failed to cover actual file (2026-11-08)
+
+The user ran the newly added `frozen_archive_module_triage.py` against
+the prior actual 717-line PyInstaller listing. The source regression suite
+reported **234 passed in 2.02s, zero failed**. However, the parser produced:
+
+- Original listing: **717 lines**
+- Matched module occurrences: **3**
+- Unique parsed names: **2**
+- Unmatched listing lines: **714**
+- Classified `unresolved`: **2**
+
+**Status: TRIAGE FAILED COVERAGE / INVALID SBOM EVIDENCE.** The current
+parser assumes PyInstaller archive member names appear in quotes. The
+actual archive-list format is not yet available in the review context,
+so we cannot conclude which output convention it uses or fix it by guessing.
+Do **not** interpret the 714 unmatched lines as 714 dependencies or
+third-party licensing failures. The underlying frozen file inventory
+(958 files) and the real 234-test native Windows regression remain valid.
+
+Before changing the parser, capture a *small, sanitizable sample* of the
+existing local file, without reading secrets or publishing the entire report:
+
+```powershell
+Get-Content ".\build\release-audit\frozen-embedded-archive.txt" -TotalCount 30
+```
+
+Review the output for user-specific paths before sharing. Next update must
+include fixtures that reflect the **observed** PyInstaller output and fail
+when source coverage is inadequate; never declare SBOM complete based solely
+on a parsing success. Preserve the prior generated report and raw listing.
