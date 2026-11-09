@@ -41,3 +41,39 @@ The release preflight checks the installed vs built executable SHA256, reads Aut
 ## Still blocked
 
 Latest exact-head regression, separate-account isolation, negative frozen HTTP/token tests, true app-code/schema upgrade, frozen dependency license/SBOM, Windows security review, publisher signing, stable version and PR dependency review. All PRs remain Draft, no merge/tag/release.
+
+## User-run latest Windows release preflight — 2026-11-08
+
+On branch `feature/unified-task-home` at `422dc91` the user executed:
+
+- `windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall`: **PASS**;
+  original work.sqlite3 and settings.dpapi SHA256 equal baseline, 10 Task rows
+  including archived, frozen executable self-check passed.
+- `windows-test-regression.ps1`: **218 passed in 3.99s**, zero failed,
+  `GC Agent Windows regression PASS`.
+- `windows-release-security-preflight.ps1`: both frozen bundle and installed
+  app self-check passed; installed EXE matched built EXE SHA256.
+  Authenticode **NotSigned** (public release BLOCKER).
+- Defender status: `AntivirusEnabled=True` and
+  `RealTimeProtectionEnabled=True`. No malware scan was run or claimed.
+- Candidate Python environment license inventory produced at
+  `build/release-audit/python-environment-dependencies.json`:
+  **22 distributions, 2 with missing license metadata**.
+  Names of the two were NOT present in the user-submitted terminal output.
+- Preflight concluded `RELEASE PREFLIGHT INCOMPLETE`: signing, third-party
+  notices, Windows security and actual frozen payload review still open.
+
+### Next evidence
+
+From the existing local inventory (do not modify data or run a new audit):
+
+```powershell
+$inventory = Get-Content ".\build\release-audit\python-environment-dependencies.json" -Raw | ConvertFrom-Json
+$inventory.dependencies | Where-Object license_metadata_missing |
+    Select-Object name, version
+```
+
+Missing metadata is **not proof of an unlicensed or prohibited component**.
+Review actual distribution LICENSE files and exact frozen bundle before
+classifying redistribution risk. Do not resolve by inventing license
+identifiers or treating the build environment list as a final SBOM.
