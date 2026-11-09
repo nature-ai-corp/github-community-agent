@@ -5,6 +5,9 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev0"
 #endif
+#ifndef OutputName
+  #define OutputName "GitHubCommunityAgent-InternalTest-Unsigned"
+#endif
 
 [Setup]
 AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}
@@ -18,7 +21,7 @@ UsePreviousAppDir=yes
 UninstallDisplayIcon={app}\GitHubCommunityAgent.exe
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist\installer
-OutputBaseFilename=GitHubCommunityAgent-InternalTest-Unsigned
+OutputBaseFilename={#OutputName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
