@@ -77,3 +77,39 @@ Missing metadata is **not proof of an unlicensed or prohibited component**.
 Review actual distribution LICENSE files and exact frozen bundle before
 classifying redistribution risk. Do not resolve by inventing license
 identifiers or treating the build environment list as a final SBOM.
+
+## License metadata clarification from Windows evidence (Nov 8, 2026)
+
+The user inspected the candidate environment inventory: both entries flagged
+`license_metadata_missing` were **github-community-agent 0.0.0.dev0**.
+Thus these are *two metadata instances for the project's own first-party
+package*, not two identified unlicensed third-party dependencies.
+
+Actions:
+- `pyproject.toml` now declares the first-party project's
+  `license = "Apache-2.0"` and `license-files = ["LICENSE", "NOTICE"]`.
+  Build backend minimum is setuptools 77 so PEP 639 SPDX metadata is
+  supported. No public version change.
+- The candidate inventory de-duplicates canonical package name + version,
+  preserves the number of duplicate metadata instances, and reports
+  first-party and THIRD-PARTY missing license metadata independently.
+- It does not erase, rewrite or silently invent historical installed
+  package license data. A new editable installation/build is required
+  before the new project license metadata appears in the environment.
+
+### Native Windows recheck (not yet executed)
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,build]"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\python-environment-dependencies.json -NewName python-environment-dependencies-before-license-fix.json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-release-security-preflight.ps1
+```
+
+The previous inventory is preserved under a distinct name. The new audit
+should identify zero missing third-party license metadata **if no other
+packages changed**; the actual Windows output controls acceptance. Even
+zero metadata gaps is not proof of complete redistribution notices, a
+bundled-binary SBOM, malware scan, code signing or release approval.
