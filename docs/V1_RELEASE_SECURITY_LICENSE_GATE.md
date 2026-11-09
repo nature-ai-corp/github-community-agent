@@ -1071,3 +1071,57 @@ candidate-source provenance separately.
 
 No software installation/release or existing user's saved data changed.
 PR #11 stays Draft; no merge, tag, signing or publication.
+
+## Native Windows provenance diagnostics — 242 tests PASS, isolated Task-event evidence (2026-11-09)
+
+The user successfully pulled through `939a99e`, ran all native
+Windows tests and the read-only provenance script. The exact observed
+output is as follows:
+
+- **242 tests passed in 1.82 seconds; 0 failures.**
+- Accepted baseline EXE:
+  `dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256 `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+  This is unchanged from the previous accepted baseline.
+- Optimized EXE:
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256 `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+  These hashes distinguish baseline and optimized binaries.
+- **No running GitHubCommunityAgent.exe process found** at inspection,
+  so no runtime process path/PID was available for direct attribution.
+- Exactly one inspected isolated trial directory:
+  `build/gc-agent-e2e-trials/trial-5b5fbee064604fe2acf85ff4deea42c8/`
+  containing a Task database with exactly **5** Task records.
+- Grouped states: `community_report finished=1`,
+  `draft_discussion finished=1`, `draft_issue finished=1`,
+  `review_discussions finished=1`, `review_issues finished=1`.
+- Actual local Task event counts: `created=5`,
+  `completed=3`, `needs_attention=2`,
+  `marked_reviewed_locally=2`.
+
+These event counts **corroborate** the five previously supplied real
+Task exports, and the user's explicit statement that both draft Tasks
+were reviewed via **Needs My Attention**. This substantially strengthens
+the evidence for the local review-state transitions compared with
+final-status JSON exports alone. An isolated trial data root did hold
+the matching five Task definitions. The user has not supplied the
+historical trial process command line or matching EXE launch hash
+attestation: those five Task records cannot be assigned with
+cryptographic certainty to the optimized EXE merely because the
+database sits under the isolated-trial path.
+
+**Accepted**: 242 regression tests; baseline/candidate EXE hashes and
+unchanged baseline; actual isolated Task states and event counts;
+user-attested local review transition. **Still pending**:
+authenticated historic trial EXE execution provenance, independent
+GitHub no-write side-effect verification, cross-account DPAPI access
+denial, native live Host/Origin/nonce negative security, full candidate
+installer/upgrade acceptance, validated component SBOM/licenses and
+signing.
+
+For a new trial, a launch attestation is now available through
+`windows-run-exclusion-candidate-isolated.ps1`, but repeating all
+five model/GitHub workflow calls is unnecessary just to confirm process
+identity: a minimal separately attested candidate launch plus
+read-only inspection is preferable, clearly labeled as **new**
+evidence, not retrospective proof.
