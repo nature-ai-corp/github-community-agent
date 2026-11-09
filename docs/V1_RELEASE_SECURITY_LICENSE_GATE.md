@@ -356,3 +356,41 @@ licenses and required notices for Tcl/Tk, CPython, OpenSSL, libffi, zlib,
 Microsoft runtime, certifi, PyInstaller and any other real bundled
 dependency, and verifying the installer's own included documentation.
 The archive listing alone is not a signed or complete SBOM.
+
+## PyInstaller embedded-module triage tool (Nov 8, 2026) — Windows execution pending
+
+The prior Windows run created a **717-line** embedded-archive listing.
+The new offline `scripts/frozen_archive_module_triage.py` reads that
+existing text file and makes *candidate classifications* for quoted
+PyInstaller module names:
+
+- `first_party`: `github_community_agent.*`
+- `stdlib_candidate`: modules whose top-level name is in the current
+  Python interpreter's `sys.stdlib_module_names`
+- `environment_distribution_candidate`: names mapping through
+  `importlib.metadata.packages_distributions()` to installed Python
+  distribution names, not necessarily frozen versions
+- `unresolved`: no such mapping; manual review required
+
+Only the *first quoted item per line* is interpreted, so labels such as
+`PYMODULE` are not double-counted. The original line count, parse
+occurrences, unique candidate names and unmatched lines are all reported,
+and uncertainty is preserved. The parser is intentionally conservative
+and may miss or misclassify some PyInstaller listings. No external API,
+client credentials, AppData, installed files, binary execution or
+network access are used.
+
+### User Windows step
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+The script refuses to overwrite an existing triage file. Keep the older
+manifests unchanged. Provide the console summary and (optionally) only the
+unresolved *module names*, not the entire report or any secrets.
+This source audit **does not close SBOM, version/provenance, licenses, third-party
+NOTICE, code signing or public release gates**.
