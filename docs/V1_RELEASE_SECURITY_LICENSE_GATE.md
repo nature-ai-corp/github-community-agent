@@ -426,3 +426,53 @@ Review the output for user-specific paths before sharing. Next update must
 include fixtures that reflect the **observed** PyInstaller output and fail
 when source coverage is inadequate; never declare SBOM complete based solely
 on a parsing success. Preserve the prior generated report and raw listing.
+
+## Embedded archive parser corrected from ACTUAL Windows format (2026-11-08)
+
+The user supplied the first 30 lines of `frozen-embedded-archive.txt`.
+Unlike the synthetic original fixtures, `pyi-archive_viewer --brief
+--recursive` shows indented bare names beneath `Contents of ...`
+headers. For example:
+
+```text
+Contents of 'PYZ.pyz' (PYZ):
+ __future__
+ _aix_support
+ _colorize
+ _pytest
+ _pytest._version
+ _pytest.outcomes
+```
+
+The initial 3/717 parse was therefore invalid. The parser now accepts
+unquoted indented identifiers, does not treat `PYZ.pyz` as a module,
+continues accepting legacy quoted-list fixture lines, preserves unmatched
+line counts, and flags common development module candidates.
+
+**New release-risk finding (requires diagnosis):** The ACTUAL frozen
+EXE archive listing includes at least `_pytest`, `_pytest._version`,
+`_pytest.outcomes`. These appear to be pytest test framework modules,
+not a normally necessary production dependency. Their presence is
+observed, but **cause, impact and full extent are not yet proven**.
+Do not delete bundled files manually or assume that pytest was shipped
+unavoidably. Diagnose whether `PyInstaller` collected this through
+`desktop.py`, `work_center.py`, the launcher, analysis hooks or an
+unexpected import, and if optimization is justified do it in a separate
+reviewed code/build change with full real Windows reinstall acceptance.
+
+### Windows re-validation without rebuilding or overwriting audit evidence
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\frozen-module-triage.json -NewName frozen-module-triage-before-format-fix.json
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+Preserve the old invalid report for audit traceability. The printed
+`Development module candidates`, `Unmatched listing lines`,
+`unique names` and `unresolved` counts determine next review.
+High unmatched count or unexpected classified names mean the report is
+still incomplete. This only reads the already generated archive listing,
+not customer data, and makes no installed-product changes.
