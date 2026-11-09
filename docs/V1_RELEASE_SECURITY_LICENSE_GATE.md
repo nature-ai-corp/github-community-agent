@@ -1382,3 +1382,38 @@ No tag/merge/release without explicit owner approval.
 check and GitHub adapter static audit on real Windows.**
 The repo and all parent PRs remain Draft/unmerged. Original
 Nature AI Worker and existing GC Agent data untouched.
+
+## Independent Origin enforcement — real optimized Windows EXE 4/4 PASS (2026-11-09)
+
+The user provided native Windows PowerShell screenshots after pulling
+the changes to the above independent Origin probe:
+
+- `windows-test-regression.ps1`: **248 passed in 3.83s**,
+  zero failures.
+- The isolated optimized EXE self-check succeeded and launched a new
+  Work Center on `http://127.0.0.1:60503/`, with a unique trial data
+  directory and non-secret launch attestation. Candidate executable
+  SHA256 stayed
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- Live `windows_candidate_origin_isolated_probe.py` against the
+  **current** port `60503` yielded **4/4 PASS**:
+  - correct Origin + correct nonce at nonexistent route: HTTP 404;
+  - foreign Origin + **correct** nonce: HTTP 403;
+  - missing Origin + **correct** nonce: HTTP 403;
+  - correct Origin + invalid nonce: HTTP 403.
+- No valid nonce printed or saved; no authorized Task or Settings
+  route, model request or GitHub request issued by this check.
+
+**ACCEPT** independent Origin/nonce enforcement for the tested live
+candidate. This resolves the earlier ambiguity from the combined
+foreign-Origin/bad-nonce probe. Scope is restricted to the four negative
+and control cases on the nonexistent local HTTP route, not a full
+security certification.
+
+**Not yet shown by the screenshots:** execution or output of
+`github_readonly_transport_audit.py`; therefore Gate 2 source-level
+read-only review and independent GitHub-side no-write evidence remain
+OPEN. Cross-Windows-user DPAPI isolation, optimized installer upgrade,
+real frozen SBOM/NOTICE and signing remain OPEN as well.
+
+No code signing, PR merge, release tagging or publishing performed.
