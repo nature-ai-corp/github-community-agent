@@ -191,3 +191,30 @@ installed LICENSE/NOTICE were reviewed separately. Windows signatures,
 malware/security scans and multi-account isolation are still open.
 
 No public release, merge, tag or code signing is authorized.
+
+## Frozen manifest failure: bundled PEM classification (2026-11-08)
+
+The user executed the Windows frozen-payload audit after **227 pytest
+tests passed (0 failures)**. The file inventory blocked at
+`ValueError: Forbidden user-data or secret-like file in frozen bundle`.
+The original script treated **every .pem** as a customer secret, but
+PyInstaller can bundle `certifi/cacert.pem`, which is a *public CA
+certificate trust bundle* rather than a private key.
+
+The error did **not report which file** caused this particular failure;
+the certifi PEM explanation is a plausible root cause, not confirmed
+from the original log. A narrow correction has been prepared:
+- Only `_internal/certifi/cacert.pem` can be treated as a public
+  certificate bundle, and only if the file is small and all PEM BEGIN/END
+  sections are `CERTIFICATE`. All other PEM files and secret-like files
+  remain blocked.
+- A blocked file now reports its **relative path only** without printing
+  its contents or exposing Windows user paths.
+- Added tests for the CA trust bundle, private-key rejection even at the
+  permitted filename, and arbitrary PEM rejection.
+
+Windows must rerun the tests and inventory; do not treat the prior blocked
+audit as PASS and do not modify the frozen bundle by hand. If a different
+path is flagged, inspect the path and adjust rules only with evidence.
+The audit remains incomplete until the file manifest and PyInstaller
+recursive archive listing both succeed and are reviewed.
