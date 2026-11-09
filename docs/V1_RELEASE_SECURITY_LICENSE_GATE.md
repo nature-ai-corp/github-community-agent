@@ -511,3 +511,52 @@ Rename-Item -LiteralPath .\build\release-audit\frozen-module-triage.json -NewNam
 Do not remove the suspected `_pytest` modules or alter the installed
 application before confirming the corrected inventory and its provenance.
 All release gates remain open.
+
+## Native Windows corrected embedded-module triage — verified (2026-11-09)
+
+User pulled branch `feature/unified-task-home` through `924de96`,
+ran `windows-test-regression.ps1` and reanalyzed the preserved actual
+PyInstaller embedded archive. Results:
+
+- **236 passed in 1.94s, 0 failed**.
+- Archive listing **717 lines**, **711 matched module occurrences**,
+  **711 unique parsed names**, **6 unmatched lines**.
+- Classified candidates: **11 first_party**, **228 stdlib_candidate**,
+  **462 environment_distribution_candidate**, **10 unresolved**.
+- **343 development module candidates**; examples from actual audit include
+  `_pytest`, `_pytest._version`, `_pytest.outcomes`, `pygments`,
+  `pygments.console`, and many `pygments.*` submodules.
+- `frozen-module-triage.json` created; previous failed audit outputs preserved.
+
+**Accepted**: corrected module parsing substantially covers the actual
+archive listing and its tests pass on native Windows. **NOT accepted**:
+full SBOM or evidence that 343 distinct *packages* are included. These
+are module names, not distributions. Candidate mappings originate from
+the installed development environment, and may not identify the exact
+provenance or versions of frozen modules.
+
+### Immediate targeted review without rebuilding or modifying installed app
+
+```powershell
+$triage = Get-Content ".\build\release-audit\frozen-module-triage.json" -Raw | ConvertFrom-Json
+$triage.members | Where-Object category -eq "unresolved" |
+    Select-Object member, candidate_distributions
+$triage.members | Where-Object category -eq "environment_distribution_candidate" |
+    ForEach-Object { $_.candidate_distributions } |
+    Sort-Object -Unique
+$triage.development_module_candidates |
+    ForEach-Object { ($_ -split '\\.')[0] } |
+    Group-Object | Sort-Object Count -Descending |
+    Select-Object Count, Name
+```
+
+Investigate the actual import graph and PyInstaller hook analysis before
+excluding `pytest`, `pygments` or other packages. The observed `_pytest`
+and `pygments` content is a build-hygiene concern, not proof of unsafe
+functionality. **Do not delete files in the current proven executable**;
+any future explicit exclusions require a separate build, real Windows
+functional acceptance, installer continuity and security review.
+
+Release remains blocked on full binary/component provenance, licenses
+and notices, signed artifacts, security checks, independent user isolation,
+real changed-code upgrade and approved version.
