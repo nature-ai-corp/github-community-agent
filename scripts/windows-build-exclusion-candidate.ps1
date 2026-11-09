@@ -48,6 +48,34 @@ try {
     }
     & $candidateExe --self-check
     if ($LASTEXITCODE -ne 0) { throw "Candidate self-check FAILED; reject candidate." }
+
+    # Inspect the candidate archive; do not infer exclusion from the CLI flags.
+    $viewer = Join-Path $root '.venv\Scripts\pyi-archive_viewer.exe'
+    if (-not (Test-Path -LiteralPath $viewer -PathType Leaf)) {
+        throw 'Missing PyInstaller archive viewer; cannot verify candidate exclusions.'
+    }
+    $listing = @(& $viewer --brief --recursive $candidateExe 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $listing.Count -eq 0) {
+        throw 'Candidate archive inspection failed.'
+    }
+    $listingPath = Join-Path $candidateRoot 'candidate-embedded-archive.txt'
+    $listing | Set-Content -LiteralPath $listingPath -Encoding UTF8
+    $triagePath = Join-Path $candidateRoot 'candidate-module-triage.json'
+    & $py (Join-Path $root 'scripts\frozen_archive_module_triage.py') --archive-list $listingPath --output $triagePath
+    if ($LASTEXITCODE -ne 0) { throw 'Candidate archive triage failed.' }
+    $triage = Get-Content -LiteralPath $triagePath -Raw | ConvertFrom-Json
+    $suspect = @($triage.members | Where-Object {
+        $_.member -match '^(pygments|pytest|_pytest)(\.|$)'
+    })
+    if ($suspect.Count -ne 0) {
+        Write-Host 'Unexpected development modules still bundled:' $suspect.Count
+        $suspect | Select-Object -First 12 -ExpandProperty member
+        throw 'PyInstaller candidate exclude-module verification FAILED.'
+    }
+    Write-Host 'Excluded module names in candidate archive: 0 verified.'
+    Write-Host 'Candidate embedded names:' $triage.unique_parsed_member_names
+    Write-Host 'Candidate archive listing:' $listingPath
+
     $baselineAfter = (Get-FileHash -LiteralPath $baselineExe -Algorithm SHA256).Hash
     if ($baselineBefore -ne $baselineAfter) {
         throw 'Accepted baseline executable hash CHANGED. Stop and investigate.'
