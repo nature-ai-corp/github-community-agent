@@ -444,3 +444,30 @@ review rather than automatically restored or deleted. Confirm the five
 archived Task IDs and live model Test Connection through the installed
 UI separately while the application is running, then close it for
 the file comparison. Upgrade and uninstall are still pending.
+
+## Installed program and user data file continuity — Windows PASS
+
+The user reran `scripts/windows-installed-acceptance.ps1` after closing
+running GC Agent processes. The script reported:
+
+- `GC Agent frozen executable self-check PASS`
+- Installed EXE SHA256 matched the previously built onedir EXE
+- Installed program was running under Windows user `aiuser` and using
+  `%LOCALAPPDATA%\\GitHubCommunityAgent`
+- Original `work.sqlite3` exists with **10 Task rows** (including archived)
+- `settings.dpapi` exists
+- `Work database matches pre-install backup: YES`
+- `DPAPI settings matches pre-install backup: YES`
+- `Installed EXE Authenticode status: NotSigned` (expected internal build)
+- `Installed-app read-only file comparison PASS`
+- The verification changed no files
+
+**Accepted:** per-user installed executable integrity relative to the built
+bundle, all 10 stored Task records' database byte continuity, and DPAPI
+settings file byte continuity after installation. The previously observed
+Windows file-sharing error no longer affects acceptance.
+
+**Not yet accepted:** manual Archived Work UI showing #3/#4/#5/#7/#9 and
+Activity History; a live Settings Test Connection using the stored provider
+key (without re-entering it); actual clean-install on a separate test account,
+upgrade, uninstall retention, code signing or formal release.
