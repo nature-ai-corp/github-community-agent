@@ -1162,3 +1162,75 @@ side-effect verification, separate-Windows-user DPAPI denial, live
 Host/Origin/nonce attack-path checks, genuine changed-code installer
 upgrade, binary/component SBOM/license NOTICE, signed public version.
 No installed files or original Nature AI Worker files touched.
+
+## Read-only live Windows loopback HTTP negative checks prepared (not yet executed)
+
+The GC Agent Work Center uses a random per-launch HTTP port on
+`127.0.0.1`, and the current verified optimized EXE is not replaced.
+New script `scripts/windows_candidate_http_negative_probe.py` uses
+only standard-library loopback HTTP. The operator supplies the
+**current** Work Center URL from the already-running isolated
+optimized candidate, with no port guessing or service discovery.
+
+The test checks:
+
+1. GC Agent Work Center identity via public `GET /api/definitions`
+   (must contain five V1 definitions).
+2. Invalid `Host` on GET must be HTTP 403.
+3. `GET /api/tasks` and `GET /api/settings` without the session
+   nonce must be HTTP 403.
+4. `POST /api/tasks`, `POST /api/test-connection` with an
+   intentionally WRONG nonce must be HTTP 403.
+5. A POST with BOTH foreign `Origin` and wrong nonce must be HTTP
+   403. This combined test **does not separately isolate the Origin
+   control**; a later independent Origin test using a valid test
+   nonce could be needed.
+6. Forged `Host` with invalid nonce on POST must be HTTP 403.
+
+The script deliberately NEVER obtains a valid nonce, reads
+`settings.dpapi`, opens the user DB, passes credentials or triggers
+authorized HTTP write operations. It disables proxy usage for the
+loopback probe and validates the URL format/host/port. Test payloads
+are the empty JSON object `{}`; no model/GitHub operations are
+authorized. The script is a **security-negative smoke check**,
+not proof that GitHub has no write capability nor complete CSRF
+security. Source tests enforce loopback-only and no-secret
+constraints, but native Windows test execution is PENDING.
+
+### Live native Windows steps
+
+In PowerShell window 1, in the GC Agent repository, run the already
+prepared isolated optimized candidate launcher, and keep the window
+running:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-run-exclusion-candidate-isolated.ps1
+```
+
+Note the current `GitHub Community Agent Work Center:
+http://127.0.0.1:<port>/` line from Window 1. The port is randomized
+and should **not** be assumed from earlier sessions.
+
+In PowerShell window 2, run with exactly the current printed local
+URL (replace `<port>` with the actual numeric port, without angle
+brackets):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+.\.venv\Scripts\python.exe .\scripts\windows_candidate_http_negative_probe.py --url "http://127.0.0.1:<port>/"
+```
+
+Expected: all eight checks PASS including identity; if anything fails,
+preserve output and investigate before continuing. **Do not** paste
+API keys or GitHub tokens. No new five-task/model execution is needed.
+After tests stop the isolated candidate with Ctrl+C. The user-data
+root for all newly created trials remains preserved, not deleted.
+
+A complete Windows security gate still needs separately isolated
+valid-nonce/foreign-origin checks, second-Windows-user DPAPI
+negative test, actual no-GitHub-write evidence, changed-version
+installer acceptance, third-party SBOM/NOTICE and signing.
+Do not merge, tag, sign or release.
