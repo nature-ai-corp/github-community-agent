@@ -218,3 +218,46 @@ audit as PASS and do not modify the frozen bundle by hand. If a different
 path is flagged, inspect the path and adjust rules only with evidence.
 The audit remains incomplete until the file manifest and PyInstaller
 recursive archive listing both succeed and are reviewed.
+
+## Actual frozen payload inventory — Windows PASS (2026-11-08)
+
+The user ran native Windows test and frozen-payload audit on source branch
+`feature/unified-task-home` at `22fd448`, and provided the full output:
+
+- `windows-test-regression.ps1`: **230 passed in 1.95s**, 0 failures.
+- `windows-frozen-payload-audit.ps1`: manifest created successfully:
+  **958 files**, **31,332,500 bytes**.
+- Categories: **1 archive**, **26 binaries**, **1 license/notice candidate**,
+  **926 other files**, **1 public CA certificate bundle**, **3 UI assets**.
+- PyInstaller embedded recursive archive listing successfully generated:
+  **717 lines**.
+- Manifest: `build/release-audit/frozen-bundle-files.json`.
+- Embedded archive: `build/release-audit/frozen-embedded-archive.txt`.
+- No user files, installed applications, credentials, Windows Defender
+  settings or GitHub data were modified by the audit.
+
+The earlier broad `.pem` block had been narrowed to allow only the known
+public certifi CA bundle with certificate-only content. This time the
+inventory **completed**, so that classification issue is operationally
+resolved for this build.
+
+**Accepted:** reproducible read-only *file-and-archive inventory generation*.
+**Not accepted:** complete SBOM, dependency origin attribution, per-binary
+redistribution licensing, notices completeness, malware scan, code signing
+or public release.
+
+### Next local inventory extract — no rebuild, no credential disclosure
+
+Run in the Windows project directory against the already-generated manifest:
+
+```powershell
+$report = Get-Content ".\build\release-audit\frozen-bundle-files.json" -Raw | ConvertFrom-Json
+$report.files | Where-Object { $_.kind -in @("binary","archive","license_or_notice_candidate","public_ca_certificates") } |
+    Select-Object path, kind, size_bytes | Format-Table -AutoSize
+```
+
+Provide the resulting list, or summarize it. Do not upload a full
+local environment dump or secret-bearing files. Review the archive
+listing too, but do not assume the number of listing lines equals the
+number of independent third-party packages. Need to map each included
+component to an origin/version/license before distribution.
