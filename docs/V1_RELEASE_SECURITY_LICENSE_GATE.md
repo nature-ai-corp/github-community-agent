@@ -939,3 +939,30 @@ from user-exported application JSON. **Candidate-specific E2E,
 review-state transition, cross-user DPAPI isolation, live host/
 origin/nonce security, and proof of no GitHub write remain pending**.
 Do not convert this output review into full release approval.
+
+## User confirmation of human review transition (2026-11-09)
+
+Following the five actual application JSON Task exports, the user
+explicitly confirmed: **"i did review for Needs My Attention"**.
+
+For both generated draft reply Tasks (#3 Issue #33 and #4
+Discussion #32), the final exported `finished` status is therefore
+consistent with the user having reviewed those drafts through
+**Needs My Attention** rather than an unexplained automatic completion.
+This resolves the earlier ambiguity about why the exports showed
+`finished` together with `requires_human_review=true` and
+`posted=false`.
+
+**Accepted with user-attested operation**: two draft outputs
+were human-reviewed and their final states are consistent with
+the intended local `needs_attention` → `finished` transition.
+The exports do not include individual `work_events`, so event-level
+forensic proof of every transition is not independently captured.
+Neither the final statuses nor `posted=false` alone independently
+prove GitHub side-effect absence; these remain separate security
+assertions. Candidate executable provenance is still unverified
+because prior failed `git pull` and the JSON exports omit executable
+path/hash and isolated LOCALAPPDATA root.
+
+No release authorization is implied. PR #11 remains Draft with no
+merge, signature, tag or release.
