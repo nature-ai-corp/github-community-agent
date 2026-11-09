@@ -55,3 +55,61 @@ def test_archive_triage_script_is_offline_and_refuses_overwrite():
     assert "NOT A FROZEN SBOM" in source
     for forbidden in ("subprocess", "requests.get(", "httpx.get(", "unlink(", "rmtree("):
         assert forbidden not in source
+
+
+def test_real_pyinstaller_six_brief_recursive_unquoted_output():
+    # User-supplied first 30 lines from the actual Windows frozen executable.
+    archive = """Options in 'GitHubCommunityAgent.exe' (PKG/CArchive):
+ pyi-contents-directory _internal
+Contents of 'GitHubCommunityAgent.exe' (PKG/CArchive):
+ struct
+ pyimod01_archive
+ pyimod02_importers
+ pyimod03_ctypes
+ pyimod04_pywin32
+ pyiboot01_bootstrap
+ pyi_rth_inspect
+ pyi_rth_pkgutil
+ pyi_rth__tkinter
+ pyi_rth_multiprocessing
+ gc_agent_launcher
+ PYZ.pyz
+
+Contents of 'PYZ.pyz' (PYZ):
+ __future__
+ _aix_support
+ _colorize
+ _compat_pickle
+ _compression
+ _opcode_metadata
+ _py_abc
+ _pydatetime
+ _pydecimal
+ _pytest
+ _pytest._version
+ _pytest.outcomes
+ _strptime
+"""
+    result = mod.analyze(archive, {"_pytest": ["pytest"]})
+    names = {x["member"] for x in result["members"]}
+    assert "gc_agent_launcher" in names
+    assert "_pytest" in names
+    assert "_pytest._version" in names
+    assert "_pytest.outcomes" in names
+    assert "PYZ.pyz" not in names  # archive filename, not module
+    assert "pyi-contents-directory" not in names
+    assert result["parsed_member_occurrences"] >= 20
+    assert result["unmatched_listing_lines"] <= 6
+    assert set(result["development_module_candidates"]) >= {
+        "_pytest", "_pytest._version", "_pytest.outcomes"
+    }
+
+
+def test_development_module_alert_does_not_claim_version_or_license():
+    report = mod.analyze(" _pytest\n pytest\n _not_in_map\n", {"_pytest": ["pytest"]})
+    assert "_pytest" in report["development_module_candidates"]
+    assert "pytest" in report["development_module_candidates"]
+    assert report["members"][0]["category"] in {
+        "environment_distribution_candidate", "unresolved",
+    }
+    assert report["scope"].startswith("Archive member TRIAGE ONLY")
