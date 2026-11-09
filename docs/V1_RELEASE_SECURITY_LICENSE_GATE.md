@@ -145,3 +145,49 @@ a completed frozen-binary SBOM, malware/security clearance or public-release
 approval. The application currently installed for user testing remains the
 existing unsigned build; updating editable packaging metadata does not
 magically rebuild/sign that installed EXE.
+
+## Actual PyInstaller onedir manifest and embedded modules — source prepared, Windows run pending
+
+The environment dependency metadata check is complete (**220 passed**
+native Windows regression on the prior head; 21 unique environment packages,
+0 missing license metadata). This does **not** establish which files or
+embedded modules actually shipped.
+
+New two-part, offline, read-only audit:
+- `scripts/frozen_bundle_inventory.py`: hashes every real file under the
+  existing `dist\\GitHubCommunityAgent` onedir folder and reports actual
+  relative path, SHA256, byte size and a coarse file kind. Rejects customer
+  DBs/DPAPI/secret-like files, symbolic links and Windows junctions.
+  The file manifest is actual payload evidence, **not** a legal SBOM.
+- `scripts/windows-frozen-payload-audit.ps1`: runs the Python inventory,
+  then PyInstaller's `pyi-archive_viewer --brief --recursive` against the
+  existing frozen EXE, recording internal archive-module names without
+  extraction or executing GC Agent. These are documented PyInstaller 6
+  inspection options.
+
+The audit preserves previous files and refuses to overwrite its own output.
+Expected results under `build\\release-audit`:
+
+- `frozen-bundle-files.json`
+- `frozen-embedded-archive.txt`
+
+Run from an existing Windows build (the installed executable and customer
+data are unchanged):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-frozen-payload-audit.ps1
+```
+
+**Acceptance requires reviewing the output, not just a successful audit
+command.** In particular, inspect all DLL/PYD runtime binaries, embedded
+third-party Python modules, original license texts, PyInstaller bootloader
+exception, bundled Python runtime and third-party redistribution notices.
+Do not infer actual license identifiers from file extensions. This inventory
+also does not assess the Inno Setup compressed installer EXE itself; its
+installed LICENSE/NOTICE were reviewed separately. Windows signatures,
+malware/security scans and multi-account isolation are still open.
+
+No public release, merge, tag or code signing is authorized.
