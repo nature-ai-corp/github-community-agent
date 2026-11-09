@@ -1234,3 +1234,35 @@ valid-nonce/foreign-origin checks, second-Windows-user DPAPI
 negative test, actual no-GitHub-write evidence, changed-version
 installer acceptance, third-party SBOM/NOTICE and signing.
 Do not merge, tag, sign or release.
+
+## Real Windows optimized candidate negative loopback HTTP probe — 8/8 PASS (2026-11-09)
+
+User-provided actual PowerShell screenshot documents the optimized
+isolated Work Center running at `http://127.0.0.1:64887/`. They ran
+`scripts/windows_candidate_http_negative_probe.py` against that exact
+current port; **8 / 8 tests passed**, specifically:
+
+| Check | Expected/observed |
+|---|---|
+| GC Agent definitions discovery | 200 / 200 |
+| Forged Host GET refused | 403 / 403 |
+| Tasks GET without nonce refused | 403 / 403 |
+| Settings GET without nonce refused | 403 / 403 |
+| Tasks POST invalid nonce refused | 403 / 403 |
+| Test connection POST invalid nonce refused | 403 / 403 |
+| Settings POST foreign Origin **plus invalid nonce** refused | 403 / 403 |
+| Tasks POST forged Host refused | 403 / 403 |
+
+The running optimized candidate EXE had been independently identified
+earlier as SHA256
+`620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+The screenshot of this specific test confirms live loopback behavior.
+No valid nonce, authorized POST, model key or GitHub token was used.
+
+**Accepted:** real Windows negative HTTP smoke test **8/8 PASS** for
+malformed/unauthorized requests. **Not established:** foreign Origin
+rejection *independent of invalid nonce*, authenticated workflow
+authorization, independent proof of no GitHub-side write actions,
+cross-Windows-user DPAPI, true changed-code installer upgrade,
+complete actual-frozen SBOM/NOTICE, signing/release. These remain
+independent release gates. No app installation or user data changed.
