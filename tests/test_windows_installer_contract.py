@@ -130,3 +130,39 @@ def test_installed_windows_acceptance_is_read_only_and_preserves_data():
     assert "if ($hashIncomplete)" in script
     assert "exit 2" in script
     assert "Stop the app and rerun" in script
+
+
+
+def test_upgrade_trial_version_is_distinct_and_reuses_gc_app_id():
+    original = (ROOT / "packaging/windows/gc-agent.iss").read_text(encoding="utf-8")
+    trial = (ROOT / "packaging/windows/gc-agent-upgrade-trial.iss").read_text(
+        encoding="utf-8"
+    )
+    builder = (ROOT / "scripts/windows-build-installer.ps1").read_text(encoding="utf-8")
+    assert '#define AppVersion "0.0.1-devtrial"' in trial
+    assert '#define OutputName "GitHubCommunityAgent-UpgradeTrial-Unsigned"' in trial
+    assert '#include "gc-agent.iss"' in trial
+    assert "#ifndef OutputName" in original
+    assert "OutputBaseFilename={#OutputName}" in original
+    assert "AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}" in original
+    assert "param([switch]$UpgradeTrial)" in builder
+    assert "same bundled application" in builder
+    assert "not an application feature/code upgrade" in builder
+    assert "Existing test installer must not be overwritten" in builder
+
+
+def test_upgrade_uninstall_verifier_does_not_uninstall_or_modify_work_files():
+    script = (ROOT / "scripts/windows-upgrade-uninstall-verify.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "Baseline','AfterUpgrade','AfterUninstall','AfterReinstall" in script
+    assert "Get-Process -Name 'GitHubCommunityAgent'" in script
+    assert "Get-FileHash -LiteralPath $db" in script
+    assert "Get-FileHash -LiteralPath $settings" in script
+    assert "Baseline already exists; refusing to overwrite" in script
+    assert "User data differs from baseline" in script or "user data differs from baseline" in script
+    assert "AfterUninstall" in script
+    assert "Installed EXE still exists" in script
+    assert "READ-ONLY VERIFICATION COMPLETE" in script
+    for dangerous in ("Remove-Item", "Copy-Item", "Move-Item", "Start-Process", "Stop-Process"):
+        assert dangerous not in script
