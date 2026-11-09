@@ -37,7 +37,7 @@ def kind(path: Path) -> str:
 
 def inventory(bundle: Path) -> dict:
     root = bundle.resolve(strict=True)
-    if not root.is_dir() or bundle.is_symlink():
+    if not root.is_dir() or bundle.is_symlink() or getattr(bundle, "is_junction", lambda: False)():
         raise ValueError("Bundle must be a normal existing directory")
     if root.name != "GitHubCommunityAgent":
         raise ValueError("Only the GC Agent onedir folder may be inventoried")
@@ -46,7 +46,7 @@ def inventory(bundle: Path) -> dict:
 
     files = []
     for path in root.rglob("*"):
-        if path.is_symlink():
+        if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
             raise ValueError("Bundle contains a symlink or junction-like entry")
         if not path.is_file():
             continue
