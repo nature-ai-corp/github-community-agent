@@ -884,3 +884,58 @@ script.
 execution pending.** This is not authorization to replace or release
 the accepted installed program. PR #11 stays Draft, no merge, tag,
 signing or release. Original Nature AI Worker remains untouched.
+
+## Five real V1 Task exports supplied by user (2026-11-09 UTC)
+
+User provided five distinct JSON exports timestamped approximately
+13:36–13:40 UTC for repository `nature-ai-corp/nature-ai-worker`:
+
+| Task | Definition | Exported status | Evidence |
+|---|---|---|---|
+| #1 | `review_issues` | `finished` | 9 issue records fetched in one page, 5 analyzed, details read 5, source-linked assessment |
+| #2 | `review_discussions` | `finished` | Discussion #32 fetched/analyzed, source-linked report |
+| #3 | `draft_issue` | `finished` | unposted Issue #33 reply draft, `requires_human_review=true`, `posted=false` |
+| #4 | `draft_discussion` | `finished` | unposted Discussion #32 reply draft, `requires_human_review=true`, `posted=false` |
+| #5 | `community_report` | `finished` | 9 Issues fetched, 5 analyzed; 1 Discussion included; bounded/incomplete caveats |
+
+All five have `error=null`, `read_only=true` and source
+URLs. The Discussions read operation returned real #32 content,
+indicating that configured read access was operational for this run,
+not merely that a token was encrypted on disk.
+
+**What the exports prove:** actual output artifacts of all five V1
+workflows on the specified GitHub repo; coherent workflow type,
+number and source references; draft generation without a claimed post.
+
+**What they do NOT prove by themselves:**
+- The screenshots previously showed a failed `git pull` for the
+  newly introduced isolation runner, and the exports do not contain a
+  build EXE SHA256, trial data-root path, or process command line.
+  Therefore they cannot authenticate that the five tasks were run
+  specifically with the **optimized isolated frozen candidate**, rather
+  than the existing installed GC Agent.
+- Both draft exports have `status=finished` while
+  `requires_human_review=true`. The Work Center's intended state
+  is `needs_attention` immediately after drafting and
+  `finished` after a user explicitly marks the draft reviewed.
+  Since exports do not include `work_events`, these documents do
+  not establish whether the review transition occurred or whether it
+  was bypassed. Check the source-app My Work activity before claiming
+  approval-flow acceptance.
+- `posted=false` is app-reported; source/side-effect verification
+  or a guarded GitHub audit check is needed before treating no-write
+  as independently witnessed.
+- `sample_limited=true` in Tasks #1 and #5 is correctly flagged.
+  For Task #2 `sample_limited=false` refers to the one fetched
+  discussion, while `total_pages_known=false`; it must not be
+  interpreted as an independently verified complete repository survey.
+- The generated drafts and summaries require factual/editing review
+  before actual human use. For example, the Discussion reply assumes
+  release/documentation links, which should be verified against real
+  release status. No live post is authorized.
+
+**Disposition:** five actual V1 Work Type output artifacts witnessed
+from user-exported application JSON. **Candidate-specific E2E,
+review-state transition, cross-user DPAPI isolation, live host/
+origin/nonce security, and proof of no GitHub write remain pending**.
+Do not convert this output review into full release approval.
