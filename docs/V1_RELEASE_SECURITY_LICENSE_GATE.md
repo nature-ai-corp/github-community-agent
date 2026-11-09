@@ -1266,3 +1266,119 @@ authorization, independent proof of no GitHub-side write actions,
 cross-Windows-user DPAPI, true changed-code installer upgrade,
 complete actual-frozen SBOM/NOTICE, signing/release. These remain
 independent release gates. No app installation or user data changed.
+
+## Six outstanding public-release gates — execution status and next steps (2026-11-09)
+
+The user explicitly authorized proceeding to **finish the six gates**.
+This authorization is to prepare and run safe checks; it does **not**
+authorize a merge, a signed public installer, use of a signing identity,
+a tag, a publication, deletion of a user's existing data or access
+to another Windows user's secrets.
+
+### Gate 1: independent Origin enforcement — SOURCE READY; native run PENDING
+
+New `scripts/windows_candidate_origin_isolated_probe.py` compares
+four HTTP POSTs with controlled Origin/nonce values against a
+**nonexistent** route only:
+
+- correct Origin + valid local UI session nonce → 404;
+- foreign Origin + **valid** nonce → 403;
+- missing Origin + **valid** nonce → 403;
+- correct Origin + invalid nonce → 403.
+
+Nonce is extracted only from the *current local Work Center HTML*
+into process memory and is never logged or saved. No actual Task,
+Settings, model, or GitHub POST occurs. This isolates Origin from the
+previous bad-nonce-only tests. Native results are required before PASS.
+
+In PowerShell 1, keep the already-available isolated candidate running
+using `scripts/windows-run-exclusion-candidate-isolated.ps1`.
+Use its freshly printed `http://127.0.0.1:<port>/` URL in PowerShell 2:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\windows_candidate_origin_isolated_probe.py --url "http://127.0.0.1:<actual-port>/"
+```
+
+The literal placeholder must be replaced with the current real port;
+previous ports become invalid when the first window closes. Success
+requires **4/4 PASS**; anything else blocks sign-off.
+
+### Gate 2: GitHub no-write — STATIC CONTRACT prepared; independent proof pending
+
+`scripts/github_readonly_transport_audit.py` parses the current
+`github_readonly.py` adapter source without credentials or network.
+It checks exactly two GitHub transport call sites, one REST GET and
+one GraphQL POST, and that both constant GraphQL documents begin
+with `query` rather than `mutation` or `subscription`, plus an
+explicit query allowlist, no environment proxies and no redirects.
+
+Run this source-only check (choose a fresh output filename; existing
+reports are never overwritten):
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\github_readonly_transport_audit.py --source .\src\github_community_agent\github_readonly.py --output .\build\release-audit\github-readonly-transport-v1.json
+```
+
+This confirms only the **inspected source adapter contract**. GitHub's
+GraphQL query legitimately uses HTTP POST; all POSTs must not be
+misreported as publishing. Not every possible path through future
+code/dependencies is proven by source inspection. Independent GitHub
+server-side observation (e.g. before/after comment IDs and commit/
+activity audit from an approved account) is a separate gate and must
+be tied to the actual candidate runtime, not just app-reported
+`posted=false`. Never generate a GitHub write or delete a comment
+merely to test absence of writing.
+
+### Gate 3: Windows cross-account DPAPI isolation — PENDING
+
+Needs a **second separate real Windows user account** and permission
+to test with benign throwaway credentials. Record the first user's
+trial `settings.dpapi` ciphertext hash only; do not disclose or copy
+actual production credentials. Test decrypt under the second user
+using a separate throwaway trial file; success condition is
+`CryptUnprotectData` fails under that user. Confirm application
+cannot silently load or substitute another account's saved key.
+Creating/using a real Windows test account requires the user's
+explicit environment action. Same-user tests are insufficient.
+
+### Gate 4: final installer/upgrade/uninstall continuity — PENDING
+
+Prior installed-app continuity passed for the old unchanged-code
+installer. To accept the optimized candidate, assign a real approved
+version and validate an **actual change between installed builds** in
+an independent Windows test account/profile. Verify install paths,
+existing Task DB + encrypted settings SHA before/after, successful
+saved-model live connection and task reuse, uninstall/reinstall
+preservation, signing and malware scan. **Do not install the
+unsigned optimized candidate over the user's current validated
+installation**. Never copy the user's production DPAPI blob to a new
+identity or overwrite existing data to simulate upgrade.
+
+### Gate 5: frozen-component SBOM/licenses/NOTICE — PENDING
+
+Current audit generated 958 onedir files and candidate module list
+366; neither constitutes validated component provenance or a complete
+SBOM. Produce a versioned list of the *actual new frozen build*,
+including Python 3.13, Tcl/Tk, bundled binaries, certifi trust store,
+PyInstaller bootloader, native dependencies, all bundled Python
+distributions and exact license/NOTICE obligations. The source
+dependency metadata inventory is auxiliary, not a substitute.
+Coordinate packaging notices and copyright review before public use.
+
+### Gate 6: official version/signing — AWAIT OWNER CONTROL
+
+The project metadata remains `0.0.0.dev0`. A public version and
+publisher signing identity, private-key custody, Authenticode validation,
+signed installer, Defender/smart-screen acceptance and repository
+release approval are **not yet authorized or completed**. Signing
+requires user-controlled credentials/certificate or a signing
+provider; this chat must not manufacture or impersonate signing.
+No tag/merge/release without explicit owner approval.
+
+**The next actionable user evidence is the 4/4 independent Origin
+check and GitHub adapter static audit on real Windows.**
+The repo and all parent PRs remain Draft/unmerged. Original
+Nature AI Worker and existing GC Agent data untouched.
