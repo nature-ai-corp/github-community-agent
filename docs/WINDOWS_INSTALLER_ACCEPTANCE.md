@@ -644,3 +644,30 @@ Installed Apps. After uninstall, run
 the installed EXE was removed and work.sqlite3/settings.dpapi are
 still SHA256-identical to the baseline. Stop before reinstall if this
 verification fails. No automated removal of user data is authorized.
+
+## User-confirmed controlled uninstall / retained data PASS — November 8 2026
+
+The user ran the installed `unins000.exe` (Inno Setup's registered
+uninstaller). The UI explicitly reported: **GitHub Community Agent was
+successfully removed from your computer**.
+
+Afterward, the same Windows user ran
+`scripts/windows-upgrade-uninstall-verify.ps1 -Phase AfterUninstall`,
+which printed:
+- `AfterUninstall GC Agent user-data byte continuity PASS.`
+- `work.sqlite3 and settings.dpapi are SHA256-identical to the baseline.`
+- `READ-ONLY VERIFICATION COMPLETE. No user data or installed files were changed.`
+
+The verifier only accepts AfterUninstall if the GC Agent installed EXE is
+absent, and both data files still exist with baseline-identical hashes.
+Therefore normal Inno Setup uninstallation and data retention are
+**accepted PASS**. These results do not yet demonstrate *reinstallation*
+or another Windows user's clean installation.
+
+**Next acceptance step:** Run the previously compiled and verified
+`GitHubCommunityAgent-UpgradeTrial-Unsigned.exe` again under the same
+Windows user, keeping the standard GC install directory. From the Start
+Menu launch the reinstalled GC Agent and verify My Work, Archived Work and
+Settings Test Connection, then close all GC Agent processes and run:
+`windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall`.
+Preserve existing baseline, source backups and original Store Python data.
