@@ -261,3 +261,64 @@ local environment dump or secret-bearing files. Review the archive
 listing too, but do not assume the number of listing lines equals the
 number of independent third-party packages. Need to map each included
 component to an origin/version/license before distribution.
+
+## Binary/file-origin review from user-provided manifest extract (2026-11-08)
+
+The user supplied the path/kind/size inventory filtered to 26 binaries,
+one archive, one license/notice candidate and one public CA certificate:
+29 records. Observed notable components (not yet full verified SBOM):
+
+| Origin candidate | Observed files | License-review scope |
+| --- | --- | --- |
+| CPython Windows 3.13 | `python313.dll`, `base_library.zip`, `_asyncio.pyd`, `_ssl.pyd`, `_hashlib.pyd`, `_sqlite3.pyd` etc. | CPython license, Python's bundled extension/linkage notices |
+| OpenSSL 3 runtime | `libcrypto-3.dll`, `libssl-3.dll` | OpenSSL 3 Apache-2.0 license; confirm exact binary origin and version |
+| SQLite engine | `sqlite3.dll`, `_sqlite3.pyd` | Core SQLite declared public domain; confirm precise build origin |
+| Tcl/Tk 8.6 | `tcl86t.dll`, `tk86t.dll`, `_tkinter.pyd`, `_tk_data/license.terms` | Retain licensing text; review Tcl/Tk and bundled script resources |
+| C runtime / other native libs | `VCRUNTIME140.dll`, `libffi-8.dll`, `zlib1.dll`, `pyexpat.pyd` | Need origin-specific version, attribution and redistribution checks |
+| TLS CA bundle | `_internal/certifi/cacert.pem` | Public trust store; provenance and certifi license still require checking |
+| PyInstaller bootloader | `GitHubCommunityAgent.exe` | PyInstaller bootloader licensing/exception and binary signing remain open |
+
+**Important correction:** Tkinter/Tcl/Tk cannot be marked unused or
+removed solely because the installed Work Center uses a web page.
+`src/github_community_agent/desktop.py` imports Tkinter at module load
+and defines a legacy `CommunityDesktop` UI; `work_center.py` imports
+`execute_workflow` from `desktop.py`, so ordinary Work Center execution
+has a code-level dependency on that module. Removing Tk/Tkinter without
+refactoring would risk a runtime regression. No changes to the working
+frozen package are authorized. A future simplification should separate
+workflow logic from Tk GUI in its own PR, then rebuild and rerun real
+Windows acceptance before considering an exclusion.
+
+The observed sole license/notice candidate `_internal/_tk_data/license.terms`
+is **not evidence that this bundle contains all necessary third-party license
+texts**. The 926 files classified as 'other' have not been analyzed.
+The PyInstaller recursive archive output has 717 lines, but package
+identity/version/license coverage is not derived from line count.
+
+Official background sources for *general upstream licensing* (not exact
+binary verification):
+- OpenSSL 3: https://openssl-library.org/source/license/index.html
+- Tcl/Tk: https://www.tcl-lang.com/software/tcltk/license.html
+- SQLite: https://www.sqlite.org/copyright.html
+- CPython on Windows: https://docs.python.org/3.13/using/windows.html
+
+### Local, existing-manifest follow-up — inspect remaining 926 files
+
+```powershell
+$report = Get-Content ".\build\release-audit\frozen-bundle-files.json" -Raw | ConvertFrom-Json
+$report.files | Where-Object kind -eq "other" |
+    Group-Object { ($_.path -split "/")[1] } |
+    Sort-Object Count -Descending |
+    Select-Object -First 15 Count, Name
+$report.files | Where-Object { $_.kind -eq "license_or_notice_candidate" } |
+    Select-Object path, size_bytes
+```
+
+The first grouping is only a descriptive folder summary. To avoid
+incorrect package attribution (e.g. `_internal/_tk_data`, `_internal/tcl`
+and `_internal/tk` paths), inspect actual relative paths before assigning
+software components or licensing obligations.
+
+**Status:** file list reviewed in part, release still BLOCKED on complete
+provenance, licenses, signing, frozen security/AV assessment and additional
+Windows acceptance.
