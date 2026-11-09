@@ -30,7 +30,7 @@ def test_probe_never_constructs_authorized_request_or_reads_secrets():
     assert '"X-App-Nonce": "not-a-real-nonce"' in source
     assert "forged Host GET refused" in source
     assert "tasks GET without nonce refused" in source
-    assert "settings POST foreign Origin refused" in source
+    assert "settings POST foreign Origin plus invalid nonce refused" in source
     assert "GC Agent definitions discovery" in source
     for forbidden in (
         "settings.dpapi", "work.sqlite3", "model_key",
