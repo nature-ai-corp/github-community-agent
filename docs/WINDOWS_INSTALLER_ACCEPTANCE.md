@@ -671,3 +671,33 @@ Menu launch the reinstalled GC Agent and verify My Work, Archived Work and
 Settings Test Connection, then close all GC Agent processes and run:
 `windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall`.
 Preserve existing baseline, source backups and original Store Python data.
+
+## Reinstall after uninstall — user-confirmed Windows PASS
+
+After the previously accepted successful uninstall and unchanged personal
+data hashes, the user ran the same unsigned
+`GitHubCommunityAgent-UpgradeTrial-Unsigned.exe` installer again under
+the original Windows identity, and supplied two screenshots (Nov 8, 2026):
+
+- The installed Settings screen shows OpenAI / `gpt-4.1-mini`, the saved
+  encrypted API key, and **`Connection succeeded (live provider check).`**
+- `scripts/windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall`
+  reported **`AfterReinstall GC Agent user-data byte continuity PASS.`**
+  Both work.sqlite3 and settings.dpapi remained SHA256-identical to the
+  baseline; installed EXE self-check passed; read-only diagnostics found
+  **10 Task rows including archived**, both files present, and verification
+  completed with no changes.
+
+**Accepted**: the full Windows per-user internal trial
+initial install → installer-version upgrade → uninstall → reinstall workflow,
+with original 10-Task database and encrypted provider connection retained
+through all phases. The upgrade was an installer-metadata/version trial
+bundling the same program binaries, **not** an application code/schema upgrade.
+
+The reinstall screenshots do not separately show the Archived Work list
+and its event-by-event Activity History; earlier pre-uninstall installed UI
+did show all five archived Task IDs. Full release gates remain open:
+real different-code/schema upgrade, clean second-account installation,
+Windows platform security and signed publisher distribution, dependency
+license/NOTICE inventory, hosted CI and Draft PR stack review. No merge,
+signing, tagging or public release is authorized.
