@@ -46,20 +46,35 @@ if (Test-Path -LiteralPath $portable -PathType Leaf) {
 & $installed --diagnostics
 if ($LASTEXITCODE -ne 0) { throw "Installed GC Agent read-only diagnostics failed." }
 
-# Hash comparison does not reveal user data, but also doesn't prove a key
-# can be decrypted. Backups were taken immediately before installation.
+# A running Work Center can keep SQLite open under Windows. Read-only
+# diagnostics above are the live-data check. A raw file hash is only valid
+# once all application processes have closed; do not force-close them and do
+# not mistake an inaccessible hash for a corrupt database.
+# Hash comparison also does not prove DPAPI key decryption.
+$hashIncomplete = $false
 foreach ($pair in @(@($db, $oldDb, "Work database"), @($keyFile, $oldKeyFile, "DPAPI settings"))) {
     $current = [string]$pair[0]
     $prior = [string]$pair[1]
     $label = [string]$pair[2]
     if (-not (Test-Path -LiteralPath $prior -PathType Leaf)) {
         Write-Host "$label backup missing; comparison SKIPPED."
+        $hashIncomplete = $true
         continue
     }
-    $h1 = (Get-FileHash -LiteralPath $current -Algorithm SHA256).Hash
-    $h2 = (Get-FileHash -LiteralPath $prior -Algorithm SHA256).Hash
+    try {
+        $h1 = (Get-FileHash -LiteralPath $current -Algorithm SHA256 -ErrorAction Stop).Hash
+        $h2 = (Get-FileHash -LiteralPath $prior -Algorithm SHA256 -ErrorAction Stop).Hash
+    } catch [System.Exception] {
+        if ($label -eq "Work database") {
+            Write-Warning "Work database SHA256 INCOMPLETE: file could be in use by running GC Agent. Stop the app and rerun this script for byte comparison."
+            $hashIncomplete = $true
+            continue
+        }
+        throw
+    }
     if ($h1 -ne $h2) {
-        Write-Host "$label changed since pre-install backup; investigate before upgrade/uninstall."
+        Write-Warning "$label differs from pre-install backup. Changes may be legitimate; investigate before upgrade/uninstall."
+        $hashIncomplete = $true
     } else {
         Write-Host "$label matches pre-install backup: YES"
     }
@@ -67,5 +82,10 @@ foreach ($pair in @(@($db, $oldDb, "Work database"), @($keyFile, $oldKeyFile, "D
 
 $signature = Get-AuthenticodeSignature -LiteralPath $installed
 Write-Host "Installed EXE Authenticode status:" $signature.Status
-Write-Host "Installed-binary and data-file checks completed. Manual Archived Work and encrypted Test Connection checks are still REQUIRED."
+Write-Host "Manual Archived Work and encrypted Test Connection checks are still REQUIRED."
 Write-Host "No files were modified. No install, upgrade, or uninstall occurred."
+if ($hashIncomplete) {
+    Write-Warning "Installed-app data-file comparison INCOMPLETE. The EXE, settings presence, and Task count passed; repeat with all GC Agent processes stopped."
+    exit 2
+}
+Write-Host "Installed-app read-only file comparison PASS (functional UI and DPAPI connection still require manual checks)."
