@@ -409,3 +409,38 @@ decryption proof.
 Only after these checks pass should an independent, separately staged
 upgrade and uninstall validation be planned. Never remove existing data
 without a specific explicit user decision. Keep PR Draft and version dev0.
+
+## Installed-app diagnostics: live SQLite hash locked (2026-11-08)
+
+User ran the installed acceptance script and reported:
+- Windows regression **214 passed in 2.51s** (0 failed).
+- Installed EXE frozen self-check PASS.
+- Installed EXE SHA256 matched the original frozen onedir EXE.
+- Installed EXE diagnostics: work.sqlite3 exists, settings.dpapi exists,
+  **10 Task records** including Archived Work.
+- Pre-install backups were present: `work.sqlite3` 53248 bytes and
+  `settings.dpapi` 614 bytes.
+- Raw `Get-FileHash` of `work.sqlite3` failed with a Windows sharing
+  violation because a GC Agent process held the database open. This does
+  **not** establish corruption, loss or a functional regression.
+- The previous script terminated before completing backup hash comparisons.
+
+The revised read-only script now records SQLite SHA256 as **INCOMPLETE**
+if the file is locked, proceeds to independent checks, and returns exit code
+2 rather than asserting false PASS. It never closes processes or modifies
+SQLite. **Stop all GC Agent running applications (including portable EXEs
+and browser-spawned local servers) before rerunning**:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-installed-acceptance.ps1
+```
+
+If all file checks pass and there are no legitimate post-backup changes,
+the script will indicate a read-only file-comparison PASS. If the Work DB
+or settings legitimately changed, a difference is reported for human
+review rather than automatically restored or deleted. Confirm the five
+archived Task IDs and live model Test Connection through the installed
+UI separately while the application is running, then close it for
+the file comparison. Upgrade and uninstall are still pending.
