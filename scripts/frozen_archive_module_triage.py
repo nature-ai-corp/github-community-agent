@@ -24,7 +24,7 @@ STDLIB = frozenset(sys.stdlib_module_names)
 # Real PyInstaller 6 --brief --recursive output uses unquoted, indented
 # module names under section headers such as Contents of 'PYZ.pyz' (PYZ).
 # Keep legacy quoted-line support for fixtures and future output variations.
-BARE_MEMBER = re.compile(r"^\\s+([A-Za-z_][A-Za-z_0-9]*(?:\\.[A-Za-z_0-9]+)*)\\s*$")
+BARE_MEMBER = re.compile(r"^\s+([A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_0-9]+)*)\s*$")
 DEV_MODULES = frozenset({"_pytest", "pytest", "pluggy", "iniconfig", "pygments"})
 
 
@@ -44,7 +44,7 @@ def extract_names(lines: list[str]) -> tuple[list[str], int]:
         # Preserve old fixture support; never interpret quoted archive
         # metadata labels (PYMODULE, BINARY etc.) as actual dependencies.
         candidates = QUOTED.findall(line)
-        if re.match(r"^\\s*\\d+\\s*,", line) and candidates:
+        if re.match(r"^\s*\d+\s*,", line) and candidates:
             item = candidates[0]
             if item not in {"PYMODULE", "PYPACKAGE", "PYZ", "BINARY",
                             "DATA", "EXTENSION", "SPLASH"}:
