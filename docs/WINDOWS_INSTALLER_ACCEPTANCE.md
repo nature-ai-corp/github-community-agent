@@ -520,3 +520,92 @@ inspection; controlled real upgrade to a distinct, approved test version;
 uninstall retaining user data; reinstall; clean separate-user acceptance;
 negative security tests, dependency and NOTICE review, signed final
 installer and release approval. Do not merge, sign, tag or release yet.
+
+## Controlled upgrade / uninstall / reinstall trial — staged, not executed
+
+After initial GC Agent Windows installation and DPAPI live connection passed,
+the next validation uses a **distinct Inno Setup installer display version**
+\`0.0.1-devtrial\` and output file
+\`dist\installer\GitHubCommunityAgent-UpgradeTrial-Unsigned.exe\`. This
+trial deliberately bundles the *same existing onedir application binary*;
+it tests Inno Setup's upgrade/registration and data retention, **NOT**
+functional code upgrades or application schema migrations. The product
+Python metadata still says \`0.0.0.dev0\`; it is NOT a production release.
+
+### Phase A — create baseline and compile second test installer
+
+1. Close all GitHubCommunityAgent.exe processes (including portable EXE).
+   Confirm the previous *real* \`Documents\GC-Agent-PreInstall-Backup\`
+   copies of \`work.sqlite3\` and \`settings.dpapi\` remain secure.
+2. In PowerShell (no installation, no overwrite):
+
+\`\`\`powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-upgrade-uninstall-verify.ps1 -Phase Baseline
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-build-installer.ps1 -UpgradeTrial
+\`\`\`
+
+The baseline script **refuses** to run while GC Agent EXEs are running, or
+if it cannot find the installed program, the protected settings file,
+the database, or all **10 original Task records**. It stores a
+hash-only JSON manifest in the current user's Documents, never copies
+secrets. It refuses to overwrite any previous baseline.
+
+The upgrade-trial builder verifies the existing frozen EXE, compiles a
+second installer with the SAME GC AppId and a DISTINCT display version
+and file name, and prints SHA256. It does not execute the installer.
+If a trial installer of that name already exists, it refuses to overwrite.
+Keep both installers and both data backups intact.
+
+**Stop here and review the exact output and SHA256 before executing the
+upgrade installer.**
+
+### Phase B — real upgrade, if the Phase A result is accepted
+
+In a test Windows environment, run the new unsigned trial installer
+interactively after checking system security warnings. Do not bypass policy
+restrictions. Install into the same per-user GC Agent path (default).
+After setup completes, inspect the installed app: My Work #1/#2/#6/#8/#10,
+Archived Work #3/#4/#5/#7/#9, Task reports, Activity History, Settings and
+Test Connection. Close the app fully; compare files:
+
+\`\`\`powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-upgrade-uninstall-verify.ps1 -Phase AfterUpgrade
+\`\`\`
+
+The script requires the original SHA256 for work.sqlite3 and settings.dpapi
+to be unchanged, and the installed binary to self-check and read 10 Tasks.
+Do not perform further steps if any comparison fails. Keep the versioned
+trial installer for potential authorized reinstall.
+
+### Phase C — uninstall, then reinstall (separate approval after Phase B)
+
+Do **not** uninstall without verifying the current backup and Phase B PASS.
+Use Windows Installed Apps for GitHub Community Agent, **not**
+Nature AI Worker. The installer does not include \`[UninstallDelete]\` and
+must retain user \`%LOCALAPPDATA%\GitHubCommunityAgent\`. Close the app,
+then run:
+
+\`\`\`powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-upgrade-uninstall-verify.ps1 -Phase AfterUninstall
+\`\`\`
+
+The verifier requires that the GC Agent installed EXE has been removed,
+while both personal data files remain SHA256-identical to baseline. It
+does not start any process for an uninstalled application.
+
+Reinstall the *same* upgrade-trial installer only after this passes.
+Confirm My Work, Archived Work, Settings and live Test Connection again.
+Close the app, then:
+
+\`\`\`powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall
+\`\`\`
+
+These checks do **not** themselves perform upgrade/uninstall/reinstall and
+never erase database or DPAPI files. Full application-code upgrade across
+different application binaries and actual database-schema upgrades are
+separate future tests. No merge, tag, signing or release until the
+broader release gates are explicitly approved.
