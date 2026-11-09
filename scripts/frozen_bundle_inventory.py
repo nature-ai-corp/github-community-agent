@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -20,6 +21,26 @@ FORBIDDEN_NAMES = {"settings.json", ".env", ".env.local", "credentials.json", "t
 BINARY_SUFFIXES = {".exe", ".dll", ".pyd", ".so", ".dylib"}
 ARCHIVE_SUFFIXES = {".zip", ".pyz", ".whl"}
 LICENSE_WORDS = ("license", "notice", "copying", "copyright")
+# Certifi distributes a PUBLIC CA trust bundle as cacert.pem. This single
+# well-known relative path is not a credential; all other .pem remain blocked.
+PUBLIC_CA_BUNDLE_PATH = "_internal/certifi/cacert.pem"
+
+
+def is_public_certifi_bundle(path: Path, relative: Path) -> bool:
+    if relative.as_posix().lower() != PUBLIC_CA_BUNDLE_PATH:
+        return False
+    # A public trust store must contain certificates ONLY, not any PEM key.
+    # Limit inspection to a small static vendor bundle, not arbitrary secrets.
+    if path.stat().st_size > 3_000_000:
+        return False
+    contents = path.read_bytes()
+    headers = re.findall(rb"-----BEGIN ([A-Z0-9 ]+)-----", contents)
+    if not headers or any(header != b"CERTIFICATE" for header in headers):
+        return False
+    ends = re.findall(rb"-----END ([A-Z0-9 ]+)-----", contents)
+    return len(headers) == len(ends) and all(
+        item == b"CERTIFICATE" for item in ends
+    )
 
 
 def kind(path: Path) -> str:
@@ -54,8 +75,15 @@ def inventory(bundle: Path) -> dict:
         if len(files) >= MAX_BUNDLE_FILES:
             raise ValueError("Bundle file count exceeds inventory safety limit")
         low = path.name.lower()
-        if path.suffix.lower() in FORBIDDEN_SUFFIXES or low in FORBIDDEN_NAMES:
-            raise ValueError("Forbidden user-data or secret-like file in frozen bundle")
+        secret_like = path.suffix.lower() in FORBIDDEN_SUFFIXES or low in FORBIDDEN_NAMES
+        known_public_ca = (
+            path.suffix.lower() == ".pem" and is_public_certifi_bundle(path, rel)
+        )
+        if secret_like and not known_public_ca:
+            # Path is safe to show: never read or expose the suspect contents.
+            raise ValueError(
+                f"Forbidden user-data or secret-like file in frozen bundle: {rel.as_posix()}"
+            )
         sha = hashlib.sha256()
         with path.open("rb") as inp:
             while chunk := inp.read(CHUNK_BYTES):
@@ -64,7 +92,7 @@ def inventory(bundle: Path) -> dict:
             "path": rel.as_posix(),
             "size_bytes": path.stat().st_size,
             "sha256": sha.hexdigest().upper(),
-            "kind": kind(path),
+            "kind": "public_ca_certificates" if known_public_ca else kind(path),
         })
     files.sort(key=lambda x: x["path"].lower())
     if not files:
