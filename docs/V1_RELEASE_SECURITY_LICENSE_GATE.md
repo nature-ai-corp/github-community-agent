@@ -758,3 +758,53 @@ Windows Host/Origin/nonce controls, upgrade/uninstall/reinstall
 retention, included third-party LICENSE/NOTICE texts and code
 signing prerequisites. No automatic deployment or promotion is
 authorized. All PRs remain Draft, no merge/tag/sign/public release.
+
+## Actual isolated unsigned exclusion candidate — Windows PASS for build/self-check (2026-11-09)
+
+The user executed the independent `scripts/windows-build-exclusion-candidate.ps1`
+on native Windows 11 (Python 3.13.14, PyInstaller 6.22.3, hooks 2026.9)
+after pulling branch `feature/unified-task-home` through `6be9340`.
+The exact log establishes:
+
+- `windows-test-regression.ps1`: **238 passed in 3.57s**, 0 failures.
+- PyInstaller separate candidate onedir build completed successfully at
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/`.
+- Candidate `GitHubCommunityAgent.exe --self-check`: **PASS**.
+- Candidate PyInstaller recursive archive listing: **372 lines**,
+  **366 matched module occurrences**, **366 unique names**,
+  **6 unmatched lines**. Candidate categories: **11 first_party**,
+  **228 stdlib_candidate**, **117 environment_distribution_candidate**,
+  **10 unresolved** (previously identified launcher/PyInstaller helpers).
+- `Development module candidates: 0` and
+  `Excluded module names in candidate archive: 0 verified` for
+  `pytest`, `_pytest`, `pygments`.
+- Previously accepted baseline EXE SHA256 unchanged:
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Baseline onedir: **958 files; 31,332,500 bytes**.
+- Candidate onedir: **958 files; 29,507,071 bytes**.
+- Difference: **1,825,429 bytes less (~5.83%)**,
+  **345 fewer archived modules** (711 → 366).
+- The candidate was **NOT installed, signed or promoted**. There was no
+  installer run and no change to the existing user's Task/DPAPI data.
+
+**Accepted only**: isolated, non-overwriting build; excluded-module
+archive proof; frozen self-check; baseline EXE unchanged; file count and
+size comparison. This does **not** establish that all five authentic V1
+workflows, local review/approval behavior, saved-key DPAPI handling,
+GitHub nonwrite protections, HTTP origin/nonce validation, or Windows
+installation/data-upgrade continuity function in the candidate.
+
+The unchanged 958 file count is consistent with removing Python modules
+embedded in EXE/PYZ while preserving Tcl/Tk and other onedir resources,
+but precise attribution of each saved byte requires controlled
+reproducibility tests. The total size decrease must not be promoted as
+a proven source-only dependency optimization if other build inputs drifted.
+
+**Next gate:** run candidate-specific application-level tests in a
+separate temporary user-data root or authorized independent Windows
+test user, never against real personal Work records and saved API keys;
+prove all five V1 read-only Work Types with actual GitHub/model evidence.
+Any candidate considered for release would need full installer
+upgrade/uninstall/reinstall, negative security, license/SBOM, anti-malware,
+version/signing and PR stack acceptance again. Current public-release
+blockers remain. Draft PRs must not be merged, signed, tagged or released.
