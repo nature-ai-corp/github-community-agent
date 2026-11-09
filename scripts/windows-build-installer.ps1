@@ -1,5 +1,8 @@
 # Compile a per-user, unsigned internal GC Agent installer from an existing
 # validated onedir bundle. No network download, signing, release or installation.
+# -UpgradeTrial creates a distinct installer for installer-mechanics testing only.
+[CmdletBinding()]
+param([switch]$UpgradeTrial)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -24,11 +27,18 @@ if (-not $compiler) {
 if (-not $compiler) {
     throw 'Inno Setup 6 ISCC.exe not found. Install Inno Setup from its official source, then retry.'
 }
-$out = Join-Path $root 'dist\installer\GitHubCommunityAgent-InternalTest-Unsigned.exe'
+if ($UpgradeTrial) {
+    $out = Join-Path $root 'dist\installer\GitHubCommunityAgent-UpgradeTrial-Unsigned.exe'
+    $iss = Join-Path $root 'packaging\windows\gc-agent-upgrade-trial.iss'
+    Write-Host 'INTERNAL UPGRADE TRIAL: same bundled application, different installer version 0.0.1-devtrial.'
+    Write-Host 'This validates installation mechanics ONLY, not an application feature/code upgrade.'
+} else {
+    $out = Join-Path $root 'dist\installer\GitHubCommunityAgent-InternalTest-Unsigned.exe'
+    $iss = Join-Path $root 'packaging\windows\gc-agent.iss'
+}
 if (Test-Path -LiteralPath $out) {
     throw "Existing test installer must not be overwritten: $out. Move or rename it first."
 }
-$iss = Join-Path $root 'packaging\windows\gc-agent.iss'
 & $compiler $iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $out)) {
