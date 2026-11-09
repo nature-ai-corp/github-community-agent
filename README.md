@@ -47,10 +47,11 @@ python -m venv .venv
 
 ## Windows independent installer — internal preview only
 
-This repository now contains **source-only build recipes** for a separate
-per-user GC Agent EXE and an unsigned Inno Setup 6 installer. The build output
-has **not yet been verified on the target Windows machine** and is **not**
-an official downloadable release. See
+This repository contains a separate per-user GC Agent EXE and unsigned
+Inno Setup 6 developer installer. Actual Windows testing has verified
+first installation, installer-version replacement, uninstall and reinstall
+while retaining work history and encrypted settings. This **does not**
+constitute a stable, signed or publicly approved release. See
 [Windows Installer Acceptance](docs/WINDOWS_INSTALLER_ACCEPTANCE.md).
 
 To build locally after Windows tests pass, install optional build tools with
@@ -60,7 +61,9 @@ Setup 6 run `scripts/windows-build-installer.ps1`. The installer has its
 own AppId and installs under the current user's program directory. Upgrade
 and uninstall must preserve `%LOCALAPPDATA%\\GitHubCommunityAgent`
 Work history and DPAPI-encrypted settings. **Do not distribute this unsigned
-developer installer**.
+developer installer**. See
+[V1 Security and License Gate](docs/V1_RELEASE_SECURITY_LICENSE_GATE.md)
+for open release blockers and an offline dependency metadata audit.
 
 A Windows isolated wheel-build/resource preflight is provided at
 `scripts/windows-v1-preflight.ps1`. It is **not** an installer or code-signing
