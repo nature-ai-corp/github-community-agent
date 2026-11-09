@@ -808,3 +808,79 @@ Any candidate considered for release would need full installer
 upgrade/uninstall/reinstall, negative security, license/SBOM, anti-malware,
 version/signing and PR stack acceptance again. Current public-release
 blockers remain. Draft PRs must not be merged, signed, tagged or released.
+
+## Native Windows isolated REAL frozen Work Center trial (prepared; NOT yet run)
+
+The source at this point includes
+`scripts/windows-run-exclusion-candidate-isolated.ps1`.
+It launches the **already-built optimized candidate**, not an installer or
+the previously accepted EXE. It first checks `--self-check`, then starts
+the actual frozen Work Center, allowing browser-based human acceptance
+against the *real application runtime*, not a mocked service.
+
+For each run it creates a fresh, never-reused directory:
+`build/gc-agent-e2e-trials/trial-<random-guid>/` and temporarily
+overrides `LOCALAPPDATA` for the candidate process to that directory.
+The candidate's actual data paths become:
+`.../trial-<guid>/GitHubCommunityAgent/work.sqlite3` and
+`.../trial-<guid>/GitHubCommunityAgent/settings.dpapi`.
+It does **not** import/copy an existing DPAPI key or touch the original
+`%LOCALAPPDATA%/GitHubCommunityAgent` contents. It restores
+`LOCALAPPDATA` in the calling PowerShell session on exit; retained
+trial files are intentional evidence. The spawned browser may inherit
+the trial-local environment; browser profile behavior must be checked
+rather than assumed.
+
+### Native Windows acceptance command
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-run-exclusion-candidate-isolated.ps1
+```
+
+If GC Agent is already running in a regular installation, keep its
+window/data separate; **do not enter the user's existing saved key**.
+Within the new trial Work Center, explicitly enter independent,
+test-authorized model credentials and, only when needed, a GitHub
+Discussions **read-only** token. Private repositories may require
+read credentials; use a clearly approved test repository. No
+credentials should be pasted back into logs or chat. For real model
+requests there may be API usage charges.
+
+### Human acceptance checklist (record observed evidence, not assumptions)
+
+1. On the new Work Center, open Settings, select model/provider and
+   test repository and verify a real model connection. Verify the new
+   Task list starts empty; old 10 Tasks do not appear.
+2. Run **Review Issues** with real accessible GitHub Issues. Verify
+   source URLs, meaningful evidence and coverage limitations.
+3. Run **Review Discussions**, with an explicitly scoped read token
+   where required. Verify source-backed results and limitations.
+4. Run **Draft Issue Reply** for one actual Issue, confirm Task status
+   **Needs My Attention**, visible draft and source link. Use **Mark
+   reviewed**; status becomes finished **locally only**, and confirm
+   no GitHub comment was actually posted.
+5. Run **Draft Discussion Reply** for one actual Discussion. Repeat the
+   local review/non-publication checks.
+6. Run **Community Report** against actual accessible activity;
+   verify issue/discussion coverage and explicit caveats.
+7. Inspect Task history, readable report, technical JSON, and copy/
+   export. Reopen with a new isolated trial root only for a genuinely
+   fresh test; retained prior trial artifacts are not wiped.
+8. Negative security checks: no Github write capability; no response
+   to forged Host/Origin/nonce; DPAPI file should be unreadable under
+   another independent Windows account (separate authorized setup).
+   Existing unit security tests do **not** prove these live behaviors.
+
+Record only Task IDs/statuses and non-sensitive evidence; redact repo
+secrets if any. Test failures remain failures, do not mark completed
+based on the build-only `--self-check`. A full second-Windows-user
+isolation and installer-upgrade pass are **not performed** by this
+script.
+
+**Current status: trial script and guard tests committed, Windows
+execution pending.** This is not authorization to replace or release
+the accepted installed program. PR #11 stays Draft, no merge, tag,
+signing or release. Original Nature AI Worker remains untouched.
