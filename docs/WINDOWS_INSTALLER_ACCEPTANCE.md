@@ -471,3 +471,27 @@ Windows file-sharing error no longer affects acceptance.
 Activity History; a live Settings Test Connection using the stored provider
 key (without re-entering it); actual clean-install on a separate test account,
 upgrade, uninstall retention, code signing or formal release.
+
+## Installed Archived Work UI — user-confirmed PASS
+
+The user supplied an actual installed Windows GC Agent screenshot of
+**Archived Work** on November 8, 2026. All five archived Task IDs are
+visible with their original status and Work Type:
+
+- #9 Community Report — Finished
+- #7 Draft Discussion Reply — Failed
+- #5 Draft Discussion Reply — Failed
+- #4 Draft Issue Reply — Finished
+- #3 Draft Issue Reply — Failed
+
+The report detail for Task #9 is open and still shows the original
+GitHub source link. The sidebar's Recent Work lists only the five
+non-archived items (#10/#8/#6/#2/#1). Combined with the prior
+SHA256-verification, **all ten original Task records are retained after
+installation**. This screenshot does not specifically show expanded
+Activity History, so individual recorded event rows remain a separate
+UI detail to inspect if full activity visibility is required.
+
+**Outstanding:** live provider Test Connection using the encrypted,
+previously saved API Key, without entering it again; independent
+upgrade and uninstall retention tests. No formal release or signing.
