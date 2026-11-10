@@ -1991,3 +1991,34 @@ CPython incorporated-software attribution, OpenSSL notice,
 Tcl/Tk `license.terms` and all Tcl data, libffi, zlib,
 SQLite provenance, and Microsoft Visual C++ runtime rights.
 `Gate 5` remains OPEN until these are fully checked.
+
+## Actual Windows third-party license candidate text staging PASS (2026-11-10)
+
+The user pulled branch `feature/unified-task-home` through
+`400f7e8`. Native Windows regression **261 passed in 2.59s,
+zero failures**. The create-only human-review helper
+`scripts/stage_venv_license_candidates_for_review.py`
+completed and stated:
+
+- `Staged seven current-venv license sets for HUMAN review`
+- `Candidate text files: 7`
+- Folder:
+  `build/release-audit/optimized-candidate-sbom-review/venv-license-candidates-for-review`
+- `NEITHER installer package NOR copyright clearance; frozen origin and obligations OPEN`
+
+**Accepted:** 7 candidate text files and an audit manifest were
+created under the separate, previously absent review directory. They
+are not automatically copied into PyInstaller, the Inno Setup
+installer, or any user's installed application.
+
+**Not accepted:** exact frozen-version provenance, coverage of all
+native libraries and embedded Python licenses, MPL-2.0 executable
+source-availability fulfillment, actual installer inclusion and
+complete redistribution LICENSE/NOTICE compliance.
+
+Next work should compare the staged license file relative paths,
+digests and contents against authoritative package-distribution
+materials, then prepare a complete THIRD_PARTY_NOTICES structure and
+installer declaration with tests. Any such package changes remain
+unreleased until actual installer payload acceptance and user
+authorization; retain this staged evidence unmodified.
