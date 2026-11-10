@@ -34,7 +34,7 @@ No upstream license investigation was reopened.
 | 3 | Retain the PSF copyright notice; include "a brief summary of the changes made to Python" | CPython `LICENSE.txt`, PSF License Agreement clauses 2–3 | Full `LICENSE.txt` and `license.rst` shipped; notices state "changes: none" (runtime unmodified, verified) | Yes | — | None | Confirm only |
 | 4 | Do not alter Microsoft notices; distribute only for Microsoft platforms | CPython `LICENSE.txt`, "Additional Conditions…", conditions (a) and (c) | `VCRUNTIME140.dll` byte-identical and Microsoft-signed; Windows x64 only; signing scripts never re-sign third-party binaries | Yes | — | None | No |
 | 5 | "do not … use Microsoft's trademarks in your programs' names or in a way that suggests your programs come from or are endorsed by Microsoft" | Same, condition (b) | Name contains "GitHub" (a GitHub, Inc. mark; GitHub is a Microsoft subsidiary); the disclaimer denies affiliation with GitHub and Microsoft | Disclaimer yes | Whether "GitHub" counts as a "Microsoft trademark" under this condition | None technically; a counsel opinion | **Yes** |
-| 6 | "do not … include Microsoft Distributable Code in malicious, deceptive or unlawful programs" | Same, condition (d) | V1 is read-only toward GitHub; no deceptive behavior known | Facts support it | No owner attestation on record | Owner signs a one-line attestation | No (owner) |
+| 6 | "do not … include Microsoft Distributable Code in malicious, deceptive or unlawful programs" | Same, condition (d) | V1 is read-only toward GitHub; no deceptive behavior known | Yes: this is a restriction on what is distributed, met by the product | — (owner decision 2026-11-10: no signed attestation required; an earlier attestation was withdrawn) | None | No |
 | 7 | "require distributors and external end users to agree to terms that protect the Microsoft Distributable Code at least as much as Microsoft's own requirements" | Same, the paragraph before the conditions | Installer terms page (acceptance required) reproduces CPython's conditions **verbatim** and adds no Microsoft terms of its own | Mechanism yes (acceptance verified) | Whether verbatim CPython text is "at least as much as Microsoft's own requirements" for end users who do **not** redistribute | Counsel approves the wording as is, or supplies the extra clause; no other change | **Yes** |
 | 8 | Do not use GitHub trademarks without prior written permission; do not suggest the offering is by or endorsed by GitHub | GitHub brand rules (brand.github.com/foundations/logo); trademark law | Name retained (owner decision); disclaimer in `NOTICE`, the notices, README, EXE `FileDescription` and the terms page; no GitHub logos | Disclaimer and no-logo, yes | Whether a name **beginning** with "GitHub" needs GitHub's permission | Counsel opinion, or request GitHub's written permission | **Yes** |
 | 9 | Make the Source Code Form available and tell recipients how to get it; an executable may be under other terms only if they don't limit Source Code Form rights | MPL-2.0 §3.2(a), §3.2(b) (certifi) | Exact sdist shipped in `third-party-licenses/certifi-2026.10.23/source/` with SHA256 and upstream URLs; full MPL text; terms §2 defers to each component's own license | Yes | Confirmation only | None | Confirm only |
@@ -61,7 +61,17 @@ Still pending by design:
 
 See [`FINAL_APPROVAL_CHECKLIST.md`](FINAL_APPROVAL_CHECKLIST.md).
 
-**Summary.**
+**Procedure update (owner decision 2026-11-10).** The release now follows the
+simplified Worker-style procedure in
+[`FINAL_APPROVAL_CHECKLIST.md`](FINAL_APPROVAL_CHECKLIST.md):
+- **#5, #7, #8:** "Legal review? Yes" now means **optional legal advice**
+  behind an owner risk decision, not a mandatory approval step.
+- **#6:** needs no document.
+- **Internal approval records:** none are required.
+
+The obligations in this table are unchanged.
+
+**Summary (as originally written, before the procedure update).**
 - **Counsel decisions needed:** only #5, #7 and #8, plus confirmations of #3
   and #9.
 - **Owner actions:** #2 (one `NOTICE` line), #6 (attestation) and #15 (release
@@ -89,19 +99,17 @@ Checked line by line against `LICENSE`, `NOTICE` and CPython `LICENSE.txt`:
   `VCRUNTIME140.dll` phrasing.
 - Whether the page is *sufficient* for condition #7 is a counsel decision.
 
-## Minimum path to clear the legal items
+## Path to publication (superseded 2026-11-10)
 
-1. **Counsel:** opinions on #5, #7 and #8; confirmations of #3 and #9.
-2. **Owner:** attestation #6, and approval of the final wording for #2 and #15
-   plus the two terms fixes.
-3. **Agent, on authorization, in one packaging commit:**
-   - add the Worker attribution line to `NOTICE`;
-   - replace the `NOTICE` "not yet released" paragraph;
-   - make the §1 and §3 fixes;
-   - remove the DRAFT header, and apply any counsel text;
-   - rebuild the installer and re-run the payload, terms-page and upgrade
-     checks and the Defender scan;
-   - update `SHA256SUMS.txt` and `RELEASE_NOTES.md`; confirm CI.
+The earlier "minimum path" required counsel opinions, a signed owner
+attestation and an internal approval record. It is **replaced** by the
+simplified procedure in [`FINAL_APPROVAL_CHECKLIST.md`](FINAL_APPROVAL_CHECKLIST.md):
+- **Owner risk decisions:** the name and terms sufficiency, with legal advice
+  optional.
+- **No attestation.**
+- **One final release-text commit:** `NOTICE` paragraph, DRAFT line,
+  `legal_review_approved` flag.
+- **Then:** verify the exact binary, and publish on explicit authorization.
 
-The record of approvals is kept by the owner. Automation never sets
-`legal_review_approved` or creates `REVIEW_APPROVAL.json`.
+Already done: the `NOTICE` Worker attribution and the §1/§3 terms fixes
+(`b6b31e2`).

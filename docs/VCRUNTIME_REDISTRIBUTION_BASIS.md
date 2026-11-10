@@ -60,7 +60,7 @@ read them from the Visual Studio license that applies.
 | Do not alter Microsoft notices | DLL byte-identical and validly signed | Met (verified) |
 | No Microsoft trademarks in program names / no implied endorsement | Product name contains "GitHub" (a GitHub, Inc. trademark; GitHub is a Microsoft subsidiary). An explicit independence disclaimer now ships in `NOTICE`, `THIRD_PARTY_NOTICES.txt`, `README.md` and the EXE `FileDescription` | **Open — counsel** |
 | Windows-only | Windows x64 installer only | Met |
-| Not malicious/deceptive/unlawful | Read-only V1 functions; no GitHub writes | Owner attestation needed |
+| Not malicious/deceptive/unlawful | Read-only V1 functions; no GitHub writes | Met by the product (no attestation document required; owner decision 2026-11-10) |
 | "Require distributors and external end users to agree to terms that protect the Microsoft Distributable Code" | The installer shows no end-user terms page; the terms are only installed as files | **Open — counsel** |
 
 ## 5. Options for the owner/counsel
@@ -104,7 +104,7 @@ The applicable obligations, and only these:
 | a | Do not alter Microsoft notices | DLL byte-identical and Microsoft-signed; signing scripts refuse to re-sign third-party binaries | None (verified) |
 | b | No Microsoft trademarks in program names, and no suggestion of origin or endorsement by Microsoft | Name contains "GitHub" (a GitHub, Inc. mark; GitHub is a Microsoft subsidiary); independence disclaimer shipped | **Counsel decision** (shared with the product-name issue) |
 | c | Microsoft platforms only | Windows x64 only | None |
-| d | Not malicious, deceptive or unlawful | Read-only V1 | **Owner attestation** |
+| d | Not malicious, deceptive or unlawful | Read-only V1 | Met by the product; no attestation document required |
 | e | "require distributors and external end users to agree to terms that protect the Microsoft Distributable Code at least as much as Microsoft's own requirements" | Installer shows **no** terms; `LICENSE`/`NOTICE` are only installed as files | **Open.** The smallest fix is option 1: an end-user license page in the installer (Inno `LicenseFile`, accepted before install), with a counsel-approved clause protecting the Microsoft Distributable Code |
 
 **Recommended path for counsel to confirm:**

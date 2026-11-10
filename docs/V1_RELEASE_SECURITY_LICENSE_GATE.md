@@ -16,6 +16,7 @@
 > | Defender scan of the **unsigned** RC1 installer, app EXE and bundle | **PASS: no threats** (2026-11-10) | "Defender scan of the verified unsigned RC1" at the end |
 > | Defender and SmartScreen on the **signed** build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | `WINDOWS_CODE_SIGNING_READINESS.md` §6 |
 > | Merge, tag, release | **Not authorized** | — |
+> | **Release procedure (owner decision 2026-11-10)** | Simplified, Nature AI Worker-style: no signed attestation; no internal approval record; counsel optional. The earlier attestation dated 2026-11-10 is **withdrawn**. The RC approval-gate spec was removed | [`release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md`](release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md) |
 > | **Final GO / NO-GO (2026-11-10)** | Technical **GO**; overall **NO-GO** pending release text, legal decisions, owner VM/SmartScreen check and authorization | [`release/v1.0.0-rc1/RELEASE_READINESS.md`](release/v1.0.0-rc1/RELEASE_READINESS.md) |
 
 ## Evidence already confirmed on Windows
@@ -2543,7 +2544,7 @@ of them as decided.
 |---|---|---|---|---|
 | 1 | Product name | **Counsel → owner** | (A) keep "GitHub Community Agent" and obtain GitHub's written permission; (B) a descriptive form such as "Community Agent for GitHub"; (C) a neutral name. GitHub's brand rules require prior written permission for trademark use and forbid implying GitHub origin or endorsement. The same question settles the CPython/Microsoft "trademarks in program names" condition (b) | Option B or C means renaming the installer, EXE metadata and docs, then re-running the checks |
 | 2 | Microsoft Distributable Code end-user terms (condition e) | **Counsel drafts or approves; owner authorizes** | Add an installer license page that users accept. No Visual Studio license is assumed; leaving out `VCRUNTIME140.dll` would not remove the condition | Small packaging change, then re-run the installer, payload and upgrade checks |
-| 3 | Attest that the program is not malicious, deceptive or unlawful (condition d) | **Owner** | V1 is read-only toward GitHub | Record only |
+| 3 | ~~Attest that the program is not malicious, deceptive or unlawful (condition d)~~ **Removed 2026-11-10**: condition (d) is met by the product; no attestation | — | V1 is read-only toward GitHub | — |
 | 4 | Approve the license package for the exact MANIFEST hash set | **Counsel/owner** | `V1_LICENSE_APPROVAL_CHECKLIST.md` items 3–5; previously verified upstream items are not reopened | Must be redone after signing and any repackaging, because the EXE hash changes |
 | 5 | Set up Azure Artifact Signing and authorize the signing run | **Owner** | `WINDOWS_CODE_SIGNING_READINESS.md` §7 | Enables the signed build |
 | 6 | Authorize merge, tag and release | **Owner** | After items 1–5, plus the signed-build Defender and SmartScreen checks and the real-AppId upgrade | — |
@@ -2608,7 +2609,7 @@ remains open.
 
 **Still open:**
 - counsel review of the DRAFT terms wording and of the name/trademark question;
-- the owner attestation (not malicious, deceptive or unlawful);
+- ~~the owner attestation (not malicious, deceptive or unlawful)~~ (removed 2026-11-10);
 - package approval, signing, signed-build Defender and SmartScreen checks, and
   the real-AppId upgrade;
 - merge, tag and release.

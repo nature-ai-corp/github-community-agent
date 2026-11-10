@@ -4,16 +4,36 @@ Assessed 2026-11-10 on `feature/unified-task-home` at `d423f49` (PR #11,
 Draft). Nothing was merged, tagged, signed or published, and nothing here is
 legal approval.
 
-## Verdict
+## Verdict (updated 2026-11-10 for the simplified release procedure)
+
+The procedure is now the Worker-style checklist in
+[`FINAL_APPROVAL_CHECKLIST.md`](FINAL_APPROVAL_CHECKLIST.md):
+- no signed attestation and no internal legal-approval record;
+- the Software Release Attestation dated November 10, 2026 has been
+  **withdrawn** and is not release evidence;
+- counsel review is an **optional** owner choice.
 
 | Area | Verdict |
 |---|---|
 | Technical (build, tests, installer, upgrade, security, CI) | **GO** |
-| Release text inside the installer | **NO-GO** until updated: `NOTICE` says "not yet released … awaits human legal review"; the terms page says "DRAFT FOR LEGAL REVIEW" |
-| Legal approvals | **NO-GO** until decided by counsel or the owner (below) |
-| Real-install / SmartScreen validation | **Pending** (owner, on a clean Windows 11 PC/VM) |
+| Manual license page tests (person-operated, isolated) | **PASS**: Decline (exit 2, nothing installed) and Accept (installed, byte-verified, clean uninstall); see below |
+| Genuine legal obligations in the shipped build | **Met**, except accurate release text (next row) |
+| Release text inside the installer | **NO-GO** until the final release-text commit: `NOTICE` "not yet released … awaits human legal review", terms "DRAFT FOR LEGAL REVIEW", `MANIFEST.json` `legal_review_approved: false` |
+| Owner risk decisions (name, terms sufficiency) | **Owner** (no document required) |
+| Clean Windows 11 / SmartScreen check | Recommended, not legally required |
 | Owner authorization (merge, tag, publish) | **Not given** |
-| **Overall** | **NO-GO for public publication today.** Technically ready; blocked only by the human decisions below |
+| **Overall** | **NO-GO for publication today**; blocked only by the release-text commit and its re-verification, plus explicit owner authorization |
+
+### Manual license page tests (operated by a person, 2026-11-10)
+
+Kit: `scripts/windows-manual-license-page-test.ps1`. Each run used an isolated
+AppId and folder; real installation and data were unchanged in every run.
+
+| Run | Scenario | Setup exit | Installed | Payload verified | Isolated uninstall | Result |
+|---|---|---|---|---|---|---|
+| `run-20261110T200950Z-decline` | Decline | 0 | yes | yes | clean | **FAIL**: the license was accepted during a Decline run (operator path), so this is not a rejection result |
+| `run-20261110T201155Z-decline` | Decline | **2** | **no** | — | — | **PASS** |
+| `run-20261110T201301Z-accept` | Accept | 0 | yes | **yes** | **clean** | **PASS** |
 
 ## Owner decisions in effect
 
@@ -53,7 +73,7 @@ legal approval.
 | Apache-2.0 application license | `LICENSE` and `NOTICE` installed and byte-verified | `NOTICE` last paragraph ("not yet released … awaits human legal review") must be updated at release |
 | Third-party notices and SBOM | All 958 bundle files classified; 16 license files installed and byte-verified | Approve the package for the exact MANIFEST hash set (DECISION 1); pin governance (DECISION 5) |
 | certifi (MPL-2.0) source | Exact sdist shipped and checked against the frozen files | Confirm that this meets MPL §3.2 (DECISION 2) |
-| CPython redistribution conditions (Microsoft Distributable Code) | No VS license assumed. Conditions (a) and (c) are met. (e) is addressed by the DRAFT terms page reproducing CPython's text verbatim | Counsel to approve or replace the DRAFT terms; owner attestation for (d), "not malicious, deceptive or unlawful"; (b) is decided together with the name |
+| CPython redistribution conditions (Microsoft Distributable Code) | No VS license assumed. Conditions (a) and (c) are met. (e) is addressed by the DRAFT terms page reproducing CPython's text verbatim | (Updated) Terms sufficiency: owner risk decision, with legal advice optional. (d) is met by the product; no attestation required. (b) is decided together with the name |
 | GitHub independence disclaimer | Shipped in `NOTICE`, the notices, README, the EXE description and the terms page | Owner kept the name (business decision). Trademark acceptability is not approved; that is counsel's call |
 | Public-domain notices (SQLite, liblzma) | Project-written statements | Approve the wording (DECISION 4) |
 
@@ -122,36 +142,41 @@ state: #6–#9 green (3-job legacy workflow), #11 green (7 jobs).
 3. **Defender:** repeat on the final asset if the release-text commit changes
    the installer, which it will.
 
-## 5. Owner approvals required
+## 5. Owner decisions and authorization (simplified; superseded the earlier list)
 
-1. **Legal path for the pre-release.** Either counsel approves (or replaces) the
-   DRAFT terms and the license items in §2, **or** the owner explicitly and in
-   writing accepts publishing the pre-release before that review. That second
-   option is an owner risk decision; the agent will not make it.
-2. **Owner attestation for condition (d).**
-3. **Release text.** Approve the final wording of the `NOTICE` last paragraph
-   and the terms header (remove "DRAFT"/"not yet released" only once item 1 is
-   decided), and the release notes (`RELEASE_NOTES.md`).
-4. **Merges.** Authorize the merges (§3), the tag `v1.0.0-rc1` on `main`, and
-   publication as a **GitHub pre-release** with the asset and `SHA256SUMS.txt`.
-5. **Signing.** Optional, per the owner decision. If skipped, the release notes
-   disclose it (done).
+No signed attestation, no internal legal-approval record, and no mandatory
+counsel step. What remains:
+1. **Risk decisions:**
+   - the product name is kept, as decided;
+   - publish the terms page as is, minus DRAFT, or get optional legal advice
+     first.
+2. **Release text:** approve the wording that replaces the `NOTICE` "not yet
+   released … awaits human legal review" paragraph, the removal of the DRAFT
+   line, and `RELEASE_NOTES.md`.
+3. **Authorization:** merges (§3), the immutable tag `v1.0.0-rc1` on `main`, and
+   a **GitHub pre-release** with the verified asset and `SHA256SUMS.txt`.
 
-## Shortest safe path to the first public Windows pre-release
+Signing is optional (the unsigned pre-release is allowed and disclosed). An
+Inno Setup commercial license is optional (see the checklist, section D).
 
-1. **Owner/counsel:** decide item 1 and attest (d) — the only true blockers.
-2. **Agent (on authorization):** one release-text commit. It updates the
-   `NOTICE` last paragraph and the terms header, and README "Development status"
-   if wanted, and touches no application code. Then rebuild the installer from
-   the verified bundle, re-run the package check, payload, terms-page and
-   upgrade checks and the Defender scan, regenerate `SHA256SUMS.txt`, update
-   `RELEASE_NOTES.md` with the new hash, and confirm 7/7 CI. About 30–45 minutes.
-3. **Owner:** clean Windows 11 VM install and SmartScreen check with the final
-   asset (§4.1). About 30 minutes.
-4. **Owner:** merge #6→#7→#8→#9→#11 as in §3; verify the tree equality.
-5. **Owner:** tag `v1.0.0-rc1` on `main`; create a GitHub Release marked
-   **pre-release**, with the asset and `SHA256SUMS.txt`, using
-   `RELEASE_NOTES.md` as the description.
+## Shortest path to the first public Windows pre-release
 
-Signing, the Azure setup and the real-AppId upgrade are not on this path.
-Signing is optional, and the upgrade is recommended but not required.
+1. **Owner:** decisions 1–2 above.
+2. **Agent, on authorization:** one release-text commit, touching no
+   application code:
+   - the `NOTICE` paragraph;
+   - remove the DRAFT line;
+   - drop the internal `legal_review_approved` flag from the generator,
+     `MANIFEST.json` and tests;
+   - optionally, README "Development status".
+
+   Then rebuild the installer from the verified bundle; re-run the package,
+   payload and upgrade checks, the Defender scan and the manual license page
+   Decline/Accept tests; regenerate `SHA256SUMS.txt`; update `RELEASE_NOTES.md`;
+   CI 7/7.
+3. **Owner, recommended:** clean Windows 11 download, SmartScreen check and
+   install with the final asset (§4.1).
+4. **Owner:** merge #6→#7→#8→#9→#11 with merge commits; verify tree equality;
+   tag `v1.0.0-rc1`; publish the GitHub pre-release with **only** the
+   allowlisted assets (installer, `SHA256SUMS.txt`, notes); confirm the
+   published checksum.

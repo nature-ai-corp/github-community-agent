@@ -1,5 +1,7 @@
 # GC Agent V1 — License approval checklist (`1.0.0rc1`)
 
+> **Superseded procedure (owner decision 2026-11-10).** Release now follows the simplified, Nature AI Worker-style checklist in [`release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md`](release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md). It has no signed attestation and no internal approval record (`REVIEW_APPROVAL.json`, `LegalReviewEvidence`, or a signed decision record). Counsel review is an optional owner choice. The obligations below remain accurate; the approval mechanics described here do not apply.
+
 **Prepared 2026-11-10. Not legal advice. Nothing in this file is approved.**
 Each item is ticked by the named human who decides it, never by automation.
 The package keeps `legal_review_approved: false` in `MANIFEST.json`. No
@@ -80,7 +82,7 @@ Narrowed on 2026-11-10 (`VCRUNTIME_REDISTRIBUTION_BASIS.md` §5a):
 - [ ] **Counsel:** Draft or approve the end-user terms clause that protects the Microsoft Distributable Code "at least as much as Microsoft's own requirements".
 - [x] **Packaging (technical, done 2026-11-10 at the owner's request):** a DRAFT installer license page (`packaging/windows/END_USER_TERMS.txt`, Inno `LicenseFile`) is shown before installation and requires "I accept the agreement". It is also installed as `END_USER_TERMS.txt`. The Microsoft conditions are reproduced verbatim from CPython `LICENSE.txt`.
 - [ ] **Counsel:** Review and approve or replace the DRAFT wording. Confirm whether reproducing CPython's conditions is enough to meet "at least as much as Microsoft's own requirements", or whether specific Microsoft terms must be added. (The draft deliberately adds no Microsoft terms of its own.)
-- [ ] **Owner:** Attest that the program is not malicious, deceptive or unlawful (V1 is read-only toward GitHub).
+- [x] ~~**Owner:** Attest that the program is not malicious, deceptive or unlawful.~~ **Removed** (owner decision 2026-11-10): condition (d) is met by the product itself (read-only toward GitHub); no attestation document is required.
 
 ### 3. certifi MPL-2.0 source distribution (DECISION 2)
 Technical facts:

@@ -62,8 +62,9 @@ Package: `packaging/third-party-licenses/`, generated and checked by
 **DECISION 1 — Approve the package as a whole.** Review
 `THIRD_PARTY_NOTICES.txt` and the files it lists. If approved, record the
 reviewer, date and the `MANIFEST.json` SHA256 set in a review record outside
-this repository's automation. Only then may a `REVIEW_APPROVAL.json` and
-`LegalReviewEvidence` be supplied to `gc-agent-release-candidate.iss`. Neither
+this repository's automation. (Superseded 2026-11-10: `gc-agent-release-candidate.iss`
+and its `REVIEW_APPROVAL.json` / `LegalReviewEvidence` gate were removed; see
+`release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md`.) Neither
 file has been created, and automation must not create them.
 
 **DECISION 2 — certifi (MPL-2.0) source availability.** certifi is unmodified,

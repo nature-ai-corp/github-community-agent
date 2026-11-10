@@ -34,10 +34,11 @@ def test_inno_spelling_examples():
     assert inno_spelling("1.0.0") == "1.0.0"
 
 
-def test_release_candidate_spec_refuses_the_development_version():
-    rc = (ROOT / "packaging/windows/gc-agent-release-candidate.iss").read_text(encoding="utf-8")
-    assert f'#if AppVersion == "{inno_spelling(github_community_agent.__version__)}"' in rc \
-        or "dev" not in github_community_agent.__version__
+def test_release_installer_defaults_to_the_package_version():
+    # gc-agent.iss is the single release installer spec (same practice as
+    # Nature AI Worker); its default version must be the package version.
+    iss = (ROOT / "packaging/windows/gc-agent.iss").read_text(encoding="utf-8")
+    assert f'#define AppVersion "{inno_spelling(github_community_agent.__version__)}"' in iss
 
 
 def test_sbom_and_exe_metadata_follow_the_package_version():

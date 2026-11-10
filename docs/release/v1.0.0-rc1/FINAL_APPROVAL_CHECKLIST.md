@@ -1,71 +1,91 @@
-# GitHub Community Agent 1.0.0-rc1 — final approval checklist
+# GitHub Community Agent 1.0.0-rc1 — release checklist (simplified)
 
-Only these four items remain before the DRAFT marker and the "not yet
-released" statement can be replaced and the Windows pre-release published.
-Each is ticked by the named person, never by automation. Background:
-[`LEGAL_DECISION_REPORT.md`](LEGAL_DECISION_REPORT.md).
+**Owner decision (2026-11-10).** The release follows the practical Nature AI
+Worker open-source process (`nature-ai-worker` `docs/V0_1_1_PUBLICATION_CHECKLIST.md`,
+`docs/RELEASES.md`), adjusted only for this product's real differences:
+- the official PSF CPython runtime;
+- an unsigned pre-release allowed;
+- the third-party "GitHub" mark in the product name.
 
-## 1. GitHub trademark use in the product name — counsel
+There is **no signed attestation and no internal legal-approval record**
+requirement. This checklist is a procedure, not authorization to publish.
 
-- **Facts:**
-  - The product name "GitHub Community Agent" is kept (owner decision).
-    Publisher: NATURE AI CORP.
-  - No GitHub logos are used.
-  - An independence disclaimer ships in `NOTICE`, `THIRD_PARTY_NOTICES.txt`,
-    README, the EXE description and the license page.
-- **Requirement:** GitHub brand rules: "Do not use GitHub trademarks, logos, or
-  artwork without GitHub's prior written permission" and "Do not use the GitHub
-  name … in a way that suggests … your offering or project is by GitHub."
-- [ ] **Counsel:** Is the name, with the disclaimer, acceptable without GitHub's
-  written permission? If not: request permission from GitHub, or advise a
-  change. (A rename would reopen the owner decision.)
+**Withdrawn:** the Software Release Attestation dated November 10, 2026,
+signed outside this repository, has been withdrawn by the owner. It is **not**
+release approval evidence and is not reproduced here.
 
-## 2. Microsoft redistribution and end-user conditions — counsel
+## A. Genuine obligations (must hold in what is published)
 
-**Source:** CPython `LICENSE.txt`, "Additional Conditions for this Windows
-binary build". It applies because the official PSF Windows runtime, including
-`VCRUNTIME140.dll`, is redistributed unmodified. No Visual Studio license is
-assumed.
+| Obligation | Source | State in the verified build |
+|---|---|---|
+| Ship the Apache-2.0 license and the NOTICE, including the upstream attribution | Apache-2.0 §4(a), §4(d) | `LICENSE` (canonical) and `NOTICE` (with the Nature AI Worker attribution) installed and byte-verified ✓ |
+| Ship third-party license texts and notices | MIT/BSD/PSF/Apache/Zlib/TCL/Unicode/MPL terms | `third-party-licenses/` and `THIRD_PARTY_NOTICES.txt`, plus the SBOM, installed and byte-verified ✓ |
+| Make the certifi source available | MPL-2.0 §3.2 | Exact sdist shipped and checked ✓ |
+| PSF notice and summary of changes | CPython PSF License clauses 2–3 | Shipped; "changes: none" ✓ |
+| Don't alter Microsoft notices; Windows only | CPython "Additional Conditions" (a), (c) | Unmodified, Microsoft-signed DLL; Windows x64 only ✓ |
+| Don't include Microsoft code in malicious, deceptive or unlawful programs | Same, (d) | A restriction on what is distributed, met by the product itself (read-only toward GitHub). **No document or signature is required** ✓ |
+| Downstream distributors and end users agree to protective terms | Same, (e) | Installer license page, which must be accepted, reproduces the conditions verbatim ✓ (sufficiency: optional legal advice, see B) |
+| Don't use Microsoft marks in program names / imply Microsoft endorsement; don't use the GitHub mark in a way that suggests origin or endorsement | Same, (b); GitHub brand rules; trademark law | Independence disclaimer everywhere, no logos ✓. The name decision rests with the owner (see B) |
+| Inno Setup notices kept in the binary | Inno Setup License, cond. 2 | Unmodified Inno runtime ✓ |
+| Accurate release statements | Avoid misleading recipients | **Open at publication:** `NOTICE` says "not yet released … awaits human legal review"; the terms page says "DRAFT FOR LEGAL REVIEW"; `MANIFEST.json` carries `legal_review_approved: false`. Update these in the final release-text commit (C3) |
 
-**Already met (verified):**
-- (a) Microsoft notices are not altered.
-- (c) The product is Windows-only.
+## B. Owner decisions (risk choices; no document or signature required)
 
-**Open:**
-- [ ] **Counsel, condition (b):** Does "GitHub" in the product name count as
-  using "Microsoft's trademarks in your programs' names"? GitHub, Inc. is a
-  Microsoft subsidiary. Decide together with item 1.
-- [ ] **Counsel, condition (e):** Is the installer license page enough to meet
-  "require distributors and external end users to agree to terms that protect
-  the Microsoft Distributable Code at least as much as Microsoft's own
-  requirements"?
-  - Acceptance is required before installation.
-  - §3 reproduces CPython's conditions verbatim.
-  - The draft adds no Microsoft terms of its own.
+- [ ] **Product name.** Keep "GitHub Community Agent" (decided) and accept the
+  trademark exposure, or seek GitHub's written permission or legal advice
+  first. GitHub's rules ask for prior written permission for trademark use.
+- [ ] **Terms page sufficiency, condition (e).** Publish the page as it is,
+  minus the DRAFT line, or get legal advice first. The Worker's published
+  v0.1.1 left this condition open and showed only Apache-2.0; this product
+  already requires acceptance of the verbatim conditions.
+- [ ] **Unsigned pre-release.** Allowed (decided). The release notes disclose
+  it and give SmartScreen guidance.
+- [ ] **Release-text wording** for `NOTICE` and the terms header (C3).
 
-  If it is not enough, supply the additional clause.
+## C. Publication procedure (Worker-style)
 
-## 3. Owner's software legality attestation — owner
+1. **Freeze:** functionality is frozen at `1.0.0rc1`; the tree is clean; CI is
+   7/7 on the release commit.
+2. **Owner go-ahead for the release text** (B).
+3. **Final release-text commit** (packaging text only):
+   - replace the `NOTICE` "not yet released / awaits human legal review"
+     paragraph;
+   - remove the DRAFT line from the terms;
+   - drop the internal `legal_review_approved` flag from the license package
+     (generator, `MANIFEST.json`, tests).
 
-Covers Microsoft condition (d): "do not … include Microsoft Distributable Code
-in malicious, deceptive or unlawful programs."
+   Then rebuild the installer **from the verified bundle**.
+4. **Verify the exact final binary:**
+   - package check;
+   - isolated install, byte-verify and uninstall;
+   - upgrade trial;
+   - Defender scan;
+   - the manual license page Decline and Accept tests
+     (`scripts/windows-manual-license-page-test.ps1`);
+   - regenerate `SHA256SUMS.txt` and update the hash in `RELEASE_NOTES.md`;
+   - CI 7/7.
+5. **Clean Windows 11 check** (recommended; not a legal requirement): download
+   the asset, check the SHA256, record the SmartScreen prompt, install, run one
+   task, uninstall.
+6. **Public-asset review** (positive allowlist, as in the Worker): upload only
+   the installer, `SHA256SUMS.txt` and the release notes. Never upload `build/`
+   evidence, logs, test installers or private files.
+7. **With explicit owner authorization:**
+   - merge #6→#7→#8→#9→#11 with merge commits;
+   - confirm `main` equals the release commit's tree;
+   - create the immutable tag `v1.0.0-rc1` on `main`;
+   - publish a GitHub Release marked **pre-release** with the verified asset.
+     Publish the exact verified file; do not rebuild it for upload.
+8. **Confirm:** the published asset's SHA256 equals `SHA256SUMS.txt`; record
+   the commit, tag, checksum and release URL.
 
-- [ ] **Owner (NATURE AI CORP), signed and dated:** "GitHub Community Agent
-  1.0.0-rc1 is not malicious, deceptive or unlawful software. It is read-only
-  toward GitHub and does not post, modify or delete GitHub content."
+## D. Optional internal procedures (not required for publication)
 
-## 4. Final wording approval — owner, after items 1–2
-
-- [ ] **Owner:** approve the final text of `packaging/windows/END_USER_TERMS.txt`:
-  - remove the "DRAFT FOR LEGAL REVIEW" line;
-  - add any counsel-supplied clause.
-- [ ] **Owner:** approve replacement wording for the last paragraph of `NOTICE`
-  ("This independent repository is not yet released. The third-party license
-  package awaits human legal review before public distribution.").
-- [ ] **Owner:** approve `RELEASE_NOTES.md`, including the unsigned and
-  SmartScreen disclosure.
-
-**After all four items:** one packaging commit with the approved text. Then
-rebuild the installer; re-run the payload, license-page, upgrade and Defender
-checks; regenerate `SHA256SUMS.txt`; confirm CI; then the owner's clean
-Windows 11 test, the merges, the tag and the GitHub pre-release.
+| Item | Status |
+|---|---|
+| Signed owner attestation | **Removed** (no legal basis as a release gate) |
+| Internal legal-approval record (`REVIEW_APPROVAL.json`, `LegalReviewEvidence`, `legal_review_approved`) | **Removed** from gates. The RC spec that required them is deleted; the flag goes in C3 |
+| Counsel review of name or terms | Optional owner choice (B) |
+| Code signing (Azure Artifact Signing) | Optional; prepared, not required for the pre-release |
+| Inno Setup commercial-use license | Optional. The ISCC banner says "Non-commercial use only"; Inno's FAQ asks commercial users to buy a license but says it is not strictly required (same conclusion as the Worker review). Owner may buy one; it is not a publication blocker |
+| Real-AppId upgrade on the owner's own PC | Recommended, not required |

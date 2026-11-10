@@ -114,8 +114,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-manual-lic
    the installed payload byte-verified (979 files, including
    `END_USER_TERMS.txt`), a clean isolated uninstall, and real data unchanged.
 
-`-PrepareOnly` compiles and prints the plan without launching anything. It was
-used to validate the kit; neither scenario has been operated by a person yet.
+`-PrepareOnly` compiles and prints the plan without launching anything.
+
+**Results, operated by a person (2026-11-10).** Every run used an isolated
+AppId and folder; real installation and data were unchanged in every run.
+
+| Run | Scenario | Setup exit | Outcome |
+|---|---|---|---|
+| `run-20261110T200950Z-decline` | Decline | 0 | **FAIL**: the license was accepted and installed during a Decline run, so it is not valid rejection evidence. The isolated install was removed cleanly |
+| `run-20261110T201155Z-decline` | Decline | **2** | **PASS**: cancelled before installation, nothing installed, no registry entry |
+| `run-20261110T201301Z-accept` | Accept | 0 | **PASS**: installed, payload byte-verified (including `END_USER_TERMS.txt`), clean isolated uninstall |
+
+The rejection and acceptance behavior of the license page is verified for
+installer `84454641…079430`. Repeat both scenarios on the final binary after
+the release-text commit.
 
 The same two checks are also part of the owner's clean Windows 11 VM test,
 with the real release asset (`RELEASE_READINESS.md` §4).

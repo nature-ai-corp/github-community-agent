@@ -16,11 +16,10 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def test_both_installer_specs_show_and_install_the_terms():
-    for name in ("gc-agent.iss", "gc-agent-release-candidate.iss"):
-        iss = (ROOT / "packaging" / "windows" / name).read_text(encoding="utf-8")
-        assert re.search(r"^LicenseFile=END_USER_TERMS\.txt$", iss, re.M), name
-        assert 'Source: "END_USER_TERMS.txt"; DestDir: "{app}"' in iss, name
+def test_release_installer_shows_and_installs_the_terms():
+    iss = (ROOT / "packaging" / "windows" / "gc-agent.iss").read_text(encoding="utf-8")
+    assert re.search(r"^LicenseFile=END_USER_TERMS\.txt$", iss, re.M)
+    assert 'Source: "END_USER_TERMS.txt"; DestDir: "{app}"' in iss
 
 
 def test_terms_are_ascii_draft_and_name_the_product_and_publisher():

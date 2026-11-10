@@ -76,7 +76,7 @@ installation and user data hashes are unchanged. Three native runs PASSED
 ## Still open (human decisions, not automatable)
 
 1. **Human license review** of the package and sign-off recorded outside
-   automation (the RC spec's `REVIEW_APPROVAL.json` / `LegalReviewEvidence`
+   automation (superseded 2026-11-10: the RC spec and its `REVIEW_APPROVAL.json` / `LegalReviewEvidence` gate were removed; the earlier text read: the RC spec's `REVIEW_APPROVAL.json` / `LegalReviewEvidence`
    remain deliberately absent).
 2. **MPL-2.0 source availability**: the notices point to the exact PyPI
    sdist (with SHA256) and upstream repository. A reviewer should confirm
