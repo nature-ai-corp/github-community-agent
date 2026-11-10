@@ -57,6 +57,13 @@ CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
 ChangesEnvironment=no
+#ifdef SignToolName
+; Owner-authorized signed build only (scripts/windows-build-installer.ps1
+; -SignMetadata). The command itself is passed with ISCC /S, never stored here.
+; Signs the setup EXE AND the uninstaller; default builds stay unsigned.
+SignTool={#SignToolName}
+SignedUninstaller=yes
+#endif
 
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion

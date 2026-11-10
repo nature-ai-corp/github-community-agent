@@ -12,7 +12,8 @@
 > | Clean bundle, installer payload, upgrade, frozen-EXE security, TLS | **PASS** (technical) | "`1.0.0rc1` committed for RC preparation" |
 > | Gate 3: cross-account DPAPI | **PASS** (owner-run, owner-reported) | "Gate 3: cross-account DPAPI — PASS" at the end |
 > | Third-party license package | Technically consistent; **legal approval NOT given** | [`V1_LICENSE_APPROVAL_CHECKLIST.md`](V1_LICENSE_APPROVAL_CHECKLIST.md) |
-> | Code signing, Defender and SmartScreen on the signed build, real-AppId upgrade | **Not done** (needs the owner) | — |
+> | Code signing (Azure Artifact Signing) | **Prepared, not done.** Scripts and verifier are ready; no Azure resources exist and nothing is signed | [`WINDOWS_CODE_SIGNING_READINESS.md`](WINDOWS_CODE_SIGNING_READINESS.md) |
+> | Defender and SmartScreen on the signed build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | same document, §6 |
 > | Merge, tag, release | **Not authorized** | — |
 
 ## Evidence already confirmed on Windows
@@ -2412,3 +2413,84 @@ Scope and limits:
   tested.
 - **Data safety:** this was a technical security check only. It used no real
   user data and changed no application code.
+
+### Code-signing preparation (2026-11-10; nothing signed, nothing purchased)
+
+Details and owner steps are in `docs/WINDOWS_CODE_SIGNING_READINESS.md`.
+
+New files:
+- `scripts/windows-verify-signatures.ps1`: read-only verifier;
+- `scripts/windows-sign-release.ps1`: plan mode by default, `-Execute` is
+  owner-only;
+- an opt-in `SignTool`/`SignedUninstaller` block in `gc-agent.iss`, active only
+  when the build script is given `-SignMetadata`;
+- `tests/test_code_signing_contract.py`.
+
+No application code changed.
+
+**Evidence:**
+- **Inventory:** only `GitHubCommunityAgent.exe` and the setup EXE are
+  unsigned. The 25 third-party DLL/PYD files are validly signed by the PSF or
+  Microsoft with SHA-256 and timestamps, and must not be re-signed.
+- **Verifier:**
+  - a PSF-signed file with the expected signer: PASS;
+  - the same file with the wrong signer: FAIL;
+  - the current build: 25/27 PASS, with exactly our 2 files `NotSigned`.
+- **Signing script guards:** plan mode exits 0. A credential-like key in the
+  metadata, a non-Azure endpoint, or an already-signed target is refused. The
+  real bundle EXE stayed byte-identical and `NotSigned`.
+- **Signed-installer guard:** refuses an unsigned bundle before compiling.
+- **Inno wiring:** dry run with an argument recorder in place of SignTool (no
+  signing). The arguments were exact (`/fd SHA256 /tr
+  http://timestamp.acs.microsoft.com /td SHA256 /dlib … /dmdf …`). Inno then
+  aborted because the uninstaller had no signature: it fails closed.
+- **Unsigned default build unchanged:** the installer built from the edited
+  `.iss` is byte-identical (`FD684B31…E6E4B4`) to the previous rc1 build.
+  Installed payload PASS, 978 files (`run-20261110T171406Z`).
+- **Consistency:** `third_party_notices.py check` PASS. EXE version metadata
+  matches `1.0.0rc1`. The EXE SHA256 equals the MANIFEST and SBOM hashes.
+  `legal_review_approved: false`.
+
+**Process consequence of signing.** Signing changes the EXE's SHA256, so the
+license MANIFEST, notices and SBOM must be regenerated against the **signed**
+bundle before the installer is built. The installer build enforces this.
+
+**Licensing requirements in the shipped build (no new purchases or audits;
+legal status unchanged, NOT approved):**
+- **Still open (counsel decision needed before public release):**
+  1. *Microsoft Distributable Code (`VCRUNTIME140.dll`)*: the condition to
+     "require … external end users to agree to terms that protect the Microsoft
+     Distributable Code" is not met by the current installer, which has no
+     terms page. Options are in `VCRUNTIME_REDISTRIBUTION_BASIS.md` §5.
+  2. *Product name "GitHub Community Agent"*: the same license's condition not
+     to use Microsoft trademarks in program names, plus GitHub's own trademark
+     policy.
+- **Met technically, legal confirmation pending (not blocking work):**
+  - MPL-2.0 source for certifi (shipped in the installer);
+  - MIT, BSD, Apache-2.0, PSF, Zlib and TCL notices (shipped and byte-verified);
+  - the PSF "summary of changes" (stated as none);
+  - the PyInstaller bootloader exception (stock bootloader);
+  - the public-domain statements.
+- **Signing-specific:** CPython's license forbids altering Microsoft's notices
+  in the Distributable Code, so third-party binaries are never re-signed. The
+  scripts and the verifier enforce this.
+
+### Final release checklist (`1.0.0rc1` → public release)
+
+Technical items are verified by automation. Approvals need a named human.
+
+- [x] CI 7/7 on PR #11 (Draft).
+- [x] Clean release bundle (CPython 3.13.17 / OpenSSL 3.5.9); versions agree.
+- [x] Installer install, byte-verify and uninstall; upgrade from the previous build; frozen-EXE security and TLS probes.
+- [x] Gate 3: cross-account DPAPI PASS (owner-run).
+- [x] License package and SBOM technically consistent with the bundle.
+- [x] Signing scripts, verifier and procedures prepared and tested without signing.
+- [ ] **Counsel:** VCRUNTIME end-user-terms condition, and the product name/trademark (`V1_LICENSE_APPROVAL_CHECKLIST.md` items 1–2).
+- [ ] **Counsel/owner:** remaining approval-checklist items (certifi MPL, public-domain wording, notices/SBOM, pin governance) and a recorded approval for the exact MANIFEST hash set.
+- [ ] **Owner:** if counsel chooses the installer terms page or a rename, authorize that packaging change; then re-run the installer, payload and upgrade checks.
+- [ ] **Owner:** Azure Artifact Signing set up, through a completed Public Trust identity validation and certificate profile (`WINDOWS_CODE_SIGNING_READINESS.md` §7).
+- [ ] **Owner-authorized signing run:** sign the EXE → regenerate the package (commit) → build and sign the installer and uninstaller → run the §5 verifier.
+- [ ] Repeat the payload, upgrade, security and TLS checks on the **signed** build; confirm CI on the commit with the regenerated package.
+- [ ] Defender scan and clean Windows 11 SmartScreen test on the signed setup (§6); no Defender detection.
+- [ ] Real-AppId upgrade over the currently installed internal build; user data preserved.
+- [ ] **Owner:** authorize merge of the Draft PR chain (#6→#7→#8→#9→#11), tag and release; publish the signed setup with its SHA256.

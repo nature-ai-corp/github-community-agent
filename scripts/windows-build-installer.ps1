@@ -11,7 +11,15 @@ param(
     # Interpreter of the venv that built BundleDir (needed for provenance checks).
     [string]$BuildPython = '',
     # Output folder (default dist\installer); existing installers are never overwritten.
-    [string]$OutputDir = ''
+    [string]$OutputDir = '',
+    # OWNER-AUTHORIZED SIGNED BUILD ONLY. Artifact Signing metadata.json + x64
+    # dlib: Inno Setup then signs the setup EXE and its uninstaller (SHA-256,
+    # RFC 3161 timestamp). Requires the bundle EXE to be signed already
+    # (scripts/windows-sign-release.ps1). Omit for the default unsigned build.
+    [string]$SignMetadata = '',
+    [string]$Dlib = '',
+    [string]$SignTool = '',
+    [string]$ExpectedSigner = 'CN=NATURE AI CORP'
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -51,11 +59,33 @@ if (-not $compiler) {
 if (-not $compiler) {
     throw 'Inno Setup 6 ISCC.exe not found. Install Inno Setup from its official source, then retry.'
 }
+$signDefines = @()
+if ($SignMetadata) {
+    if ($UpgradeTrial) { throw 'Signing is not supported for the upgrade-trial installer.' }
+    if (-not $Dlib) { throw '-Dlib is required with -SignMetadata.' }
+    $verifier = Join-Path $root 'scripts\windows-verify-signatures.ps1'
+    $vArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $verifier, '-BundleDir', $BundleDir, '-ExpectedSigner', $ExpectedSigner)
+    if ($SignTool) { $vArgs += @('-SignTool', $SignTool) }
+    powershell @vArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Bundle EXE is not validly signed (or a third-party file was altered); sign it first with scripts/windows-sign-release.ps1.' }
+    if (-not $SignTool) {
+        $SignTool = Get-ChildItem -LiteralPath (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin') -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    }
+    $SignMetadata = (Resolve-Path -LiteralPath $SignMetadata).Path
+    $Dlib = (Resolve-Path -LiteralPath $Dlib).Path
+    # Inno replaces $q with a quote and $f with the quoted file to sign.
+    $signCmd = "`$q$SignTool`$q sign /v /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib `$q$Dlib`$q /dmdf `$q$SignMetadata`$q `$f"
+    $signDefines = @('/DSignToolName=artifact', "/Sartifact=$signCmd", "/DOutputName=GitHubCommunityAgent-Setup-$appVersion")
+}
 if ($UpgradeTrial) {
     $out = Join-Path $OutputDir 'GitHubCommunityAgent-UpgradeTrial-Unsigned.exe'
     $iss = Join-Path $root 'packaging\windows\gc-agent-upgrade-trial.iss'
     Write-Host 'INTERNAL UPGRADE TRIAL: same bundled application, different installer version 0.0.1-devtrial.'
     Write-Host 'This validates installation mechanics ONLY, not an application feature/code upgrade.'
+} elseif ($SignMetadata) {
+    $out = Join-Path $OutputDir "GitHubCommunityAgent-Setup-$appVersion.exe"
+    $iss = Join-Path $root 'packaging\windows\gc-agent.iss'
 } else {
     $out = Join-Path $OutputDir 'GitHubCommunityAgent-InternalTest-Unsigned.exe'
     $iss = Join-Path $root 'packaging\windows\gc-agent.iss'
@@ -66,14 +96,24 @@ if (Test-Path -LiteralPath $out) {
 if ($UpgradeTrial) {
     & $compiler "/DBundleDir=$BundleDir" "/O$OutputDir" $iss
 } else {
-    & $compiler "/DBundleDir=$BundleDir" "/DAppVersion=$appVersion" "/O$OutputDir" $iss
+    & $compiler "/DBundleDir=$BundleDir" "/DAppVersion=$appVersion" "/O$OutputDir" @signDefines $iss
 }
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $out)) {
     throw "Inno Setup reported success but output not found: $out"
 }
 $hash = (Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash
-Write-Host "GC Agent unsigned internal Windows installer build PASS."
-Write-Host "File: $out"
-Write-Host "SHA256: $hash"
-Write-Host 'No installer execution, signing, or publication performed.'
+if ($SignMetadata) {
+    powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows-verify-signatures.ps1') `
+        -File $out -ExpectedSigner $ExpectedSigner -SignTool $SignTool
+    if ($LASTEXITCODE -ne 0) { throw "Signed installer verification FAILED: $out" }
+    Write-Host "GC Agent SIGNED installer build PASS (setup + uninstaller signed by Inno Setup)."
+    Write-Host "File: $out"
+    Write-Host "SHA256: $hash"
+    Write-Host 'No installer execution or publication performed.'
+} else {
+    Write-Host "GC Agent unsigned internal Windows installer build PASS."
+    Write-Host "File: $out"
+    Write-Host "SHA256: $hash"
+    Write-Host 'No installer execution, signing, or publication performed.'
+}
