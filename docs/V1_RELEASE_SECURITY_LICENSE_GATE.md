@@ -1764,3 +1764,42 @@ The source-level list and file manifest are not yet a signed,
 version-locked final SBOM. Do not invent license obligations or claim
 that seven package metadata entries cover all compiled runtime
 libraries.
+
+## Frozen 26-native-binary Windows VERSIONINFO evidence prepared (native run pending)
+
+Following the native optimized frozen audit (254 tests PASS), the user
+listed seven Python package candidates (anyio 4.16.0 MIT, certifi
+2026.10.23 MPL-2.0, h11 0.16.0 MIT, httpcore 1.0.9 BSD-3-Clause,
+httpx 0.28.1 BSD-3-Clause, idna 3.20 BSD-3-Clause,
+typing-extensions 4.16.0 PSF-2.0) and the 26 actual binary filenames.
+These are current build-venv metadata candidates and native file
+names; no frozen package version/redistribution clearance implied.
+
+A new read-only `scripts/windows-optimized-native-binary-versions.ps1`
+checks the **existing optimized frozen bundle** against each of the
+26 binary SHA256 values in previously generated
+`actual-frozen-files.json`, then records Windows VERSIONINFO fields
+(file/product version, company name, description) to a new,
+create-only file:
+
+`build/release-audit/optimized-candidate-sbom-review/native-binary-fileversion-evidence.json`
+
+VERSIONINFO labels are **untrusted embedded metadata**, helpful in
+investigating native binary origins but not proof of copyright,
+license identity, or redistribution permission. The report must
+leave all origin/license checks unverified. No executable, user
+credential, installed app, or historic report is changed.
+
+Native Windows next:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-optimized-native-binary-versions.ps1
+```
+
+If the report path already exists, preserve it; this command refuses
+overwrites. Do not infer a license from a version string. Gate 5
+remains OPEN until actual version-locked component/NOTICE texts and
+native binary redistribution rights have been assessed.
