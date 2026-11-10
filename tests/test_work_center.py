@@ -102,7 +102,9 @@ def test_unified_html_includes_exclusive_routes_and_standalone_navigation():
     assert "Settings" in html
 
 
-def test_work_center_handler_rejects_cross_origin_and_bad_nonce(tmp_path):
+def test_handler_factory_builds_handler_without_touching_journal(tmp_path):
+    # Construction smoke test only. Real Origin/Host/nonce rejection over HTTP
+    # is exercised in tests/test_work_center_http.py.
     journal = w.Journal(tmp_path / "db.sqlite")
     service = w.WorkService(journal)
     handler = w.handler_factory(service, "random_nonce")
