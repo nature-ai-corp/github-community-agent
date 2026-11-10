@@ -1667,3 +1667,52 @@ resolves actual frozen distribution versions, native binary origins,
 license texts, NOTICE placement in installer, and applicable license
 requirements. Gate 4 installer and Gate 6 signing remain pending.
 No PR merge/tag/sign/release without explicit owner authorization.
+
+## Native Windows optimized frozen audit executed — 254 regression PASS, 7 candidate distributions (2026-11-10)
+
+The user pulled branch `feature/unified-task-home` through
+`6614030`, then executed `windows-test-regression.ps1` and
+`windows-optimized-frozen-sbom-review.ps1` on native Windows.
+
+**Observed output:**
+
+- **254 passed in 2.54s, 0 failed.**
+- Optimized onedir **958 actual files, 29,507,071 bytes**.
+- File categories: **26 binary**, **1 archive**, **1
+  license_or_notice_candidate**, **926 other**, **1 public certifi CA
+  bundle**, **3 UI assets**.
+- Embedded PyInstaller listing **372 lines**, **366 parsed unique
+  modules**, **6 unmatched lines**; categories **117
+  environment_distribution_candidate**, **11 first_party**, **228
+  stdlib_candidate**, **10 unresolved** (previously identified as
+  first-party launcher/PyInstaller runtime helpers).
+- **Zero development-module candidates** in the optimized archive.
+- Combined provenance report identifies **7 Python distribution
+  candidates**, **26 native binary files**, **10 unresolved
+  archive members**. Distribution *names*, exact frozen version
+  matches, binary component origin and redistribution license text
+  are **not** established by the console summary.
+- Optimized EXE SHA256:
+    `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`;
+  This agrees with the previously accepted optimized candidate.
+- Created four preserved reports under
+  `build/release-audit/optimized-candidate-sbom-review/`:
+  `actual-frozen-files.json`,
+  `pyinstaller-embedded-archive.txt`,
+  `embedded-module-candidates.json`, and
+  `component-provenance-review.json`.
+
+**Gate 5: actual frozen file/module inventory PASS; exact SBOM,
+license/NOTICE and binary origin review STILL OPEN.** The single
+`license_or_notice_candidate` file within the frozen bundle is
+not proof of full redistributed notices. The console counts are
+not license clearance.
+
+**Next read-only check**: inspect just the seven candidate
+distribution names plus their unverified environment metadata,
+and the 26 native binary relative paths from the saved
+`component-provenance-review.json`. Preserve and do not overwrite
+all files; do not print secrets, which this review does not collect.
+
+No changes to installed app, saved GC Tasks or credentials,
+original Nature AI Worker, Draft PR states, signing or release.
