@@ -90,6 +90,17 @@ state: #6–#9 green (3-job legacy workflow), #11 green (7 jobs).
    commit). If they match, no rebuild is needed: the verified installer
    corresponds exactly to `main`.
 
+**Reproducibility (verified 2026-11-10).**
+- A fresh checkout of the branch builds an installer with **identical
+  content**: all 19 installer text inputs are byte-equal, and the package check
+  passes.
+- The setup EXE's SHA256 also depends on the source **file timestamps**, which
+  Inno Setup stores. With the original timestamps applied, a fresh checkout
+  reproduced `84454641…079430` exactly.
+- **Therefore:** publish the exact verified file
+  (`build/release-staging-rc1-v3/GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe`)
+  with `SHA256SUMS.txt`. Do not rebuild it from the tag for upload.
+
 **Alternative:** merge only #11 into `main` (it contains all), then close
 #6–#9 as included. This is faster, but the review history is less clear.
 

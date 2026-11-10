@@ -97,7 +97,9 @@ def test_installer_embedded_texts_have_pinned_line_endings():
         assert f"/{path} text eol=crlf" in attrs, path
     assert not any(a.split()[:1] in (["LICENSE"], ["NOTICE"]) for a in attrs)
     assert "packaging/third-party-licenses/** -text" in attrs
-        assert b"\r\n" in (ROOT / path).read_bytes() and b"\n" not in (ROOT / path).read_bytes().replace(b"\r\n", b""), path
+    for path in ("LICENSE", "NOTICE", "packaging/windows/END_USER_TERMS.txt"):
+        data = (ROOT / path).read_bytes()
+        assert b"\r\n" in data and b"\n" not in data.replace(b"\r\n", b""), path
 
 
 def test_independence_disclaimer_matches_notice():
