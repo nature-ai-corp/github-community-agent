@@ -92,7 +92,11 @@ def test_installer_embedded_texts_have_pinned_line_endings():
     # core.autocrlf.
     attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
     for path in ("LICENSE", "NOTICE", "packaging/windows/END_USER_TERMS.txt"):
-        assert f"{path} text eol=crlf" in attrs, path
+        # Root-anchored: an unanchored "LICENSE" would also match (and convert)
+        # the verbatim third-party LICENSE files.
+        assert f"/{path} text eol=crlf" in attrs, path
+    assert not any(a.split()[:1] in (["LICENSE"], ["NOTICE"]) for a in attrs)
+    assert "packaging/third-party-licenses/** -text" in attrs
         assert b"\r\n" in (ROOT / path).read_bytes() and b"\n" not in (ROOT / path).read_bytes().replace(b"\r\n", b""), path
 
 

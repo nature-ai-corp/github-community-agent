@@ -4,10 +4,11 @@ packaging/third-party-licenses/** -text
 
 # First-party texts embedded byte-for-byte in the Windows installer. Fixed
 # CRLF on every checkout (any OS, any core.autocrlf), so a rebuild from a
-# tagged commit reproduces the published installer SHA256.
-LICENSE text eol=crlf
-NOTICE text eol=crlf
-packaging/windows/END_USER_TERMS.txt text eol=crlf
+# tagged commit reproduces the published installer SHA256. Anchored with a
+# leading "/" so they never match third-party LICENSE files (which stay -text).
+/LICENSE text eol=crlf
+/NOTICE text eol=crlf
+/packaging/windows/END_USER_TERMS.txt text eol=crlf
 
 # Checksum files are published as-is; keep LF so sha256sum -c works everywhere.
 docs/release/**/SHA256SUMS.txt text eol=lf
