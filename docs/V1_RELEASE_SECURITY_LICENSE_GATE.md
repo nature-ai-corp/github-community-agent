@@ -1610,3 +1610,60 @@ instead of claiming global zero-write proof.
 
 No write requests were deliberately issued. Do not overwrite the
 before/after/compare evidence and do not merge, sign, tag or publish.
+
+## Optimized frozen-bundle SBOM/NOTICE provenance audit prepared (2026-11-10; native run pending)
+
+The user has no second Windows test account, so cross-account DPAPI
+testing stays explicitly PENDING. Proceeding with the user-authorized
+optimized-frozen SBOM and licensing review without modifying any
+previously accepted build.
+
+New `scripts/windows-optimized-frozen-sbom-review.ps1` analyzes the
+EXISTING optimized candidate only:
+`build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent`.
+It invokes existing `frozen_bundle_inventory.py` to hash every
+allowed onedir file, `pyi-archive_viewer.exe --brief --recursive`
+to obtain actual embedded module names, existing
+`frozen_archive_module_triage.py` to classify those module names,
+and new `frozen_candidate_provenance_review.py` to prepare an explicit
+candidate-component and compiled-binary license review report.
+No file is extracted or executed; no Windows installed GC Agent or
+user AppData, DPAPI, Task DB, signing certificate, or GitHub account is
+touched.
+
+It creates **only new** local audit files under:
+`build/release-audit/optimized-candidate-sbom-review/`
+and refuses to overwrite existing review outputs. Expected artifacts:
+`actual-frozen-files.json`, `pyinstaller-embedded-archive.txt`,
+`embedded-module-candidates.json`,
+`component-provenance-review.json`.
+The review ties actual file hashes/relative paths to module candidates,
+but **Python package names and versions from the current .venv remain
+CANDIDATES ONLY**, not verified frozen-package provenance. It
+explicitly lists all native binaries as pending exact component
+attribution and flags Python, Tcl/Tk, OpenSSL, SQLite, libffi, zlib,
+C runtime, PyInstaller bootloader, certifi and redistribution NOTICE
+obligations as open. Report fields `actual_package_versions_verified`,
+`complete_third_party_notices_verified` and
+`approved_public_redistribution` must stay FALSE without independent
+license evidence.
+
+On native Windows, from repo root:
+
+```powershell
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-optimized-frozen-sbom-review.ps1
+```
+
+Do NOT delete an earlier audit folder to repeat the same filename;
+retain prior output and select a new separately reviewed run if
+necessary. The accepted optimized onedir should previously contain
+approximately 958 files and 366 embedded module candidates, but
+current results rather than assumed numbers must establish this.
+
+**Gate 5 remains OPEN** after report creation until human review
+resolves actual frozen distribution versions, native binary origins,
+license texts, NOTICE placement in installer, and applicable license
+requirements. Gate 4 installer and Gate 6 signing remain pending.
+No PR merge/tag/sign/release without explicit owner authorization.
