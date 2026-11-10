@@ -4,7 +4,8 @@ OLD build: application source from an earlier commit (default ``a2bc626``,
 before the soft-delete SQLite migration and Task activity table), frozen with
 the same PyInstaller options as the optimized candidate. Its embedded code is
 verified to equal that commit and to differ from current ``src``.
-NEW build: the optimized candidate, verified to equal current ``src``.
+NEW build: by default the clean release bundle (build/release-bundle, CPython
+3.13.17 / OpenSSL 3.5), verified to equal current ``src``.
 
 Both are packaged with the real ``packaging/windows/gc-agent.iss`` recipe
 under a fresh random AppId (never the product AppId), installed per-user into
@@ -44,16 +45,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ISS = ROOT / "packaging" / "windows" / "gc-agent.iss"
 LAUNCHER = ROOT / "scripts" / "gc_agent_launcher.py"
-NEW_BUNDLE = ROOT / "build" / "gc-agent-exclusion-candidate" / "dist" / "GitHubCommunityAgent"
+NEW_BUNDLE = ROOT / "build" / "release-bundle" / "dist" / "GitHubCommunityAgent"
 EXE = "GitHubCommunityAgent.exe"
 REAL_APP_ID = "{B728F255-29F8-438B-B2F7-E495DF0120E1}"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
 TASKS = [("Review Issues", "review_issues"), ("Community Report", "community_report"),
          ("Review Issues", "review_issues")]
 
-_spec = importlib.util.spec_from_file_location("gc_tp", ROOT / "scripts" / "third_party_notices.py")
-tp = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(tp)
+def _load(name: str, file: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+tp = _load("gc_tp", "third_party_notices.py")
+vi = _load("gc_vi", "windows_version_info.py")
+
+
+def runtime_facts(bundle: Path) -> dict:
+    """Versions read from the bundled PE resources (no execution)."""
+    internal = bundle / "_internal"
+    return {name: vi.read_exe(internal / name).get("FileVersion")
+            for name in ("python313.dll", "libssl-3.dll", "libcrypto-3.dll")}
 
 
 class TrialError(RuntimeError):
@@ -236,7 +250,7 @@ def fingerprints() -> dict:
 
 # --------------------------------------------------------------------- run
 
-def run_trial(commit: str) -> dict:
+def run_trial(commit: str, new_bundle: Path = NEW_BUNDLE, new_label: str | None = None) -> dict:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run = ROOT / "build" / "upgrade-continuity" / f"run-{stamp}"
     run.mkdir(parents=True, exist_ok=False)
@@ -248,6 +262,7 @@ def run_trial(commit: str) -> dict:
                           capture_output=True, text=True, check=True).stdout.strip()
     ev: dict = {"run": str(run), "trial_app_id": "{" + guid + "}", "old_commit": commit,
                 "new_commit": head, "legal_review_approved": False, "signed": False}
+    new_label = new_label or vi.inno(vi.package_version())
     before = fingerprints()
     installed = False
     app = None
@@ -256,16 +271,17 @@ def run_trial(commit: str) -> dict:
         old_bundle = build_old(commit, run)
         if matches_source(old_bundle / EXE, ROOT / "src"):
             raise TrialError("Old build is identical to current src; not a real upgrade")
-        if not matches_source(NEW_BUNDLE / EXE, ROOT / "src"):
+        if not matches_source(new_bundle / EXE, ROOT / "src"):
             raise TrialError("New bundle is not identical to current src")
-        ev["old_exe_sha256"], ev["new_exe_sha256"] = sha(old_bundle / EXE), sha(NEW_BUNDLE / EXE)
-        old_code, new_code = first_party_code(old_bundle / EXE), first_party_code(NEW_BUNDLE / EXE)
+        ev["old_exe_sha256"], ev["new_exe_sha256"] = sha(old_bundle / EXE), sha(new_bundle / EXE)
+        old_code, new_code = first_party_code(old_bundle / EXE), first_party_code(new_bundle / EXE)
         ev["first_party_modules_changed"] = sorted(n for n in new_code if old_code.get(n) != new_code[n])
+        ev["old_runtime"], ev["new_runtime"] = runtime_facts(old_bundle), runtime_facts(new_bundle)
 
         log("2/9 Compiling OLD and NEW installers with isolated AppId")
-        old_ver, new_ver = f"0.0.0-dev0+{commit}", f"0.0.0-dev0+{head}"
+        old_ver, new_ver = f"0.0.0-dev0+{commit}", f"{new_label}+{head}"
         old_setup = compile_installer(run, guid, old_bundle, old_ver, "UpgradeTrial-OLD")
-        new_setup = compile_installer(run, guid, NEW_BUNDLE, new_ver, "UpgradeTrial-NEW")
+        new_setup = compile_installer(run, guid, new_bundle, new_ver, "UpgradeTrial-NEW")
 
         log("3/9 Installing OLD build")
         install(old_setup, install_dir, run / "install-old.log")
@@ -295,7 +311,7 @@ def run_trial(commit: str) -> dict:
 
         log("5/9 Installing NEW build OVER the OLD installation (upgrade)")
         install(new_setup, install_dir, run / "install-new.log")
-        payload = tp.verify_installed(install_dir, tp.DEFAULT_PACKAGE, NEW_BUNDLE)
+        payload = tp.verify_installed(install_dir, tp.DEFAULT_PACKAGE, new_bundle)
         ev["upgraded_payload_errors"] = payload["errors"]
         ev["registry_after_upgrade"] = registry_entry(guid)
         if payload["errors"] or ev["registry_after_upgrade"]["DisplayVersion"] != new_ver:
@@ -366,8 +382,9 @@ def run_trial(commit: str) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--old-commit", default="a2bc626")
+    parser.add_argument("--new-bundle", type=Path, default=NEW_BUNDLE)
     args = parser.parse_args(argv)
-    ev = run_trial(args.old_commit)
+    ev = run_trial(args.old_commit, args.new_bundle.resolve(strict=True))
     print(json.dumps({k: v for k, v in ev.items() if k not in ("old_schema",)}, indent=2))
     print("UPGRADE CONTINUITY TRIAL PASS" if ev["pass"] else "UPGRADE CONTINUITY TRIAL FAILED")
     return 0 if ev["pass"] else 1

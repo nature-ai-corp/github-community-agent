@@ -23,7 +23,7 @@ PACKAGE = ROOT / "packaging" / "third-party-licenses"
 ISS = ROOT / "packaging" / "windows" / "gc-agent.iss"
 BUILD = ROOT / "scripts" / "windows-build-installer.ps1"
 VERIFY = ROOT / "scripts" / "windows-verify-installer-license-payload.ps1"
-BUNDLE = ROOT / "build" / "gc-agent-exclusion-candidate" / "dist" / "GitHubCommunityAgent"
+BUNDLE = ROOT / "build" / "release-bundle" / "dist" / "GitHubCommunityAgent"
 
 SPEC = importlib.util.spec_from_file_location("gc_third_party", ROOT / "scripts" / "third_party_notices.py")
 tp = importlib.util.module_from_spec(SPEC)
@@ -81,8 +81,8 @@ def test_sbom_is_cyclonedx_and_describes_the_packaged_bundle():
 def test_notices_reproduce_every_license_text_in_full():
     notices = (PACKAGE / "THIRD_PARTY_NOTICES.txt").read_text(encoding="utf-8")
     for rel in _manifest()["files"]:
-        if rel in ("THIRD_PARTY_NOTICES.txt", "sbom.cdx.json"):
-            continue
+        if rel in ("THIRD_PARTY_NOTICES.txt", "sbom.cdx.json") or rel in tp.BINARY_UPSTREAM:
+            continue  # the certifi source archive is referenced by path, not inlined
         body = tp._text((PACKAGE / rel).read_bytes()).strip()
         assert body in notices, rel
     for name, (version, spdx, _repo) in tp.PY_DISTRIBUTIONS.items():
@@ -94,14 +94,38 @@ def test_mpl_source_availability_and_special_conditions_are_stated():
     url, digest = tp.CERTIFI_SDIST
     assert url in notices and digest in notices
     assert "Source Code Form" in notices and "certifi-2026.10.23/MPL-2.0.txt" in notices
+    # MPL-2.0 s3.2: the exact Source Code Form ships inside the package itself.
+    assert tp.CERTIFI_SDIST_REL in notices
+    assert _manifest()["files"][tp.CERTIFI_SDIST_REL] == digest
+    assert hashlib.sha256((PACKAGE / tp.CERTIFI_SDIST_REL).read_bytes()).hexdigest() == digest
     assert "Mozilla Public License Version 2.0" in (PACKAGE / "certifi-2026.10.23/MPL-2.0.txt").read_text()
     assert "Additional Conditions for this Windows binary build" in notices
     # PSF License clause 3 requires a summary of changes made to Python.
-    assert "Summary of changes made to Python 3.13.14 (PSF License Agreement,\nclause 3): none." in notices
-    assert "Microsoft Distributable Code" in (PACKAGE / "cpython-3.13.14/LICENSE.txt").read_text()
+    assert (f"Summary of changes made to Python {tp.PYTHON_VERSION} (PSF License Agreement,\n"
+            "clause 3): none.") in notices
+    assert "Microsoft Distributable Code" in (PACKAGE / tp.WIN_LICENSE).read_text()
     assert "Bootloader Exception" in (PACKAGE / "pyinstaller-6.22.3/COPYING.txt").read_text()
     for section in ("OpenSSL", "expat", "libffi", "zlib", "libmpdec"):
-        assert f"\n{section}\n" in (PACKAGE / "cpython-3.13.14/license.rst").read_text()
+        assert f"\n{section}\n" in (PACKAGE / tp.NOTICE_SECTIONS).read_text(encoding="utf-8")
+
+
+def test_github_independence_disclaimer_is_shipped_everywhere():
+    phrase = "not affiliated with, sponsored by, or endorsed by GitHub, Inc."
+    notices = (PACKAGE / "THIRD_PARTY_NOTICES.txt").read_text(encoding="utf-8")
+    assert "Independence from GitHub" in notices
+    assert phrase in " ".join(notices.split())
+    assert phrase in " ".join((ROOT / "NOTICE").read_text(encoding="utf-8").split())
+    assert phrase in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_runtime_pins_use_supported_openssl_line():
+    sbom = {c["bom-ref"]: c for c in _sbom()["components"]}
+    assert tp.OPENSSL_VERSION.startswith("3.5.")
+    assert sbom["openssl"]["version"] == tp.OPENSSL_VERSION
+    assert sbom["cpython"]["version"] == tp.PYTHON_VERSION
+    assert not any(f.startswith("cpython-3.13.14/") for f in _manifest()["files"])
+    for component in sbom.values():
+        assert "3.0.21" not in json.dumps(component)
 
 
 def test_package_never_claims_legal_approval_or_release():
@@ -218,7 +242,9 @@ def test_internal_installer_ships_the_package_and_fails_closed_without_it():
     # The real product identity is the default; verification uses its own.
     assert "AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}" in iss
     assert "AppId={#PayloadVerificationAppId}" in iss
-    assert '#define BundleDir "..\\..\\dist\\GitHubCommunityAgent"' in iss
+    # Default input is the clean release bundle, never the dev dist/ build.
+    assert '#define BundleDir "..\\..\\build\\release-bundle\\dist\\GitHubCommunityAgent"' in iss
+    assert "dist\\GitHubCommunityAgent\"" not in iss.replace("release-bundle\\dist", "")
 
 
 def test_upgrade_trial_inherits_the_third_party_package():

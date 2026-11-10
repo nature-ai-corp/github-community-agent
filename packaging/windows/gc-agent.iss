@@ -18,7 +18,9 @@
   #define OutputName "GitHubCommunityAgent-InternalTest-Unsigned"
 #endif
 #ifndef BundleDir
-  #define BundleDir "..\..\dist\GitHubCommunityAgent"
+  ; Clean release bundle from scripts/windows-build-release-bundle.ps1
+  ; (CPython 3.13.17 / OpenSSL 3.5, hash-locked venv without test tools).
+  #define BundleDir "..\..\build\release-bundle\dist\GitHubCommunityAgent"
 #endif
 ; Third-party LICENSE/NOTICE/SBOM package generated from the frozen bundle by
 ; scripts/third_party_notices.py. scripts/windows-build-installer.ps1 refuses

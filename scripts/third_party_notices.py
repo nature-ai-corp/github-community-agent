@@ -8,7 +8,7 @@ bundle, never from a hand-written dependency list:
   code-object-identical to source in the current build venv, the CPython
   stdlib, the PyInstaller loader/run-time hooks or first-party ``src``;
 * every native binary must be byte-identical to the build interpreter's
-  CPython 3.13.14 Windows runtime file;
+  CPython Windows runtime file (official PSF build, see PYTHON_VERSION);
 * the EXE bootloader code sections must match PyInstaller's stock bootloader;
 * every other bundle file must be byte-identical to a known source file.
 
@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PACKAGE = ROOT / "packaging" / "third-party-licenses"
 EXE_NAME = "GitHubCommunityAgent.exe"
 FIRST_PARTY = "github-community-agent"
-PYTHON_VERSION = "3.13.14"
+PYTHON_VERSION = "3.13.17"
 PYINSTALLER_VERSION = "6.22.3"
 
 # Pinned expectations. A dependency/version change must fail until a human
@@ -63,24 +63,31 @@ CERTIFI_SDIST = (
     "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
 )
 
-# Upstream texts not present in the build environment. Fetched once from the
+CERTIFI_SDIST_REL = "certifi-2026.10.23/source/certifi-2026.10.23.tar.gz"
+
+# Upstream files not present in the build environment. Fetched once from the
 # pinned public URL and committed verbatim; their hashes must never drift.
+# (The certifi sdist is the MPL-2.0 Source Code Form shipped with the program.)
 UPSTREAM_TEXTS = {
-    "cpython-3.13.14/license.rst": (
-        "https://raw.githubusercontent.com/python/cpython/v3.13.14/Doc/license.rst",
-        "62f2c9c2c75d511170eb464ad5f83b78cc1f37eb2eb49c2846c9aa6c4557ee99",
+    f"cpython-{PYTHON_VERSION}/license.rst": (
+        f"https://raw.githubusercontent.com/python/cpython/v{PYTHON_VERSION}/Doc/license.rst",
+        "952ac05720d7f1dcb63589b35eb0931b1442eb250230a4ad31198eddf0ad6abc",
     ),
     "certifi-2026.10.23/MPL-2.0.txt": (
         "https://www.mozilla.org/media/MPL/2.0/index.txt",
         "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
     ),
+    CERTIFI_SDIST_REL: CERTIFI_SDIST,
 }
-# Version evidence only (not shipped): the official CPython 3.13.14 Windows
-# build's third-party library list (PCbuild/get_externals.bat at the tag).
+BINARY_UPSTREAM = {CERTIFI_SDIST_REL}
+# Version evidence only (not shipped): the official CPython Windows build's
+# third-party library list (PCbuild/get_externals.bat at the release tag).
 EXTERNALS_EVIDENCE = (
-    "https://raw.githubusercontent.com/python/cpython/v3.13.14/PCbuild/get_externals.bat",
-    "7f4ef6af9e941f1d933f5cdee708cc5bd88dafc929058b1b6975575c30c35fb5",
+    f"https://raw.githubusercontent.com/python/cpython/v{PYTHON_VERSION}/PCbuild/get_externals.bat",
+    "4c2f8f42af137dd6861a96b24e4ec468a959ec2567b3ce5b63865be70026106c",
 )
+OPENSSL_VERSION = "3.5.9"  # OpenSSL 3.5 LTS line
+VCRUNTIME_VERSION = "14.51.36247.0"
 
 # Native runtime file -> component. Every .pyd not listed is CPython itself.
 NATIVE_COMPONENTS = {
@@ -96,16 +103,16 @@ NATIVE_COMPONENTS = {
 }
 TCL_DATA_DIRS = {"_tcl_data": "tcl/tcl8.6", "_tk_data": "tcl/tk8.6", "tcl8": "tcl/tcl8"}
 
-NOTICE_SECTIONS = "cpython-3.13.14/license.rst"
-WIN_LICENSE = "cpython-3.13.14/LICENSE.txt"
+NOTICE_SECTIONS = f"cpython-{PYTHON_VERSION}/license.rst"
+WIN_LICENSE = f"cpython-{PYTHON_VERSION}/LICENSE.txt"
 
 # (key, name, version, SPDX expression or license name, where the text is).
 NATIVE_SBOM = [
     ("cpython", "CPython runtime", PYTHON_VERSION, "PSF-2.0",
-     [WIN_LICENSE, NOTICE_SECTIONS], "pkg:generic/python@3.13.14"),
-    ("openssl", "OpenSSL", "3.0.21", "Apache-2.0",
+     [WIN_LICENSE, NOTICE_SECTIONS], f"pkg:generic/python@{PYTHON_VERSION}"),
+    ("openssl", "OpenSSL", OPENSSL_VERSION, "Apache-2.0",
      [WIN_LICENSE + " (Apache License 2.0 section)", NOTICE_SECTIONS + " (OpenSSL)"],
-     "pkg:generic/openssl@3.0.21"),
+     f"pkg:generic/openssl@{OPENSSL_VERSION}"),
     ("sqlite", "SQLite", "3.50.4", "blessing", ["THIRD_PARTY_NOTICES.txt (public domain)"],
      "pkg:generic/sqlite@3.50.4"),
     ("zlib", "zlib", "1.3.1", "Zlib", [NOTICE_SECTIONS + " (zlib)"], "pkg:generic/zlib@1.3.1"),
@@ -122,10 +129,10 @@ NATIVE_SBOM = [
     ("xz", "liblzma from XZ Utils (statically linked in _lzma)", "5.2.5",
      "LicenseRef-public-domain", ["THIRD_PARTY_NOTICES.txt (public domain)"],
      "pkg:generic/xz@5.2.5"),
-    ("msvc-runtime", "Microsoft Visual C++ runtime (VCRUNTIME140.dll)", "14.42.34438.0",
+    ("msvc-runtime", "Microsoft Visual C++ runtime (VCRUNTIME140.dll)", VCRUNTIME_VERSION,
      "LicenseRef-Microsoft-Distributable-Code",
      [WIN_LICENSE + " (Additional Conditions for this Windows binary build)"],
-     "pkg:generic/microsoft/vcruntime140@14.42.34438.0"),
+     f"pkg:generic/microsoft/vcruntime140@{VCRUNTIME_VERSION}"),
     ("pyinstaller", "PyInstaller bootloader and loader", PYINSTALLER_VERSION,
      "GPL-2.0-or-later WITH Bootloader-exception",
      ["pyinstaller-6.22.3/COPYING.txt"], "pkg:pypi/pyinstaller@6.22.3"),
@@ -342,6 +349,7 @@ def render(analysis: dict, upstream: dict[str, bytes]) -> dict[str, bytes]:
         if sha256_bytes(upstream[rel]) != pinned:
             raise BundleError(f"Upstream text hash mismatch: {rel}")
         out[rel] = upstream[rel]
+    _check_certifi_source(upstream[CERTIFI_SDIST_REL], analysis)
     out["THIRD_PARTY_NOTICES.txt"] = _notices(analysis, out).encode("utf-8")
     out["sbom.cdx.json"] = _json(_sbom(analysis))
     manifest = {
@@ -359,6 +367,29 @@ def render(analysis: dict, upstream: dict[str, bytes]) -> dict[str, bytes]:
     }
     out["MANIFEST.json"] = _json(manifest)
     return out
+
+
+def _check_certifi_source(sdist: bytes, analysis: dict) -> None:
+    """The shipped sdist must be the exact Source Code Form of the frozen certifi."""
+    import io
+    import tarfile
+    version = PY_DISTRIBUTIONS["certifi"][0]
+    with tarfile.open(fileobj=io.BytesIO(sdist), mode="r:gz") as tf:
+        members = {m.name: m for m in tf.getmembers() if m.isfile()}
+        shipped = [f for f in analysis["files"] if f["component"] == "certifi"]
+        if not shipped:
+            raise BundleError("certifi data not found in bundle")
+        for f in shipped:
+            member = members.get(f"certifi-{version}/certifi/" + f["path"].rsplit("/", 1)[-1])
+            if member is None or sha256_bytes(tf.extractfile(member).read()) != f["sha256"]:
+                raise BundleError(f"certifi sdist does not contain bundled file: {f['path']}")
+        dist = md.distribution("certifi")
+        for f in dist.files or ():
+            posix = f.as_posix()
+            if posix.startswith("certifi/") and posix.endswith(".py"):
+                member = members.get(f"certifi-{version}/" + posix)
+                if member is None or tf.extractfile(member).read() != Path(dist.locate_file(f)).read_bytes():
+                    raise BundleError(f"certifi sdist differs from frozen source: {posix}")
 
 
 def _json(obj) -> bytes:
@@ -396,7 +427,7 @@ def _notices(analysis: dict, texts: dict[str, bytes]) -> str:
         "",
         "Modifications",
         "-------------",
-        "Summary of changes made to Python 3.13.14 (PSF License Agreement,",
+        f"Summary of changes made to Python {PYTHON_VERSION} (PSF License Agreement,",
         "clause 3): none. The bundled CPython runtime files are unmodified copies",
         "of the Python Software Foundation's Windows release. All other",
         "third-party components listed above are likewise included unmodified.",
@@ -406,9 +437,12 @@ def _notices(analysis: dict, texts: dict[str, bytes]) -> str:
         "certifi 2026.10.23 is distributed under the Mozilla Public License 2.0.",
         "Its file _internal/certifi/cacert.pem is included unmodified, in Source",
         "Code Form. The bundled Python code of certifi is unmodified. The complete",
-        "Source Code Form of this exact version is available from:",
+        "Source Code Form of this exact version is included in this directory:",
+        f"  {CERTIFI_SDIST_REL}",
+        f"  (SHA256 {CERTIFI_SDIST[1]}). The bundled cacert.pem and",
+        "  certifi Python sources were verified identical to this archive.",
+        "It is also published upstream at:",
         f"  {CERTIFI_SDIST[0]}",
-        f"  (SHA256 {CERTIFI_SDIST[1]})",
         "  https://github.com/certifi/python-certifi",
         "A copy of the MPL 2.0 is in certifi-2026.10.23/MPL-2.0.txt.",
         "",
@@ -425,10 +459,18 @@ def _notices(analysis: dict, texts: dict[str, bytes]) -> str:
         "the CPython Windows binary build. The conditions that apply are stated in",
         f"{WIN_LICENSE} under \"Additional Conditions for this Windows binary build\".",
         "",
+        "Independence from GitHub",
+        "------------------------",
+        "GitHub Community Agent is an independent product of NATURE AI CORP. It is",
+        "not affiliated with, sponsored by, or endorsed by GitHub, Inc. or",
+        "Microsoft Corporation. \"GitHub\" is a trademark of GitHub, Inc. and is",
+        "used only to identify the service this software works with. All other",
+        "trademarks are the property of their respective owners.",
+        "",
         "Full license texts",
         "------------------",
     ]
-    order = sorted(k for k in texts if k not in ("THIRD_PARTY_NOTICES.txt",))
+    order = sorted(k for k in texts if k != "THIRD_PARTY_NOTICES.txt" and k not in BINARY_UPSTREAM)
     for rel in order:
         lines += ["", "=" * 76, rel, "=" * 76, "", _text(texts[rel]).rstrip("\n")]
     return "\n".join(lines) + "\n"

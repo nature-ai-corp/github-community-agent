@@ -38,3 +38,12 @@ def test_release_candidate_spec_refuses_the_development_version():
     rc = (ROOT / "packaging/windows/gc-agent-release-candidate.iss").read_text(encoding="utf-8")
     assert f'#if AppVersion == "{inno_spelling(github_community_agent.__version__)}"' in rc \
         or "dev" not in github_community_agent.__version__
+
+
+def test_sbom_and_exe_metadata_follow_the_package_version():
+    import json
+    sbom = json.loads((ROOT / "packaging/third-party-licenses/sbom.cdx.json").read_text(encoding="utf-8"))
+    assert sbom["metadata"]["component"]["version"] == github_community_agent.__version__
+    builder = (ROOT / "scripts/windows-build-release-bundle.ps1").read_text(encoding="utf-8")
+    assert "windows_version_info.py') write --output $versionFile" in builder
+    assert "'--version-file', $versionFile" in builder

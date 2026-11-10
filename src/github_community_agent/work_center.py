@@ -394,8 +394,21 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 return self._send(200, {"tasks": service.journal.list(include_archived=include_archived)})
             return self._send(404, {"error": "Not found."})
 
+        def _discard_body(self) -> None:
+            # Consume a small unread request body before replying, so Windows
+            # does not reset the connection (unread receive data -> RST) and
+            # the client reliably receives the error status. Never processed.
+            self.close_connection = True
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                return
+            if 0 < n <= MAX_REQUEST_BYTES:
+                self.rfile.read(n)
+
         def do_POST(self):
             if not self._authorized():
+                self._discard_body()
                 return self._send(403, {"error": "Unauthorized."})
             try:
                 n = int(self.headers.get("Content-Length", "0"))

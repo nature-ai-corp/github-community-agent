@@ -2,7 +2,7 @@
 ; Unlike gc-agent.iss, this specification cannot compile without explicit
 ; externally reviewed third-party legal material. Do not sign/publish.
 ; It never writes into installed user Task/DPAPI data. The optimized frozen
-; candidate is an existing separate onedir, not dist/GitHubCommunityAgent.
+; candidate is the clean release bundle (build/release-bundle), not dist/.
 #define AppName "GitHub Community Agent"
 #ifndef AppVersion
   #error AppVersion must be an explicitly approved non-dev release candidate version.
@@ -18,6 +18,9 @@
 #endif
 #ifndef OutputName
   #define OutputName "GitHubCommunityAgent-RELEASE-CANDIDATE-UNSIGNED"
+#endif
+#ifndef BundleDir
+  #define BundleDir "..\..\build\release-bundle\dist\GitHubCommunityAgent"
 #endif
 
 ; Compile-time existence checks supplement (never replace) human review.
@@ -53,7 +56,7 @@ ChangesAssociations=no
 ChangesEnvironment=no
 
 [Files]
-Source: "..\..\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReviewedLegalDir}\*"; DestDir: "{app}\third-party-licenses"; Flags: recursesubdirs createallsubdirs ignoreversion

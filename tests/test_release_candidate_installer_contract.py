@@ -25,7 +25,8 @@ def test_rc_requires_independent_reviewed_legal_materials():
 
 def test_rc_points_only_at_optimized_candidate_and_adds_legal_tree():
     source = RC.read_text(encoding="utf-8")
-    assert "build\\gc-agent-exclusion-candidate\\dist\\GitHubCommunityAgent\\*" in source
+    assert 'Source: "{#BundleDir}\\*"' in source
+    assert '#define BundleDir "..\\..\\build\\release-bundle\\dist\\GitHubCommunityAgent"' in source
     assert 'Source: "{#ReviewedLegalDir}\\*"' in source
     assert 'DestDir: "{app}\\third-party-licenses"' in source
     assert "build\\gc-agent-release-candidate-installer" in source
@@ -40,9 +41,9 @@ def test_legacy_internal_installer_remains_unchanged_separate():
     source = EXISTING.read_text(encoding="utf-8")
     assert 'OutputBaseFilename={#OutputName}' in source
     assert "GitHubCommunityAgent-InternalTest-Unsigned" in source
-    # Default bundle unchanged; overridable so the build script can package a
-    # bundle that the third-party license package has been checked against.
-    assert '#define BundleDir "..\\..\\dist\\GitHubCommunityAgent"' in source
+    # Default bundle is the clean release bundle; overridable so the build
+    # script can package a bundle the license package has been checked against.
+    assert '#define BundleDir "..\\..\\build\\release-bundle\\dist\\GitHubCommunityAgent"' in source
     assert 'Source: "{#BundleDir}\\*"' in source
 
 

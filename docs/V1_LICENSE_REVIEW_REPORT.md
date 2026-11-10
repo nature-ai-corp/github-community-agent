@@ -1,11 +1,14 @@
 # GC Agent V1 — Third-party license review report (for human approval)
 
-**Prepared 2026-11-10 for the owner and license reviewer. Not legal advice.
-Nothing here is approved: every item marked DECISION needs a named human.**
+**Prepared 2026-11-10 for the owner and license reviewer; updated the same day
+for the CPython 3.13.17 / OpenSSL 3.5 runtime. Not legal advice. Nothing here
+is approved: every item marked DECISION needs a named human.**
 
-Scope: the Windows distribution built from the optimized frozen bundle
-(`GitHubCommunityAgent.exe` SHA256 `620268DE…3DA4E`, 958 files) plus the
-installed `LICENSE`, `NOTICE` and `third-party-licenses/` (15 files).
+Scope: the Windows distribution built from the clean release bundle
+(`scripts/windows-build-release-bundle.ps1`: official PSF-signed CPython
+3.13.17 x64, hash-locked build venv without test tools; 958 files; the exact
+EXE SHA256 is recorded in `MANIFEST.json`) plus the installed `LICENSE`,
+`NOTICE` and `third-party-licenses/` (16 files).
 Package: `packaging/third-party-licenses/`, generated and checked by
 `scripts/third_party_notices.py`; `MANIFEST.json` has
 `legal_review_approved: false`.
@@ -16,12 +19,13 @@ Package: `packaging/third-party-licenses/`, generated and checked by
 |---|---|
 | Every bundled file is accounted for | Fail-closed generator classifies all 958 files; any unknown file blocks the build |
 | Python packages are the stated versions | All 355 PYZ modules code-object-identical to the build venv sources |
-| Native runtime is the unmodified PSF Python 3.13.14 build | 25/25 DLL/PYD and 926/926 Tcl/Tk files byte-identical to it |
-| Library versions | Runtime-reported and pinned to CPython v3.13.14 `PCbuild/get_externals.bat` |
+| Native runtime is the unmodified PSF Python 3.13.17 build | All DLL/PYD and Tcl/Tk files byte-identical to it; runtime files Authenticode-signed by the PSF; MSI and NuGet copies cross-checked |
+| Library versions | Runtime-reported and pinned to CPython v3.13.17 `PCbuild/get_externals.bat` (only OpenSSL changed vs 3.13.14: 3.0.21 → 3.5.9) |
 | Bootloader is stock PyInstaller 6.22.3 | `.text/.data/.pdata` identical to `run.exe` |
-| certifi `cacert.pem` unmodified | Matches certifi's own RECORD hash |
-| Installer really installs the notices | 3 native runs: all 977 installed files byte-verified |
-| OpenSSL 3.0.21 has no Apache NOTICE file to carry | Upstream tag root: `LICENSE.txt`, `AUTHORS.md` only |
+| certifi `cacert.pem` unmodified | Matches certifi's RECORD hash and the file inside the shipped sdist |
+| Shipped certifi sdist is the exact source of what is frozen | Generator compares the sdist's `cacert.pem` and every certifi `.py` with the bundled/frozen files; SHA256 pinned |
+| Installer really installs the notices | Native runs on the 3.13.17 bundle: all 978 installed files byte-verified (`build/license-payload-verification/run-*`) |
+| OpenSSL 3.5.9 has no Apache NOTICE file to carry | Upstream tag `openssl-3.5.9` root: `LICENSE.txt`, `AUTHORS.md`, `ACKNOWLEDGEMENTS.md`; no `NOTICE` |
 
 ## 2. Component obligations
 
@@ -33,12 +37,13 @@ Package: `packaging/third-party-licenses/`, generated and checked by
 | httpx | 0.28.1 | BSD-3-Clause | Same | Same | Confirm only |
 | idna | 3.20 | BSD-3-Clause | Same | Same | Confirm only |
 | typing-extensions | 4.16.0 | PSF-2.0 | Retain PSF notice | Verbatim LICENSE | Confirm only |
-| **certifi** | 2026.10.23 | **MPL-2.0** | §3.2: tell recipients how to get Source Code Form, reasonably and promptly | PyPI sdist URL + SHA256 + repo; full MPL text | **DECISION 2** |
-| CPython | 3.13.14 | PSF-2.0 | Retain notice; clause 3 "brief summary of the changes made to Python" | Windows `LICENSE.txt` + `license.rst`; notices state "changes: none" | Confirm wording |
-| **VCRUNTIME140.dll** | 14.42.34438.0 | Microsoft Distributable Code | See §3 below | Conditions reproduced from CPython `LICENSE.txt` | **DECISION 3** |
-| OpenSSL | 3.0.21 | Apache-2.0 | Include license; carry NOTICE if any (none upstream) | Apache text in CPython files | Confirm only |
+| **certifi** | 2026.10.23 | **MPL-2.0** | §3.2: tell recipients how to get Source Code Form, reasonably and promptly | Exact sdist shipped in `certifi-2026.10.23/source/` + upstream URL + SHA256; full MPL text | **DECISION 2** |
+| CPython | 3.13.17 | PSF-2.0 | Retain notice; clause 3 "brief summary of the changes made to Python" | Windows `LICENSE.txt` + `license.rst`; notices state "changes: none" | Confirm wording |
+| **VCRUNTIME140.dll** | 14.51.36247.0 | Microsoft Distributable Code | See §3 and `VCRUNTIME_REDISTRIBUTION_BASIS.md` | Conditions reproduced from CPython `LICENSE.txt` | **DECISION 3** |
+| OpenSSL | 3.5.9 (3.5 LTS) | Apache-2.0 | Include license; carry NOTICE if any (none upstream) | Apache text in CPython files | Confirm only |
 | **SQLite** | 3.50.4 | Public domain | None legally; attribution courtesy | Project-written statement + upstream link | **DECISION 4** |
 | **liblzma (XZ Utils)** | 5.2.5 | Public domain (5.2.x) | None legally | Project-written statement + upstream link | **DECISION 4** |
+| Unicode Character Database (in CPython) | 15.1.0 data | Unicode-3.0 | Include notice | New `license.rst` section in 3.13.17 | Confirm only |
 | zlib | 1.3.1 | Zlib | Do not misrepresent origin; keep notice in source | `license.rst` | Confirm only |
 | libffi | 3.4.4 | MIT | Include notice | Both CPython files | Confirm only |
 | Tcl/Tk | 8.6.15 | TCL | Retain copyright notice in all copies | `license.terms` + CPython `LICENSE.txt` | Confirm only |
@@ -58,14 +63,16 @@ file has been created, and automation must not create them.
 **DECISION 2 — certifi (MPL-2.0) source availability.** certifi is unmodified,
 and its data file is shipped in source form with the MPL notice. The notices
 point to the exact PyPI sdist (with SHA256) and the upstream repository.
-Options:
-- (a) Accept the third-party links. Common practice, but they depend on PyPI
-  staying available for the life of each release.
-- (b) Mirror the exact sdist on the project's own release page. *Recommended:
-  this keeps the duty under your control.*
-- (c) Ship the sdist inside the installer (about 0.2 MB).
+**Implemented (pending approval): option (c).** The exact sdist (136,225
+bytes, SHA256 `a9895e6e…36cd`) is now inside the installed
+`third-party-licenses/certifi-2026.10.23/source/`, and the notices name it.
+The generator fails the build unless the bundled `cacert.pem` and all certifi
+Python sources are identical to the files in that archive. The reviewer should
+confirm that this satisfies MPL-2.0 §3.2. Option (b), also mirroring the sdist
+on the release page, is optional extra assurance.
 
-**DECISION 3 — Microsoft Distributable Code (VCRUNTIME140.dll).** CPython's
+**DECISION 3 — Microsoft Distributable Code (VCRUNTIME140.dll).** Facts,
+verbatim terms and options are in `docs/VCRUNTIME_REDISTRIBUTION_BASIS.md`. CPython's
 `LICENSE.txt` says redistributing its unmodified Windows build "complies with
 this agreement, provided that you do not … use Microsoft's trademarks in your
 programs' names or in a way that suggests your programs come from or are
@@ -97,18 +104,22 @@ re-reviews the package.
 
 ## 4. Related non-license risk raised during review
 
-- **OpenSSL 3.0 is past upstream support.** OpenSSL's release strategy page
-  states that "Versions 3.0, 1.1.1 and 1.0.2 are no longer supported". The
-  bundled 3.0.21 comes from the CPython 3.13.14 Windows build. This is a
-  security decision for the owner, for example moving to a Python build with
-  a supported OpenSSL line before V1, or accepting and documenting the risk.
-- Trademark (product name), see DECISION 3.
+- **OpenSSL: remediated in the build, owner to accept.** The 3.13.14 runtime
+  shipped OpenSSL 3.0.21, which is past upstream support. The release bundle
+  now uses the official CPython 3.13.17 build, which ships OpenSSL 3.5.9 (3.5
+  LTS line). Every other bundled library version is unchanged. No DLL was
+  replaced by hand: the whole runtime is the PSF's signed build.
+- **CPython 3.13 support window.** 3.13 receives binary bugfix releases only
+  for a limited time; plan the move to 3.14 for V1.x. That change brings Tcl/Tk
+  9.0 and zlib-ng and needs a full re-verification.
+- **GitHub independence disclaimer** added (`NOTICE`, notices, README, EXE
+  description). Wording to be approved with DECISION 3.
 
 ## 5. How to re-verify before signing
 
 ```powershell
 cd C:\Users\aiuser\projects\github-community-agent
-.\.venv\Scripts\python.exe .\scripts\third_party_notices.py check --bundle .\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent
+.\build\release-bundle\venv\Scripts\python.exe .\scripts\third_party_notices.py check --bundle .\build\release-bundle\dist\GitHubCommunityAgent
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-verify-installer-license-payload.ps1
 ```
 Both must print PASS. The reviewer reads `packaging\third-party-licenses\THIRD_PARTY_NOTICES.txt`.

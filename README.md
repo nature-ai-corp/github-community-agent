@@ -4,6 +4,8 @@
 
 GitHub Community Agent helps project maintainers understand and respond to their communities. Product promotion is planned for V2; it is **not** part of V1.
 
+> **Independence:** GitHub Community Agent is an independent product of NATURE AI CORP. It is not affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft Corporation. "GitHub" is a trademark of GitHub, Inc., used only to identify the service this software works with.
+
 > **Development status:** V1 has real Windows application execution evidence for all five read-only Work Types. Security, packaging, regression and release acceptance remain pending. **No official independent Windows installer or V1 release has been published.**
 
 ## V1 — Community Management

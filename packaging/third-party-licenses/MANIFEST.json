@@ -6,14 +6,15 @@
       "pyinstaller_rthooks": 4,
       "stdlib": 228
     },
-    "exe_sha256": "620268de3186ca97f7809001fa5eaff4cf2d38eddad0632aa8e4664d59d3da4e",
+    "exe_sha256": "efc2258e6d03c1855caea6e7a95972d577463c320c5dbac7fc9797ea82907519",
     "file_count": 958
   },
   "files": {
-    "THIRD_PARTY_NOTICES.txt": "3ec92c7a29cace4d429ddf0af96bda584ec4896b58ba3a9f9271884f1a8e1c61",
+    "THIRD_PARTY_NOTICES.txt": "2e3697f567554db09089175c95203f686b599dd2f0beea0c7572128007e2fd3b",
     "certifi-2026.10.23/MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
-    "cpython-3.13.14/LICENSE.txt": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
-    "cpython-3.13.14/license.rst": "62f2c9c2c75d511170eb464ad5f83b78cc1f37eb2eb49c2846c9aa6c4557ee99",
+    "certifi-2026.10.23/source/certifi-2026.10.23.tar.gz": "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
+    "cpython-3.13.17/LICENSE.txt": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
+    "cpython-3.13.17/license.rst": "952ac05720d7f1dcb63589b35eb0931b1442eb250230a4ad31198eddf0ad6abc",
     "pyinstaller-6.22.3/COPYING.txt": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64",
     "python-packages/anyio-4.16.0/LICENSE": "5361ac9dc58f2ef5fd2e9b09c68297c17f04950909bbc8023bdb82eacf22c2b0",
     "python-packages/certifi-2026.10.23/LICENSE": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7",
@@ -22,7 +23,7 @@
     "python-packages/httpx-0.28.1/LICENSE.md": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
     "python-packages/idna-3.20/LICENSE.md": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04",
     "python-packages/typing-extensions-4.16.0/LICENSE": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
-    "sbom.cdx.json": "05df5fe08ddf5412fb8b6811c6172053d05719176b1f9f4468a0db806b5fd13a",
+    "sbom.cdx.json": "7673bb6be79da8b03759b014892bcb8c81e512789341ef9ffcca21d1fccc6228",
     "tcl-tk-8.6.15/license.terms": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
   },
   "generator": "scripts/third_party_notices.py",
@@ -35,13 +36,17 @@
       "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
       "url": "https://www.mozilla.org/media/MPL/2.0/index.txt"
     },
-    "cpython-3.13.14/license.rst": {
-      "sha256": "62f2c9c2c75d511170eb464ad5f83b78cc1f37eb2eb49c2846c9aa6c4557ee99",
-      "url": "https://raw.githubusercontent.com/python/cpython/v3.13.14/Doc/license.rst"
+    "certifi-2026.10.23/source/certifi-2026.10.23.tar.gz": {
+      "sha256": "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
+      "url": "https://files.pythonhosted.org/packages/fd/11/b524cbd9bbdaca58608e4cf4053fd463417549e1959fa8d3aa18319f9555/certifi-2026.10.23.tar.gz"
+    },
+    "cpython-3.13.17/license.rst": {
+      "sha256": "952ac05720d7f1dcb63589b35eb0931b1442eb250230a4ad31198eddf0ad6abc",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.13.17/Doc/license.rst"
     }
   },
   "version_evidence": {
-    "sha256": "7f4ef6af9e941f1d933f5cdee708cc5bd88dafc929058b1b6975575c30c35fb5",
-    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.14/PCbuild/get_externals.bat"
+    "sha256": "4c2f8f42af137dd6861a96b24e4ec468a959ec2567b3ce5b63865be70026106c",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.17/PCbuild/get_externals.bat"
   }
 }

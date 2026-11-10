@@ -12,17 +12,19 @@
 # No signing, publication or network access.
 [CmdletBinding()]
 param(
-    [string]$BundleDir = ''
+    [string]$BundleDir = '',
+    [string]$BuildPython = ''
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$python = Join-Path $root '.venv\Scripts\python.exe'
+if (-not $BuildPython) { $BuildPython = Join-Path $root 'build\release-bundle\venv\Scripts\python.exe' }
+$python = (Resolve-Path -LiteralPath $BuildPython).Path
 $tool = Join-Path $root 'scripts\third_party_notices.py'
 $iss = Join-Path $root 'packaging\windows\gc-agent.iss'
 $package = Join-Path $root 'packaging\third-party-licenses'
 if (-not $BundleDir) {
-    $BundleDir = Join-Path $root 'build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent'
+    $BundleDir = Join-Path $root 'build\release-bundle\dist\GitHubCommunityAgent'
 }
 $BundleDir = (Resolve-Path -LiteralPath $BundleDir).Path
 $compiler = @(

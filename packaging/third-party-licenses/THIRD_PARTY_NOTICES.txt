@@ -8,7 +8,7 @@ under its own license. The full license texts follow this list and are
 also provided as separate files in this third-party-licenses directory.
 
 Frozen application: GitHubCommunityAgent.exe
-SHA256: 620268de3186ca97f7809001fa5eaff4cf2d38eddad0632aa8e4664d59d3da4e
+SHA256: efc2258e6d03c1855caea6e7a95972d577463c320c5dbac7fc9797ea82907519
 Bundle files: 958. Machine-readable SBOM: sbom.cdx.json
 
 Components
@@ -34,39 +34,39 @@ Components
 * typing-extensions 4.16.0
     License: PSF-2.0
     Text: python-packages/typing-extensions-4.16.0/LICENSE
-* CPython runtime 3.13.14
+* CPython runtime 3.13.17
     License: PSF-2.0
-    Text: cpython-3.13.14/LICENSE.txt; cpython-3.13.14/license.rst
-* OpenSSL 3.0.21
+    Text: cpython-3.13.17/LICENSE.txt; cpython-3.13.17/license.rst
+* OpenSSL 3.5.9
     License: Apache-2.0
-    Text: cpython-3.13.14/LICENSE.txt (Apache License 2.0 section); cpython-3.13.14/license.rst (OpenSSL)
+    Text: cpython-3.13.17/LICENSE.txt (Apache License 2.0 section); cpython-3.13.17/license.rst (OpenSSL)
 * SQLite 3.50.4
     License: blessing
     Text: THIRD_PARTY_NOTICES.txt (public domain)
 * zlib 1.3.1
     License: Zlib
-    Text: cpython-3.13.14/license.rst (zlib)
+    Text: cpython-3.13.17/license.rst (zlib)
 * libffi 3.4.4
     License: MIT
-    Text: cpython-3.13.14/LICENSE.txt (libffi); cpython-3.13.14/license.rst (libffi)
+    Text: cpython-3.13.17/LICENSE.txt (libffi); cpython-3.13.17/license.rst (libffi)
 * Tcl/Tk 8.6.15
     License: TCL
-    Text: tcl-tk-8.6.15/license.terms; cpython-3.13.14/LICENSE.txt (Tcl, Tk)
+    Text: tcl-tk-8.6.15/license.terms; cpython-3.13.17/LICENSE.txt (Tcl, Tk)
 * Expat (statically linked in pyexpat) 2.8.1
     License: MIT
-    Text: cpython-3.13.14/license.rst (expat)
+    Text: cpython-3.13.17/license.rst (expat)
 * libmpdec (statically linked in _decimal) 4.0.0
     License: BSD-2-Clause
-    Text: cpython-3.13.14/license.rst (libmpdec)
+    Text: cpython-3.13.17/license.rst (libmpdec)
 * bzip2 (statically linked in _bz2) 1.0.8
     License: bzip2-1.0.6
-    Text: cpython-3.13.14/LICENSE.txt (bzip2)
+    Text: cpython-3.13.17/LICENSE.txt (bzip2)
 * liblzma from XZ Utils (statically linked in _lzma) 5.2.5
     License: LicenseRef-public-domain
     Text: THIRD_PARTY_NOTICES.txt (public domain)
-* Microsoft Visual C++ runtime (VCRUNTIME140.dll) 14.42.34438.0
+* Microsoft Visual C++ runtime (VCRUNTIME140.dll) 14.51.36247.0
     License: LicenseRef-Microsoft-Distributable-Code
-    Text: cpython-3.13.14/LICENSE.txt (Additional Conditions for this Windows binary build)
+    Text: cpython-3.13.17/LICENSE.txt (Additional Conditions for this Windows binary build)
 * PyInstaller bootloader and loader 6.22.3
     License: GPL-2.0-or-later WITH Bootloader-exception
     Text: pyinstaller-6.22.3/COPYING.txt
@@ -75,12 +75,12 @@ Components
     Text: pyinstaller-6.22.3/COPYING.txt (Run-time Hooks)
 
 The CPython runtime incorporates further software whose notices are
-reproduced in cpython-3.13.14/license.rst (section "Licenses and
+reproduced in cpython-3.13.17/license.rst (section "Licenses and
 Acknowledgements for Incorporated Software").
 
 Modifications
 -------------
-Summary of changes made to Python 3.13.14 (PSF License Agreement,
+Summary of changes made to Python 3.13.17 (PSF License Agreement,
 clause 3): none. The bundled CPython runtime files are unmodified copies
 of the Python Software Foundation's Windows release. All other
 third-party components listed above are likewise included unmodified.
@@ -90,9 +90,12 @@ Source Code Form availability (Mozilla Public License 2.0)
 certifi 2026.10.23 is distributed under the Mozilla Public License 2.0.
 Its file _internal/certifi/cacert.pem is included unmodified, in Source
 Code Form. The bundled Python code of certifi is unmodified. The complete
-Source Code Form of this exact version is available from:
+Source Code Form of this exact version is included in this directory:
+  certifi-2026.10.23/source/certifi-2026.10.23.tar.gz
+  (SHA256 a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd). The bundled cacert.pem and
+  certifi Python sources were verified identical to this archive.
+It is also published upstream at:
   https://files.pythonhosted.org/packages/fd/11/b524cbd9bbdaca58608e4cf4053fd463417549e1959fa8d3aa18319f9555/certifi-2026.10.23.tar.gz
-  (SHA256 a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd)
   https://github.com/certifi/python-certifi
 A copy of the MPL 2.0 is in certifi-2026.10.23/MPL-2.0.txt.
 
@@ -107,7 +110,15 @@ Microsoft Visual C++ runtime
 ----------------------------
 VCRUNTIME140.dll is Microsoft Distributable Code redistributed as part of
 the CPython Windows binary build. The conditions that apply are stated in
-cpython-3.13.14/LICENSE.txt under "Additional Conditions for this Windows binary build".
+cpython-3.13.17/LICENSE.txt under "Additional Conditions for this Windows binary build".
+
+Independence from GitHub
+------------------------
+GitHub Community Agent is an independent product of NATURE AI CORP. It is
+not affiliated with, sponsored by, or endorsed by GitHub, Inc. or
+Microsoft Corporation. "GitHub" is a trademark of GitHub, Inc. and is
+used only to identify the service this software works with. All other
+trademarks are the property of their respective owners.
 
 Full license texts
 ------------------
@@ -491,7 +502,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 ============================================================================
-cpython-3.13.14/LICENSE.txt
+cpython-3.13.17/LICENSE.txt
 ============================================================================
 
 A. HISTORY OF THE SOFTWARE
@@ -1140,7 +1151,7 @@ permission to use and distribute the software in accordance with the
 terms specified in this license.
 
 ============================================================================
-cpython-3.13.14/license.rst
+cpython-3.13.17/license.rst
 ============================================================================
 
 .. highlight:: none
@@ -2277,6 +2288,55 @@ The file is distributed under the 2-Clause BSD License::
   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Unicode Character Database
+--------------------------
+
+An extract of the `Unicode Character Database <https://www.unicode.org/ucd/>`__,
+converted to an internal format, is used by the :mod:`unicodedata` module and
+for the Unicode support of the :class:`str` type. The original Unicode data
+files are distributed under the `Unicode License <https://www.unicode.org/license.txt>`__::
+
+  UNICODE LICENSE V3
+
+  COPYRIGHT AND PERMISSION NOTICE
+
+  Copyright © 1991-2026 Unicode, Inc.
+
+  NOTICE TO USER: Carefully read the following legal agreement. BY
+  DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+  SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+  TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+  DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of data files and any associated documentation (the "Data Files") or
+  software and any associated documentation (the "Software") to deal in the
+  Data Files or Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, and/or sell
+  copies of the Data Files or Software, and to permit persons to whom the
+  Data Files or Software are furnished to do so, provided that either (a)
+  this copyright and permission notice appear with all copies of the Data
+  Files or Software, or (b) this copyright and permission notice appear in
+  associated Documentation.
+
+  THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+  KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+  THIRD PARTY RIGHTS.
+
+  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+  BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+  OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+  WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+  ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+  FILES OR SOFTWARE.
+
+  Except as contained in this notice, the name of a copyright holder shall
+  not be used in advertising or otherwise to promote the sale, use or other
+  dealings in these Data Files or Software without prior written
+  authorization of the copyright holder.
 
 ============================================================================
 pyinstaller-6.22.3/COPYING.txt

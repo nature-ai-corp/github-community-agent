@@ -12,5 +12,11 @@ PyInstaller bootloader and bundled Python packages). Their license texts,
 notices and a CycloneDX SBOM are installed in the "third-party-licenses"
 directory; start with third-party-licenses/THIRD_PARTY_NOTICES.txt.
 
-This independent repository is not yet released. License/NOTICE and full
-dependency inventory must be finalized before public distribution.
+GitHub Community Agent is an independent product of NATURE AI CORP. It is
+not affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft
+Corporation. "GitHub" is a trademark of GitHub, Inc. and is used only to
+identify the service this software works with. All other trademarks are the
+property of their respective owners.
+
+This independent repository is not yet released. The third-party license
+package awaits human legal review before public distribution.

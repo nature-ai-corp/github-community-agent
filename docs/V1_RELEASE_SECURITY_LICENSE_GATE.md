@@ -2184,3 +2184,74 @@ the declarations in agreement.
 - GitHub Actions is still not running (account billing). Branch protection
   and required checks are unavailable on the current plan for this private
   repository.
+
+## Release-preparation round: supported OpenSSL runtime and clean installer input (2026-11-10)
+
+### OpenSSL remediation — runtime replaced as a whole (no DLL swapping)
+
+- Previously shipped: `_internal/libssl-3.dll` and `libcrypto-3.dll`, OpenSSL
+  **3.0.21** (via `_ssl.pyd`/`_hashlib.pyd`), from the CPython 3.13.14 build.
+  OpenSSL 3.0 is past upstream support.
+- Selected: the official **CPython 3.13.17** x64 build (2026-10-21), which
+  ships OpenSSL **3.5.9** (3.5 LTS). Its `PCbuild/get_externals.bat` differs
+  from 3.13.14 only in OpenSSL. SQLite, xz, zlib, libffi, Tcl/Tk 8.6.15,
+  mpdecimal, bzip2 and expat are unchanged. The same Python minor version keeps
+  application compatibility. 3.14 was not chosen: it changes Tcl/Tk to 9.0
+  and zlib to zlib-ng.
+- Obtained without a system install. The python.org `core`/`exe`/`lib`/`tcltk`
+  MSIs were extracted administratively (`msiexec /a`) into
+  `build/runtime-3.13.17`; no product registration was created. All runtime
+  DLLs and the MSIs are Authenticode-valid (Python Software Foundation). The
+  key files are byte-identical to the PSF NuGet package, whose SHA512 matches
+  the nuget.org catalog. NuGet alone was rejected: it omits Tcl/Tk, which
+  `work_center` → `desktop` imports.
+
+### Clean installer input
+
+- New `scripts/windows-build-release-bundle.ps1`:
+  - verifies PSF signatures, CPython 3.13.17, OpenSSL 3.5.x and tkinter;
+  - creates a fresh venv with only `packaging/windows/build-requirements.txt`
+    (hash-locked, `--require-hashes --only-binary`), so there is no
+    pytest/Pygments/colorama;
+  - stamps EXE VERSIONINFO from `__version__`;
+  - after the build, rejects any test-only distribution in the venv or test
+    module in the archive.
+- `gc-agent.iss`, `gc-agent-release-candidate.iss`,
+  `windows-build-installer.ps1` and the payload verifier now default to
+  `build/release-bundle/dist/GitHubCommunityAgent` and its venv. The
+  installer build also checks the EXE version and passes `AppVersion` derived
+  from the package. A new `-OutputDir` option means existing `dist\installer`
+  files are never touched.
+- Third-party package regenerated from that exact bundle:
+  - 958 bundle files, all accounted for;
+  - native files byte-identical to the 3.13.17 runtime;
+  - stock bootloader;
+  - CPython `license.rst` and `get_externals.bat` evidence re-pinned to
+    v3.13.17. That `license.rst` adds a Unicode License V3 section.
+
+### License preparation (no approval)
+
+- certifi MPL-2.0: the exact sdist now ships in
+  `third-party-licenses/certifi-2026.10.23/source/`. The build fails unless
+  the bundled `cacert.pem` and certifi sources are identical to the files in
+  that archive.
+- `docs/VCRUNTIME_REDISTRIBUTION_BASIS.md`: facts, verbatim terms, options and
+  open questions. No conclusion is drawn.
+- Independence-from-GitHub disclaimer added to `NOTICE`, the notices,
+  `README.md` and the EXE `FileDescription`.
+
+### Defect found and fixed
+
+A POST rejected with 403 replied without reading its body. On Windows the
+leftover data reset the connection, so a client could see a reset instead of
+the 403. This was intermittent in `tests/test_work_center_http.py`: without
+the fix, 3 of 8 runs failed; with `_discard_body()`, 0 of 8 failed.
+
+### Results at `0.0.0.dev0`
+
+- Release bundle build: PASS. `third_party_notices.py check`: PASS.
+- Installer build script: PASS, into `build/installer-check-dev0`.
+- Native install, byte-verify and uninstall: PASS (978 files), with real
+  install and user data unchanged.
+- Regression: **321 passed, 1 skipped** on CPython 3.13.17, twice, including
+  the bundle-bound tests. **319 passed, 3 skipped** on the 3.13.14 dev venv.
