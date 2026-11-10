@@ -1,12 +1,14 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-community-agent"
-version = "0.0.0.dev0"
+version = "1.0.0rc1"
 description = "Independent GitHub community management agent (pre-release)"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 dependencies = ["httpx>=0.28,<1"]
 
@@ -16,12 +18,17 @@ github-community-agent-workflow = "github_community_agent.workflow_cli:main"
 github-community-agent-draft = "github_community_agent.draft_cli:main"
 github-community-agent-analyze = "github_community_agent.analyze_cli:main"
 github-community-agent-desktop = "github_community_agent.desktop:main"
+github-community-agent-home = "github_community_agent.work_center:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+build = ["pyinstaller>=6,<7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+github_community_agent = ["home.html", "worker_v011.css", "gc.css"]

@@ -1,0 +1,577 @@
+<!doctype html>
+<!-- Nature AI Worker v0.1.1 UI baseline (Apache-2.0); adapted for independent GitHub Community Agent -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHub Community Agent</title>
+<link rel="stylesheet" href="/static/worker_v011.css">
+<link rel="stylesheet" href="/static/gc.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div id="app">
+<aside id="sidebar" aria-label="Navigation">
+<div class="brand"><span class="logo" aria-hidden="true">G</span><span class="brand-name">NATURE AI</span><span class="brand-product">GC Agent</span></div>
+<button class="new-work nav" data-page="new">+ New Work</button>
+<nav id="work-center" aria-label="Work Center">
+<div class="nav-group">Work Center</div>
+<button class="nav-item nav" data-page="all">My Work</button>
+<button class="nav-item nav" data-page="running">Work In Progress</button>
+<button class="nav-item nav" data-page="attention">Needs My Attention</button>
+<button class="nav-item nav" data-page="finished">Finished Work</button>
+<button class="nav-item nav" data-page="archived">Archived Work</button>
+</nav>
+<h2 class="nav-heading">Recent Work</h2><nav id="work-nav" aria-label="Recent Work"></nav>
+<div class="sidebar-footer"><button class="nav-item nav" data-page="settings">Settings</button><div id="model-label" class="small"></div></div>
+</aside>
+<main id="main" tabindex="-1">
+<header id="topbar"><button id="toggle-sidebar" class="icon" aria-label="Show navigation">☰</button><span class="brand"><span class="logo">G</span><span class="brand-name">NATURE AI</span><span class="brand-product">GC Agent</span></span></header>
+<section id="page-new" class="view hid">
+<header class="page-header"><h1 id="heading">New Work</h1></header>
+<div class="page-body"><p class="muted small" id="subtitle">Select Community Management or Promotion to choose a Task.</p><p id="error" role="alert"></p>
+<div class="card">
+<h2 class="section-title">Task definition</h2>
+<p class="muted small">Choose Community Management or Promotion. Each offers its own Task definitions.</p>
+<div class="route"><label id="route-work-label" class="selected"><input type="radio" name="route" value="work_type" checked>Community Management</label><label id="route-domain-label"><input type="radio" name="route" value="domain">Promotion</label></div>
+<div class="field"><label id="selection-label" class="field-label" for="selection">Work Type</label><select id="selection"></select></div>
+<div id="choices" class="taskgrid"></div>
+</div>
+<div class="card task-start"><h2 id="selected-title" class="section-title">Select a Task</h2>
+<div id="task-details" class="task-details" aria-live="polite"><p class="muted small">Choose a Task above to see its purpose, what it will do, expected output, and required review.</p></div>
+<div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="Configure repository in Settings → Advanced" readonly></div>
+<div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
+<p class="muted small" id="planned-note">V1 uses real GitHub and AI models; V2 Promotion is planned.</p>
+<div class="form-actions"><span class="spacer"></span><button class="primary" id="start" disabled>Create &amp; Run Task</button></div>
+</div></div></section>
+<section id="page-work" class="view">
+<header class="page-header"><h1 id="work-title">My Work</h1><div class="filter-group"><select id="filter-key" aria-label="Classification"><option value="">All classifications</option></select><select id="filter-value" aria-label="Classification value"><option value="">All</option></select></div></header>
+<div class="page-body"><div id="work-list" class="work-list"></div><div id="work-detail" class="block detail hid"></div></div>
+</section>
+</main></div>
+<div id="settings-overlay" class="modal-backdrop hid">
+<dialog id="settings-dialog" role="dialog" open aria-labelledby="settings-title" aria-modal="true">
+<form id="settings-form" method="dialog">
+<h2 id="settings-title">Settings</h2>
+<label>Provider<select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select></label>
+<label>Model<input id="model" value="gpt-4.1-mini" autocomplete="off"></label>
+<label>API key<input type="password" id="model-key" autocomplete="off" placeholder="Leave empty to keep current key"></label><p class="muted small" id="s-key-status"></p>
+<p class="muted small">API keys are stored encrypted for this Windows user. Leave blank to keep the saved key.</p>
+<details id="settings-advanced"><summary>Advanced</summary>
+<label>Public GitHub repository<input id="settings-repo" placeholder="owner/repository"></label>
+<label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label><p class="muted small" id="s-read-status"></p>
+<p class="muted small">Read-only access; GitHub posting is disabled.</p>
+</details>
+<div id="settings-message" role="status"></div>
+<div class="dialog-actions">
+<button type="button" id="test-connection">Test connection</button><span class="spacer"></span>
+<button type="button" id="settings-cancel">Cancel</button>
+<button type="button" id="settings-save" class="primary">Save</button>
+</div>
+</form></dialog>
+</div>
+<script nonce="__APP_NONCE__">
+"use strict";
+const NONCE="__APP_NONCE__";
+const $=id=>document.getElementById(id);
+const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null,
+settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",hasModelKey:false,hasReadToken:false}};
+const headers=()=>({"Content-Type":"application/json","X-App-Nonce":NONCE});
+const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function error(message){$("error").textContent=message||""}
+function unique(values){return [...new Set(values)].sort()}
+async function getJSON(path){const r=await fetch(path,{headers:headers(),cache:"no-store"});if(!r.ok)throw Error("Request failed: "+r.status);return r.json()}
+async function postJSON(path,data){const r=await fetch(path,{method:"POST",headers:headers(),body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw Error(j.error||"Request rejected");return j}
+function page(name){
+if(name==="settings"){openSettings();return}
+state.page=name;error("");
+for(const p of ["new","work"])$("page-"+p).classList.add("hid");
+const isWork=name!=="new";
+$("page-"+(isWork?"work":"new")).classList.remove("hid");
+const headings={new:"New Task",all:"My Work",running:"Work In Progress",attention:"Needs My Attention",finished:"Finished Work",archived:"Archived Work"};
+$("heading").textContent=headings[name];
+$("subtitle").textContent=name==="new"?"Select Community Management or Promotion to choose a Task.":"Task history and status, categorized using each product's definitions.";
+document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
+if(isWork)renderWork();
+}
+function openSettings(){
+const st=state.settings;
+$("provider").value=st.provider;$("model").value=st.model;
+$("model-key").value="";$("read-key").value="";
+$("settings-repo").value=st.repository;
+$("s-key-status").textContent=st.hasModelKey?"A key is stored encrypted. Leave empty to keep it.":"No API key saved yet.";
+$("s-read-status").textContent=st.hasReadToken?"GitHub READ token stored encrypted. Leave empty to keep it.":"No GitHub Discussions READ token saved.";
+$("settings-message").textContent="";
+$("settings-advanced").open=false;
+$("settings-overlay").classList.remove("hid");
+$("provider").focus();
+}
+function closeSettings(){
+$("model-key").value="";$("read-key").value="";
+$("settings-overlay").classList.add("hid");
+}
+function settingsDraft(){
+return {repository:$("settings-repo").value.trim(),provider:$("provider").value,
+model:$("model").value.trim(),model_key:$("model-key").value,
+read_token:$("read-key").value};
+}
+async function loadSettings(){
+const st=await getJSON("/api/settings");
+state.settings={repository:st.repository,provider:st.provider,model:st.model,
+hasModelKey:st.has_model_key,hasReadToken:st.has_read_token};
+$("model-label").textContent=st.has_model_key?st.provider+" · "+st.model:"";
+$("target-repo").value=st.repository||"";
+}
+async function saveSettings(){
+const st=settingsDraft();
+if(!st.repository){$("settings-message").textContent="Enter a public repository under Advanced.";return}
+if(!st.model){$("settings-message").textContent="Model is required.";return}
+if(!st.model_key&&!state.settings.hasModelKey){$("settings-message").textContent="Enter an API key.";return}
+$("settings-save").disabled=true;
+try{
+const saved=await postJSON("/api/settings",st);
+state.settings={repository:saved.repository,provider:saved.provider,model:saved.model,
+hasModelKey:saved.has_model_key,hasReadToken:saved.has_read_token};
+$("model-label").textContent=saved.provider+" · "+saved.model;
+$("target-repo").value=saved.repository;
+closeSettings();
+error("Settings saved encrypted for this Windows user.");
+}catch(e){$("settings-message").textContent="Settings not saved: "+e.message}
+finally{$("settings-save").disabled=false}
+}
+async function testSettings(){
+const st=settingsDraft();
+$("test-connection").disabled=true;
+$("settings-message").textContent="Testing real AI provider connection…";
+try{
+const result=await postJSON("/api/test-connection",{provider:st.provider,model_name:st.model,model_key:st.model_key});
+$("settings-message").textContent=result.status==="connected"?"Connection succeeded (live provider check).":"Connection not verified.";
+}catch(e){$("settings-message").textContent="Connection failed: "+e.message}
+finally{$("test-connection").disabled=false}
+}
+function renderRoute(){
+state.definition=null;
+document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
+$("selection-label").textContent=state.route==="work_type"?"Community Management — Work Type":"Promotion — Domain";
+const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
+// Concrete V1 Work Types appear in their defined task order; promotion
+// Domains default to Self-Promotion. No separate Community Management layer.
+if(state.route==="work_type"){
+  vals.sort((a,b)=>state.definitions.findIndex(d=>d.work_type===a)-state.definitions.findIndex(d=>d.work_type===b));
+}else{
+  vals.sort((a,b)=>a==="Self-Promotion"?-1:b==="Self-Promotion"?1:a.localeCompare(b));
+}
+$("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
+$("selection").value=state.route==="domain"&&vals.includes("Self-Promotion")?"Self-Promotion":(vals[0]||"");
+renderChoices();
+}
+function renderChoices(){
+const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
+// When the Work Type uniquely defines a Task, selecting the Work Type is
+// selecting the Task. Don't render a redundant row of five Task cards.
+if(state.route==="work_type"&&items.length===1){
+  $("choices").innerHTML="";
+  choose(items[0].id);
+  return;
+}
+// A Domain may contain multiple product targets; show only those concrete
+// options. For single-task Self-Promotion, select it directly.
+if(items.length===1){
+  $("choices").innerHTML="";
+  choose(items[0].id);
+  return;
+}
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
+$("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
+choose(null);
+}
+function choose(id){
+state.definition=state.definitions.find(d=>d.id===id)||null;
+document.querySelectorAll(".taskchoice").forEach(b=>b.classList.toggle("selected",b.dataset.id===id));
+const d=state.definition;
+$("selected-title").textContent=d?d.title:"Select a Task";
+const needNumber=d&&d.workflow==="draft_replies";
+$("number-field").classList.toggle("hid",!needNumber);
+$("start").disabled=!d||!d.enabled;
+$("planned-note").textContent=d?.version==="V2"?"V2 Promotion is planned. You can inspect this Task definition but cannot run it yet.":"V1: real GitHub and AI analysis; no GitHub posting.";
+if(!d){
+$("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
+return;
+}
+const dt=d.details||{};
+const steps=Array.isArray(dt.steps)?dt.steps:[];
+$("task-details").innerHTML=
+'<p class="smallhead">Objective</p><p>'+escapeHTML(dt.goal||"Not specified")+'</p>'+
+'<p class="smallhead">What this Task does</p><ol>'+steps.map(x=>'<li>'+escapeHTML(x)+'</li>').join("")+'</ol>'+
+'<p class="smallhead">Expected result</p><p>'+escapeHTML(dt.output||"Not specified")+'</p>'+
+'<p class="smallhead">Requirements</p><p>'+escapeHTML(dt.requires||"Not specified")+'</p>'+
+'<p class="smallhead">Review and approval</p><p>'+escapeHTML(dt.review||"Not specified")+'</p>'+
+'<p class="smallhead">Scope / availability</p><p>'+escapeHTML(dt.limitations||"Not specified")+'</p>';
+}
+async function startTask(){
+if(!state.definition)return;
+const d=state.definition;
+const n=Number($("number").value);
+const st=state.settings;
+const data={route:state.route,selection:$("selection").value,definition_id:d.id,number:d.workflow==="draft_replies"?n:null};
+$("start").disabled=true;
+try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res.id;await refresh();page("all")}
+catch(e){error(e.message)}
+finally{$("start").disabled=false}
+}
+async function refresh(){
+const obj=await getJSON("/api/tasks?include_archived=1");
+// Polling must not replace interactive DOM when the work data is unchanged.
+// In particular, rebuilding <details> every two seconds closes it, loses
+// scroll position and interrupts Copy/Export actions.
+const signature=JSON.stringify(obj.tasks);
+if(signature===state.tasksSignature)return;
+state.tasksSignature=signature;
+state.tasks=obj.tasks;
+const recent=$("work-nav");
+recent.replaceChildren();
+for(const task of state.tasks.filter(t=>!t.archived).slice(0,8)){
+const button=document.createElement("button");
+button.type="button";button.textContent="#"+task.id+" "+task.title;
+button.title=task.title;
+button.addEventListener("click",()=>{page("all");openTask(task.id)});
+recent.append(button);
+}
+renderWork();
+}
+function renderFilters(){
+const keys=unique(state.definitions.flatMap(d=>Object.keys({work_type:d.work_type,domain:d.domain})));
+const labels={work_type:"Work Type",domain:"Domain"};
+$("filter-key").innerHTML='<option value="">All classifications</option>'+keys.map(k=>'<option value="'+k+'">'+escapeHTML(labels[k]||k)+'</option>').join("");
+$("filter-key").value=state.filterKey;
+const values=unique(state.tasks.map(t=>t.classifications[state.filterKey]).filter(Boolean));
+$("filter-value").innerHTML='<option value="">All</option>'+values.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
+$("filter-value").value=state.filterValue;
+}
+function renderWork(){
+if(["new","settings"].includes(state.page))return;
+$("work-title").textContent=$("heading").textContent;
+renderFilters();
+const allowed={running:["running"],attention:["needs_attention","failed"],finished:["finished"],archived:["finished","failed"],all:["running","needs_attention","finished","failed"]};
+const rows=state.tasks.filter(t=>(state.page==="archived"?t.archived:!t.archived)&&(allowed[state.page]||allowed.all).includes(t.status)&&(!state.filterKey||!state.filterValue||t.classifications[state.filterKey]===state.filterValue));
+$("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
+$("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
+const selected=rows.find(t=>t.id===state.selectedTask);
+if(selected){
+// Real state changes may require updating the detail. Preserve the user's
+// expanded technical JSON and its scroll position across that update.
+const opened=$("work-detail").querySelector(".technical-details");
+const wasOpen=Boolean(opened?.open);
+const priorScroll=$("work-detail").querySelector("#task-result-json")?.scrollTop??0;
+showDetail(selected);
+const next=$("work-detail").querySelector(".technical-details");
+if(next){
+next.open=wasOpen;
+const result=$("work-detail").querySelector("#task-result-json");
+if(result&&wasOpen)result.scrollTop=priorScroll;
+}
+}else $("work-detail").classList.add("hid");
+}
+function openTask(id){state.selectedTask=id;const t=state.tasks.find(x=>x.id===id);if(t)showDetail(t)}
+function exportRecord(t){
+  // Export is a snapshot of an already completed or active Work record.
+  // Never serialize local Settings/credentials into evidence.
+  return {
+    application:"GitHub Community Agent",
+    export_schema:1,
+    exported_at_utc:new Date().toISOString(),
+    task_id:t.id,
+    task_definition_id:t.definition_id,
+    task_title:t.title,
+    repository:t.repository,
+    classifications:t.classifications,
+    status:t.status,
+    created_at_utc:t.created_utc,
+    updated_at_utc:t.updated_utc,
+    source_url:taskSource(t)||null,
+    result:t.result,
+    error:t.error||null
+  };
+}
+function taskSource(t){
+  const r=t.result||{};
+  const evidence=Array.isArray(r.evidence)?r.evidence:[];
+  const discussions=Array.isArray(r.discussions)?r.discussions:[];
+  const issues=Array.isArray(r.issues)?r.issues:[];
+  return r.source_url||evidence[0]?.url||discussions[0]?.url||issues[0]?.url||null;
+}
+function resultText(t){
+  return JSON.stringify(t.result,null,2);
+}
+async function copyTaskResult(t){
+  if(t.result===null||t.result===undefined)return;
+  const status=$("result-action-status");
+  try{
+    await navigator.clipboard.writeText(resultText(t));
+    if(status)status.textContent="Result copied.";
+  }catch(e){
+    if(status)status.textContent="Copy failed. Select the result and copy manually.";
+  }
+}
+function exportTaskResult(t){
+  if(t.result===null||t.result===undefined)return;
+  const status=$("result-action-status");
+  try{
+    const serialized=JSON.stringify(exportRecord(t),null,2);
+    const blob=new Blob([serialized],{type:"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download="gc-agent-task-"+t.id+"-result.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Defer release so browser has time to take ownership of the download.
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    if(status)status.textContent="Export started (JSON).";
+  }catch(e){
+    if(status)status.textContent="Export failed. Try again.";
+  }
+}
+// Report presentation is deterministic and uses only captured Task result data.
+// It NEVER calls a model, generates claims, or interprets GitHub content as HTML.
+function reportSections(analysis){
+  const text=typeof analysis==="string"?analysis.trim():"";
+  const sections={};
+  const matches=[...text.matchAll(/(?:^|\n)\s*(Issue\/Question|Category|Answer Status|Actionable Suggestion|Source URL):\s*/g)];
+  const summary=matches.length?text.slice(0,matches[0].index).trim():text;
+  for(let i=0;i<matches.length;i++){
+    const key=matches[i][1];
+    const start=matches[i].index+matches[i][0].length;
+    const end=i+1<matches.length?matches[i+1].index:text.length;
+    sections[key]=text.slice(start,end).trim();
+  }
+  return {summary,sections};
+}
+// Parse the existing Issue review into independently inspectable findings.
+// This is a presentation transform, not a new analysis or AI inference.
+function issueReviewItems(analysis, issues){
+  if(typeof analysis!=="string")return [];
+  const headers=[...analysis.matchAll(/(?:^|\n)\s*Issue\s+#(\d+):\s*/g)];
+  const known=new Map((Array.isArray(issues)?issues:[]).map(x=>[String(x.number),x]));
+  const items=[];
+  for(let i=0;i<headers.length;i++){
+    const match=headers[i], number=match[1];
+    const start=match.index+match[0].length;
+    const end=i+1<headers.length?headers[i+1].index:analysis.length;
+    let block=analysis.slice(start,end).trim();
+    // The model may add a final sample-coverage note after the last Issue.
+    block=block.split(/\n\s*\n(?=No evidence\b|Sample\b|Coverage\b)/i)[0].trim();
+    const marker=block.match(/\bNext action:\s*/i);
+    const urgency=block.match(/\bUrgency:\s*/i);
+    const source=block.match(/\bSource:\s*https:\/\/github\.com\/[^\s]+/i);
+    const cut=[marker?.index,urgency?.index,source?.index].filter(Number.isInteger);
+    const finding=block.slice(0,cut.length?Math.min(...cut):block.length).trim();
+    const action=marker?block.slice(marker.index+marker[0].length,
+       [urgency?.index,source?.index,block.length].filter(n=>Number.isInteger(n)&&n>marker.index).sort((a,b)=>a-b)[0]).trim():"";
+    const priority=urgency?block.slice(urgency.index+urgency[0].length,
+       [source?.index,block.length].filter(n=>Number.isInteger(n)&&n>urgency.index).sort((a,b)=>a-b)[0]).trim():"";
+    const evidence=known.get(number);
+    items.push({number,title:evidence?.title||"Issue #"+number,
+      url:evidence?.url||null,finding,action,priority});
+  }
+  return items;
+}
+// Render the ALREADY SAVED Community Report into user sections. No AI call,
+// invented activity, or assumptions about subsequent implementation status.
+function communityReportSections(analysis){
+  if(typeof analysis!=="string")return {};
+  const keys={
+    "Data Scope":"scope",
+    "Issue Activity Summary":"issues",
+    "Discussion Activity Summary":"discussions",
+    "Key Observations and Themes":"observations",
+    "Recommendations (with uncertainty)":"recommendations",
+    "Recommendations":"recommendations",
+    "Sources":"sources"
+  };
+  const lines=analysis.split(/\r?\n/), sections={};
+  let current=null;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(Object.hasOwn(keys,line)&&i+1<lines.length&&/^-{3,}$/.test(lines[i+1].trim())){
+      current=keys[line];sections[current]=[];i++;continue;
+    }
+    if(current)sections[current].push(lines[i]);
+  }
+  return Object.fromEntries(Object.entries(sections).map(([k,v])=>[k,v.join("\n").trim()]));
+}
+function reportLines(text){
+  // Preserve text & line breaks without treating model-produced Markdown
+  // or HTML as executable markup.
+  return '<div class="report-prose">'+escapeHTML(text||"No observed data in this section.")+'</div>';
+}
+function communityReportBody(t){
+  const r=t.result||{}, parsed=communityReportSections(r.analysis);
+  const issues=typeof r.issues_analyzed==="number"?r.issues_analyzed:null;
+  const read=typeof r.issue_page_count==="number"?r.issue_page_count:null;
+  const discussions=Array.isArray(r.discussions)?r.discussions.length:null;
+  const synopsis=[
+    issues!==null?"Analyzed "+issues+" recent Issues"+(read!==null?" from "+read+" fetched Issue records":""):null,
+    discussions!==null?"Read "+discussions+" Discussion"+(discussions===1?"":"s")+" from the fetched sample":null
+  ].filter(Boolean).join(" · ");
+  const items=[];
+  items.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(synopsis||"Community evidence report from a bounded GitHub sample.")+'</p></section>');
+  items.push('<section class="report-section"><h4>Findings</h4>');
+  if(parsed.issues)items.push('<h5>Issue Activity</h5>'+reportLines(parsed.issues));
+  if(parsed.discussions)items.push('<h5>Discussion Activity</h5>'+reportLines(parsed.discussions));
+  if(parsed.observations)items.push('<h5>Key Observations</h5>'+reportLines(parsed.observations));
+  if(!parsed.issues&&!parsed.discussions&&!parsed.observations)items.push(reportLines(r.analysis));
+  items.push('</section>');
+  if(parsed.recommendations)items.push('<section class="report-section"><h4>Recommended Actions — AI Assessment</h4>'+reportLines(parsed.recommendations)+'</section>');
+  items.push('<section class="report-section"><h4>Next Step</h4><p>Review the proposed actions against current repository state before acting. GitHub Issue descriptions may represent earlier plans, not current implementation or release status.</p></section>');
+  const refs=new Set();
+  const add=url=>{if(typeof url==="string"&&/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|discussions)\/\d+$/.test(url))refs.add(url)};
+  for(const record of [...(Array.isArray(r.issues)?r.issues:[]),...(Array.isArray(r.discussions)?r.discussions:[])])add(record?.url);
+  if(refs.size)items.push('<section class="report-section"><h4>Sources</h4><ul>'+[...refs].map(url=>'<li><a href="'+escapeHTML(url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(url)+'</a></li>').join("")+'</ul></section>');
+  const caveats=[];
+  if(read!==null)caveats.push("Issue records fetched in page: "+read);
+  if(issues!==null)caveats.push("Issues analyzed: "+issues);
+  if(typeof r.discussion_page_count==="number")caveats.push("Discussion records fetched in page: "+r.discussion_page_count);
+  caveats.push("Limited sample — not a full repository audit");
+  if(r.total_pages_known===false)caveats.push("Total pages unverified");
+  if(r.incomplete===true)caveats.push("Coverage incomplete");
+  if(r.discussions_checked===false)caveats.push("Discussions not checked");
+  items.push('<p class="report-coverage">'+escapeHTML(caveats.join(" · "))+'</p>');
+  return items.join("");
+}
+function taskReport(t){
+  const r=t.result||{};
+  const {summary,sections}=reportSections(r.analysis);
+  const issueItems=t.definition_id==="review_issues"?issueReviewItems(r.analysis,r.issues):[];
+  const reportTitle=({
+    review_discussions:"Community Review Report",
+    review_issues:"Issues Review Report",
+    community_report:"Community Report",
+    draft_issue:"Issue Reply Draft",
+    draft_discussion:"Discussion Reply Draft"
+  })[t.definition_id]||t.title;
+  const elements=[];
+  elements.push('<section class="user-report" aria-label="Work report">');
+  elements.push('<div class="user-report-title"><strong>'+escapeHTML(reportTitle)+'</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>');
+  elements.push('<div class="report-subtitle">'+escapeHTML(t.repository)+' · '+escapeHTML(t.title)+'</div>');
+  // Draft Reply is the deliverable; render the actual draft, not an empty analysis.
+  // Keep publication disabled and human review visible.
+  if((t.definition_id==="draft_issue"||t.definition_id==="draft_discussion")&&typeof r.draft==="string"){
+    elements.push('<section class="report-section"><h4>Draft Reply — Not Published</h4><div class="draft-reply-text">'+escapeHTML(r.draft)+'</div></section>');
+    elements.push('<section class="report-section"><h4>Review Status</h4><p>'+escapeHTML(t.status==="needs_attention"?"Needs your review. No GitHub reply has been posted.":t.status==="finished"?"Marked reviewed locally. No GitHub reply has been posted.":"This is an unposted draft.")+'</p></section>');
+    elements.push('<section class="report-section"><h4>Next Step</h4><p>Review the draft against the linked Issue or Discussion. To publish, use GitHub manually; this application has no posting capability.</p></section>');
+    if(typeof r.source_url==="string"&&r.source_url.startsWith("https://github.com/")){
+      elements.push('<section class="report-section"><h4>Sources</h4><a href="'+escapeHTML(r.source_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(r.source_url)+'</a></section>');
+    }
+    elements.push('<p class="report-coverage">Read-only: '+escapeHTML(String(r.read_only===true))+' · Posted: '+escapeHTML(String(r.posted===true))+'</p>');
+    elements.push('</section>');
+    return elements.join("");
+  }
+  if(t.definition_id==="community_report"){
+    elements.push(communityReportBody(t));
+    elements.push('</section>');
+    return elements.join("");
+  }
+  const issueCoverage=issueItems.length?"Reviewed "+issueItems.length+" Issue"+(issueItems.length===1?"":"s")+" in detail"+(typeof r.issue_page_count==="number"?" from "+r.issue_page_count+" retrieved Issue records":"")+".":"";
+  const summaryText=issueItems.length?issueCoverage:(summary|| (typeof r.summary==="string"?r.summary:""));
+  elements.push('<section class="report-section"><h4>Summary</h4><p>'+escapeHTML(summaryText||"No narrative summary was supplied by this execution.")+'</p></section>');
+  if(issueItems.length){
+    elements.push('<section class="report-section"><h4>Findings</h4><div class="issue-findings">');
+    for(const issue of issueItems){
+      const link=issue.url?'<a href="'+escapeHTML(issue.url)+'" rel="noopener noreferrer" target="_blank">'+escapeHTML("#"+issue.number)+" — "+escapeHTML(issue.title)+'</a>':escapeHTML("#"+issue.number+" — "+issue.title);
+      elements.push('<article class="issue-finding"><h5>'+link+'</h5>');
+      if(issue.priority)elements.push('<p class="report-meta"><strong>Priority (AI assessment):</strong> '+escapeHTML(issue.priority)+'</p>');
+      elements.push('<p>'+escapeHTML(issue.finding||"No detailed finding supplied.")+'</p></article>');
+    }
+    elements.push('</div></section>');
+  }else if(sections["Issue/Question"]||sections["Answer Status"]||sections.Category){
+    elements.push('<section class="report-section"><h4>Findings</h4>');
+    if(sections["Issue/Question"])elements.push('<p>'+escapeHTML(sections["Issue/Question"])+'</p>');
+    if(sections.Category)elements.push('<p class="report-meta">Category: '+escapeHTML(sections.Category)+'</p>');
+    if(sections["Answer Status"])elements.push('<p class="report-meta">Answer status: '+escapeHTML(sections["Answer Status"])+'</p>');
+    elements.push('</section>');
+  }else if(Array.isArray(r.evidence)&&r.evidence.length){
+    elements.push('<section class="report-section"><h4>Findings</h4><p>'+escapeHTML(String(r.evidence.length))+' evidence items in the stored result. See Sources and Technical Details for their contents.</p></section>');
+  }
+  const suggestions=sections["Actionable Suggestion"]||r.recommended_actions||r.recommendations;
+  if(issueItems.length){
+    const withActions=issueItems.filter(x=>x.action);
+    if(withActions.length){
+      elements.push('<section class="report-section"><h4>Recommended Actions</h4><ol class="issue-actions">'+withActions.map(x=>'<li><strong>Issue #'+escapeHTML(x.number)+':</strong> '+escapeHTML(x.action)+'</li>').join("")+'</ol></section>');
+    }
+  }else
+  if(typeof suggestions==="string"&&suggestions.trim()){
+    elements.push('<section class="report-section"><h4>Recommended Actions</h4><p>'+escapeHTML(suggestions.trim())+'</p></section>');
+  }else if(Array.isArray(suggestions)&&suggestions.length){
+    elements.push('<section class="report-section"><h4>Recommended Actions</h4><ol>'+suggestions.filter(x=>typeof x==="string").map(x=>'<li>'+escapeHTML(x)+'</li>').join("")+'</ol></section>');
+  }
+  const next=(typeof r.next_step==="string"&&r.next_step.trim())?r.next_step:
+     r.requires_human_review?"Review the findings and decide whether any follow-up is needed. No GitHub action has been performed.":"No follow-up instruction was supplied in this result.";
+  elements.push('<section class="report-section"><h4>Next Step</h4><p>'+escapeHTML(next)+'</p></section>');
+  const refs=[];
+  const append=link=>{if(typeof link==="string"&&/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|discussions)\/\d+(?:[/?#][^\s]*)?$/.test(link)&&!refs.includes(link))refs.push(link)};
+  append(taskSource(t));
+  for(const obj of [...(Array.isArray(r.discussions)?r.discussions:[]),...(Array.isArray(r.issues)?r.issues:[]),...(Array.isArray(r.evidence)?r.evidence:[])])append(obj?.url);
+  if(refs.length){
+    elements.push('<section class="report-section"><h4>Sources</h4><ul>'+refs.map(link=>'<li><a href="'+escapeHTML(link)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(link)+'</a></li>').join("")+'</ul></section>');
+  }
+  const coverage=[];
+  if(typeof r.issue_page_count==="number")coverage.push("Issue records fetched in page: "+r.issue_page_count);
+  if(typeof r.issues_analyzed==="number")coverage.push("Issues analyzed: "+r.issues_analyzed);
+  if(r.sample_limited===true)coverage.push("Limited sample — not a full repository review");
+  if(typeof r.discussions_analyzed==="number")coverage.push("Discussions analyzed: "+r.discussions_analyzed);
+  if(typeof r.discussions_in_fetched_page==="number")coverage.push("Discussions in fetched page: "+r.discussions_in_fetched_page);
+  if(r.total_pages_known===false)coverage.push("Total pages not verified");
+  if(r.incomplete===true)coverage.push("Coverage incomplete");
+  if(typeof r.note==="string"&&r.note.trim())coverage.push(r.note);
+  if(coverage.length)elements.push('<p class="report-coverage">'+escapeHTML(coverage.join(" · "))+'</p>');
+  elements.push('</section>');
+  return elements.join("");
+}
+async function deleteTask(t){
+  if(t.archived||!["finished","failed"].includes(t.status))return;
+  if(!window.confirm("Archive Task #"+t.id+" — "+t.title+"?\\n\\nThe Task will move to Archived Work, where its report and history remain available. GitHub content is unchanged."))return;
+  const button=$("delete-task");
+  if(button)button.disabled=true;
+  try{
+    await postJSON("/api/tasks/"+t.id+"/delete",{});
+    if(state.selectedTask===t.id)state.selectedTask=null;
+    $("work-detail").classList.add("hid");
+    // Force an updated list even when the poll just ran.
+    state.tasksSignature=null;
+    await refresh();
+  }catch(e){
+    if(button)button.disabled=false;
+    window.alert("Delete failed: "+e.message);
+  }
+}
+function renderActivity(t){
+  const events=Array.isArray(t.activity)?t.activity:[];
+  if(!events.length)return '<details class="technical-details"><summary>Activity History</summary><p class="note">This record predates activity tracking. Earlier events are not available.</p></details>';
+  const labels={created:"Task created",completed:"Task finished",needs_attention:"Draft needs attention",failed:"Task failed",marked_reviewed_locally:"Marked reviewed locally (not posted)",archived:"Moved to Archived Work",restored:"Restored to My Work"};
+  return '<details class="technical-details"><summary>Activity History ('+events.length+')</summary><ol class="task-activity">'+events.map(e=>'<li><strong>'+escapeHTML(labels[e.event]||e.event)+'</strong> <span class="note">'+escapeHTML(e.at_utc)+'</span></li>').join("")+'</ol></details>';
+}
+function showDetail(t){
+const c=$("work-detail");c.classList.remove("hid");
+const source=taskSource(t);
+const hasResult=t.result!==null&&t.result!==undefined;
+const resultActions=hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(t.archived?'<div class="task-management"><span class="note">Archived record — view only. Original result and activity history are retained.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
+const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
+const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
+const del=$("delete-task");if(del)del.addEventListener("click",()=>deleteTask(t));
+
+const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
+}
+document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
+document.querySelectorAll('input[name="route"]').forEach(r=>r.addEventListener("change",()=>{state.route=r.value;renderRoute()}));
+$("selection").addEventListener("change",renderChoices);
+$("start").addEventListener("click",startTask);
+$("settings-cancel").addEventListener("click",closeSettings);
+$("settings-save").addEventListener("click",saveSettings);
+$("test-connection").addEventListener("click",testSettings);
+$("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
+$("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
+$("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
+
+(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await loadSettings();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
+setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
+</script></body></html>

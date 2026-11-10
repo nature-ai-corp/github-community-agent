@@ -1,0 +1,108 @@
+/* GC Agent product additions to the original Apache-2.0 Worker v0.1.1 UI. */
+.hid{display:none!important}
+.nav{cursor:pointer}
+#work-center .nav-item,.sidebar-footer .nav-item{background:none;border:0;color:var(--nav-text);text-align:left;width:100%;font-size:14px}
+#work-center .nav-item.active,.sidebar-footer .nav-item.active{background:var(--nav-selected);color:var(--nav-strong)}
+#sidebar .new-work{margin-top:2px}
+#work-nav{overflow-y:auto}
+#work-nav button{background:none;border:0;color:var(--nav-text);text-align:left;width:100%;padding:7px 10px;border-radius:5px}
+#work-nav button:hover{background:var(--nav-selected)}
+#page-new .card{margin-bottom:14px}
+#page-new .route{display:flex;gap:12px;margin:12px 0 18px}
+#page-new .route label{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+#page-new .route label.selected{border-color:var(--accent);background:var(--user)}
+#page-new .route input{width:auto}
+#page-new .field{margin:10px 0}
+#page-new .field select{max-width:400px}
+#choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;margin:14px 0}
+.taskchoice{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;background:var(--panel);padding:12px;border:1px solid var(--border);border-radius:8px}
+.taskchoice:hover{border-color:var(--accent)}
+.taskchoice.selected{background:var(--user);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.taskchoice:disabled{opacity:.6;cursor:not-allowed}
+.taskchoice small,.tag{font-size:12px;color:var(--muted)}
+.tag.planned{color:#966628}
+#page-new .task-start{margin-top:14px}
+.filter-group{display:flex;gap:8px}.filter-group select{min-width:125px;max-width:220px}
+#work-list{display:flex;flex-direction:column;gap:8px}
+#work-list .work{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--border);padding:12px 14px;border-radius:8px}
+#work-list .work:hover{border-color:var(--accent)}
+#work-list .work strong{display:block}
+#work-list .work .note{font-size:12px;color:var(--muted)}
+#work-list .work .status{font-weight:600}
+.status.finished{color:var(--ok)}.status.failed{color:var(--error-border)}
+.status.needs_attention{color:#a05f15}.status.running{color:var(--accent)}
+#work-detail{margin-top:14px}
+#work-detail .note{color:var(--muted);font-size:12px}
+#work-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:54vh;overflow:auto;background:var(--surface);padding:12px}
+#work-detail .source{overflow-wrap:anywhere}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.40);display:flex;justify-content:center;align-items:center;z-index:30}
+#settings-dialog{position:relative;margin:auto;max-height:92vh;overflow-y:auto;box-shadow:0 18px 48px rgba(0,0,0,.18)}
+#settings-dialog label{display:block;margin:10px 0}
+#settings-message{font-size:12px;min-height:1.7em;color:var(--muted)}
+#error{color:var(--error-border);font-size:13px}
+#page-new .form-actions{margin-top:12px;display:flex}
+@media(max-width:760px){#sidebar{position:relative;transform:none;width:100%;height:auto}
+#app{display:block;height:auto}#work-center{display:flex;flex-direction:row;flex-wrap:wrap}
+#work-center .nav-item{width:auto}#work-nav{display:none}#main{min-height:70vh}
+#topbar{display:none}.filter-group{flex-wrap:wrap}}
+
+/* Product-owned Task details; styling extends the shared Worker v0.1.1 UI. */
+.task-details{margin:10px 0 16px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.task-details .smallhead{font-size:12px;font-weight:700;color:var(--text);margin:12px 0 3px}
+.task-details .smallhead:first-child{margin-top:0}
+.task-details p{margin:0 0 5px;font-size:13px;line-height:1.5}
+.task-details ol{margin:5px 0 8px;padding-left:20px;font-size:13px}
+.task-details li{margin:2px 0}
+.taskchoice .planned{color:#966628}
+
+/* My Work result actions: stay visible above the scrollable JSON output. */
+.result-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 4px;flex-wrap:wrap}
+.result-toolbar .smallhead{font-size:12px;font-weight:700;color:var(--muted)}
+.result-action-buttons{display:flex;gap:7px}
+.result-action-buttons button{font-size:12px;padding:5px 11px;border:1px solid var(--border);border-radius:6px;background:var(--panel)}
+.result-action-buttons button:hover{border-color:var(--accent);color:var(--accent)}
+.result-action-status{color:var(--muted);font-size:12px;min-height:1.2em;margin:0 0 5px}
+#task-result-json{margin-top:0}
+
+/* Source-grounded, user-facing Work Report, not the raw developer JSON. */
+.user-report{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:19px;margin:14px 0}
+.user-report-title{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:17px}
+.report-status{font-size:12px;font-weight:600;border-radius:18px;padding:3px 9px;background:var(--surface);color:var(--ok);text-transform:capitalize}
+.report-subtitle{color:var(--muted);font-size:12px;margin:4px 0 12px}
+.report-section{padding:13px 0;border-top:1px solid var(--border)}
+.report-section h4{margin:0 0 8px;font-size:13px;font-weight:700}
+.report-section p,.report-section ul,.report-section ol{font-size:13px;line-height:1.6;margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.report-section ul,.report-section ol{padding-left:20px}
+.report-section li{margin:4px 0}
+.report-section a{overflow-wrap:anywhere}
+.report-meta{color:var(--muted)}
+.report-coverage{font-size:11px;line-height:1.5;color:var(--muted);margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
+.technical-details{margin:12px 0 4px}
+.technical-details>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:7px 0}
+.technical-details[open]>summary{color:var(--text)}
+
+/* Review Issues: readable per-Issue findings and actions. */
+.issue-findings{display:flex;flex-direction:column;gap:0}
+.issue-finding{padding:12px 0;border-bottom:1px solid var(--border)}
+.issue-finding:first-child{padding-top:0}
+.issue-finding:last-child{border-bottom:0;padding-bottom:0}
+.issue-finding h5{font-size:13px;margin:0 0 5px}
+.issue-finding .report-meta{font-size:12px}
+.issue-actions li{margin:8px 0}
+
+/* Unposted draft is the user deliverable, not developer JSON. */
+.draft-reply-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:13px;padding:14px;border-radius:7px;background:var(--surface);border:1px solid var(--border)}
+
+/* Community Report: distinct headings and readable retained AI narrative. */
+.user-report .report-section h5{font-size:13px;margin:13px 0 6px}
+.report-prose{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px}
+
+/* Local Task management, secondary to report content. */
+.task-management{display:flex;align-items:center;gap:12px;margin:18px 0 2px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.task-delete{background:var(--panel);border:1px solid var(--error-border);color:var(--error-border);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer}
+.task-delete:hover{background:var(--surface)}
+.task-delete:disabled{opacity:.5;cursor:not-allowed}
+
+/* Archived Work: keep local history legible without building an audit dashboard. */
+.task-activity{padding-left:20px;font-size:12px;line-height:1.65}
+.task-activity li{margin:5px 0;overflow-wrap:anywhere}

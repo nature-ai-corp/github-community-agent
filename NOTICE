@@ -4,7 +4,24 @@ Copyright 2026 NATURE AI CORP and contributors.
 Portions of the initial GitHub read-only community tools were adapted from
 Nature AI Worker (Apache License, Version 2.0), as developed in
 nature-ai-corp/nature-ai-worker, branch feature/github-community-agent-profile.
-Original per-file SPDX copyright and license notices are retained.
+Original per-file SPDX copyright and license notices are retained. The
+attribution notice from the Nature AI Worker NOTICE file is reproduced here:
 
-This independent repository is not yet released. License/NOTICE and full
-dependency inventory must be finalized before public distribution.
+  Nature AI Worker
+  Copyright 2026 The Nature AI Worker Authors
+
+The Windows installer distribution additionally contains third-party
+software (the CPython runtime and incorporated libraries, Tcl/Tk, the
+PyInstaller bootloader and bundled Python packages). Their license texts,
+notices and a CycloneDX SBOM are installed in the "third-party-licenses"
+directory; start with third-party-licenses/THIRD_PARTY_NOTICES.txt.
+
+GitHub Community Agent is an independent product of NATURE AI CORP. It is
+not affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft
+Corporation. "GitHub" is a trademark of GitHub, Inc. and is used only to
+identify the service this software works with. All other trademarks are the
+property of their respective owners.
+
+Windows releases are published on the project's GitHub Releases page with
+SHA256 checksums. Pre-release installers may be unsigned; verify the
+checksum before installing.

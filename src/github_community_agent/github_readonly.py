@@ -121,20 +121,41 @@ def _send(method: str, url: str, *, params: dict | None = None, body: dict | Non
                "X-GitHub-Api-Version": "2022-11-28"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    try:
-        # A fixed HTTPS host, no redirects and no environment proxies: the token and the
-        # request can only ever reach api.github.com.
-        with httpx.Client(timeout=10, follow_redirects=False, trust_env=False, transport=_transport) as client:
-            with client.stream(method, url, params=params, json=body, headers=headers) as response:
-                content = b""
-                for chunk in response.iter_bytes():
-                    content += chunk
-                    if len(content) > MAX_BYTES:
-                        raise ToolError("The GitHub response exceeded the allowed size.")
-                return response.status_code, response.headers, content
-    except httpx.HTTPError as exc:
-        raise ToolError("Unable to reach GitHub right now. Try again later.") from exc
-
+    # Retry only a known, fixed read-only GraphQL *query* on a transient
+    # connection/timeout error. Never retry mutations, arbitrary POSTs, or
+    # HTTP error responses. A failed attempt never submits a GitHub comment.
+    retryable_read = (method == "POST" and url == GRAPHQL_URL
+                      and isinstance(body, dict)
+                      and body.get("query") in (DISCUSSIONS_QUERY, DISCUSSION_QUERY))
+    attempts = 2 if retryable_read else 1
+    for attempt in range(attempts):
+        try:
+            # Fixed HTTPS GitHub host, no redirects, no proxies.
+            # A separate 20s read timeout avoids terminating a valid GitHub
+            # response just as it reaches the client-side 10s default.
+            timeout = httpx.Timeout(connect=10, read=20, write=10, pool=10)
+            with httpx.Client(timeout=timeout, follow_redirects=False,
+                              trust_env=False, transport=_transport) as client:
+                with client.stream(method, url, params=params, json=body, headers=headers) as response:
+                    content = b""
+                    for chunk in response.iter_bytes():
+                        content += chunk
+                        if len(content) > MAX_BYTES:
+                            raise ToolError("The GitHub response exceeded the allowed size.")
+                    return response.status_code, response.headers, content
+        except (httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
+            if attempt + 1 < attempts:
+                continue
+            raise ToolError("GitHub read request timed out (after a bounded retry for Discussions). "
+                            "Check GitHub connectivity or retry later.") from exc
+        except (httpx.ConnectError, httpx.ReadError) as exc:
+            if attempt + 1 < attempts:
+                continue
+            raise ToolError("GitHub connection failed during the read request. "
+                            "Check network connectivity and retry later.") from exc
+        except httpx.HTTPError as exc:
+            # Hide exception and request details, including any credentials.
+            raise ToolError("GitHub transport failed during the read request.") from exc
 
 def _check_status(status: int, headers: httpx.Headers, what: str) -> None:
     if status == 200:

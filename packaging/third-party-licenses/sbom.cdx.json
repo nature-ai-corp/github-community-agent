@@ -1,0 +1,850 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pypi:anyio",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/agronholm/anyio"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "name": "anyio",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "43"
+        }
+      ],
+      "purl": "pkg:pypi/anyio@4.16.0",
+      "type": "library",
+      "version": "4.16.0"
+    },
+    {
+      "bom-ref": "pypi:certifi",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/certifi/python-certifi"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MPL-2.0"
+        }
+      ],
+      "name": "certifi",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "2"
+        }
+      ],
+      "purl": "pkg:pypi/certifi@2026.10.23",
+      "type": "library",
+      "version": "2026.10.23"
+    },
+    {
+      "bom-ref": "pypi:h11",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/python-hyper/h11"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "name": "h11",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "11"
+        }
+      ],
+      "purl": "pkg:pypi/h11@0.16.0",
+      "type": "library",
+      "version": "0.16.0"
+    },
+    {
+      "bom-ref": "pypi:httpcore",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/encode/httpcore"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "name": "httpcore",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "31"
+        }
+      ],
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "type": "library",
+      "version": "1.0.9"
+    },
+    {
+      "bom-ref": "pypi:httpx",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/encode/httpx"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "name": "httpx",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "23"
+        }
+      ],
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "type": "library",
+      "version": "0.28.1"
+    },
+    {
+      "bom-ref": "pypi:idna",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/kjd/idna"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "name": "idna",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "6"
+        }
+      ],
+      "purl": "pkg:pypi/idna@3.20",
+      "type": "library",
+      "version": "3.20"
+    },
+    {
+      "bom-ref": "pypi:typing-extensions",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/python/typing_extensions"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "PSF-2.0"
+        }
+      ],
+      "name": "typing-extensions",
+      "properties": [
+        {
+          "name": "gc-agent:frozen-modules-code-identical",
+          "value": "1"
+        }
+      ],
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "type": "library",
+      "version": "4.16.0"
+    },
+    {
+      "bom-ref": "cpython",
+      "components": [
+        {
+          "bom-ref": "file:_internal/_asyncio.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "0e53f227048492830bf0328bbc3bebc336268821c88c1da1ba1711855b51cd01"
+            }
+          ],
+          "name": "_internal/_asyncio.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_asyncio.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_bz2.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "0adf0680f54eec173401230df0aa561aa188c7f4d40e5f2ba790d333c6057d8d"
+            }
+          ],
+          "name": "_internal/_bz2.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_bz2.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_ctypes.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "487d9041455132d74ed26c0eae514675c31010a926db0cd6c6f391fcccc66c42"
+            }
+          ],
+          "name": "_internal/_ctypes.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_ctypes.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_decimal.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "7e8e5d026e22be2669b2ac6175fece6b7fbe2faf1e456fa4785130832d244955"
+            }
+          ],
+          "name": "_internal/_decimal.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_decimal.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_hashlib.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "fc9075f3a836fdcbb826b541f4d1e9382d84c73f830f5f51f8ca3b9ccb9d42cb"
+            }
+          ],
+          "name": "_internal/_hashlib.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_hashlib.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_lzma.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "09596ee41dadfabe006429f1cbb7505a3006daa80206ae2dd2d0d8d5936b6229"
+            }
+          ],
+          "name": "_internal/_lzma.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_lzma.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_multiprocessing.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "56bc0f253e74f965d5565377e40737093ee084a8ca4b4347f2f6bb9c15661c6d"
+            }
+          ],
+          "name": "_internal/_multiprocessing.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_multiprocessing.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_overlapped.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "b2dcaefadf6194783f24184fd074b83983091d46c6b50e88dc8a652a8569d614"
+            }
+          ],
+          "name": "_internal/_overlapped.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_overlapped.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_queue.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "aa1bc394ac6ed619b2525e631665431e9fbd798cd7d8374755efed9c3d325539"
+            }
+          ],
+          "name": "_internal/_queue.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_queue.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_socket.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "03ac131ec3fa4c550d36fa7c5cad3601cbe6c8f18e1a65b9bd8a65ce1131f9e1"
+            }
+          ],
+          "name": "_internal/_socket.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_socket.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_sqlite3.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "721707b1a66b51e2c1a3be964f4d5d0c6eb89dc6671b8ea121a10d46f5041338"
+            }
+          ],
+          "name": "_internal/_sqlite3.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_sqlite3.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_ssl.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "74bfe7a396737cf5910cf4a789d9cf4263ba6ba93c994ce8d5e2f61fa972097d"
+            }
+          ],
+          "name": "_internal/_ssl.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_ssl.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_tkinter.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "a76ae10c93d128952d457dc392adab4dfd172106b4b37fe21bbceffe50df563c"
+            }
+          ],
+          "name": "_internal/_tkinter.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_tkinter.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/pyexpat.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "4095f444c5d0fe9d24c1a46a8630459f8488c5392dc82be9af67f4045ea9c368"
+            }
+          ],
+          "name": "_internal/pyexpat.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/pyexpat.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/python313.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "26026530507a7389e7892ce130e7c1753b32a2df03ec3721d45ad8c1705d40eb"
+            }
+          ],
+          "name": "_internal/python313.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "python313.dll"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/select.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "f2b8f6008d9e8697700b73fd645a76d83e096e8214a6e31e644de32f56122f6a"
+            }
+          ],
+          "name": "_internal/select.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/select.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/unicodedata.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "541f46cf1ab49239b008a563eee6762086c7288f64631cb5cf59451cf22fc70c"
+            }
+          ],
+          "name": "_internal/unicodedata.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/unicodedata.pyd"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "PSF-2.0"
+        }
+      ],
+      "name": "CPython runtime",
+      "purl": "pkg:generic/python@3.13.17",
+      "type": "library",
+      "version": "3.13.17"
+    },
+    {
+      "bom-ref": "openssl",
+      "components": [
+        {
+          "bom-ref": "file:_internal/libcrypto-3.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "75495fe0e079ab00d49be740d3c710a0b94e3f74f9648cb7cc9f768fc7f52319"
+            }
+          ],
+          "name": "_internal/libcrypto-3.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/libcrypto-3.dll"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/libssl-3.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "8957182a9c385bfd9f3f790921de2ddc614cf91f99edbed4e9e5446a46504e32"
+            }
+          ],
+          "name": "_internal/libssl-3.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/libssl-3.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "name": "OpenSSL",
+      "purl": "pkg:generic/openssl@3.5.9",
+      "type": "library",
+      "version": "3.5.9"
+    },
+    {
+      "bom-ref": "sqlite",
+      "components": [
+        {
+          "bom-ref": "file:_internal/sqlite3.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "ef18d4493faf4c0d0674fe472dc8eec246f4dd22043d851997a3e3e5c868e9b5"
+            }
+          ],
+          "name": "_internal/sqlite3.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/sqlite3.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "blessing"
+          }
+        }
+      ],
+      "name": "SQLite",
+      "purl": "pkg:generic/sqlite@3.50.4",
+      "type": "library",
+      "version": "3.50.4"
+    },
+    {
+      "bom-ref": "zlib",
+      "components": [
+        {
+          "bom-ref": "file:_internal/zlib1.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "1dd27f0411ebb31bd148a61589cee254410915f1e6c37aa3ffa52fac71a5426c"
+            }
+          ],
+          "name": "_internal/zlib1.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/zlib1.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Zlib"
+        }
+      ],
+      "name": "zlib",
+      "purl": "pkg:generic/zlib@1.3.1",
+      "type": "library",
+      "version": "1.3.1"
+    },
+    {
+      "bom-ref": "libffi",
+      "components": [
+        {
+          "bom-ref": "file:_internal/libffi-8.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a"
+            }
+          ],
+          "name": "_internal/libffi-8.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/libffi-8.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "name": "libffi",
+      "purl": "pkg:generic/libffi@3.4.4",
+      "type": "library",
+      "version": "3.4.4"
+    },
+    {
+      "bom-ref": "tcl-tk",
+      "components": [
+        {
+          "bom-ref": "file:_internal/tcl86t.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "a308beae8555cff5ac2aff7eaf0aef40b5fe173f047e246dc49da9a4d3ef62f9"
+            }
+          ],
+          "name": "_internal/tcl86t.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/tcl86t.dll"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/tk86t.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "20f4876506bce7f89e53570e64fd1dce30a64548326b45f372871c7019560df4"
+            }
+          ],
+          "name": "_internal/tk86t.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/tk86t.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "TCL"
+        }
+      ],
+      "name": "Tcl/Tk",
+      "purl": "pkg:generic/tcl-tk@8.6.15",
+      "type": "library",
+      "version": "8.6.15"
+    },
+    {
+      "bom-ref": "expat",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "name": "Expat (statically linked in pyexpat)",
+      "purl": "pkg:generic/expat@2.8.1",
+      "type": "library",
+      "version": "2.8.1"
+    },
+    {
+      "bom-ref": "libmpdec",
+      "licenses": [
+        {
+          "expression": "BSD-2-Clause"
+        }
+      ],
+      "name": "libmpdec (statically linked in _decimal)",
+      "purl": "pkg:generic/mpdecimal@4.0.0",
+      "type": "library",
+      "version": "4.0.0"
+    },
+    {
+      "bom-ref": "bzip2",
+      "licenses": [
+        {
+          "expression": "bzip2-1.0.6"
+        }
+      ],
+      "name": "bzip2 (statically linked in _bz2)",
+      "purl": "pkg:generic/bzip2@1.0.8",
+      "type": "library",
+      "version": "1.0.8"
+    },
+    {
+      "bom-ref": "xz",
+      "licenses": [
+        {
+          "license": {
+            "name": "LicenseRef-public-domain"
+          }
+        }
+      ],
+      "name": "liblzma from XZ Utils (statically linked in _lzma)",
+      "purl": "pkg:generic/xz@5.2.5",
+      "type": "library",
+      "version": "5.2.5"
+    },
+    {
+      "bom-ref": "msvc-runtime",
+      "components": [
+        {
+          "bom-ref": "file:_internal/VCRUNTIME140.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7"
+            }
+          ],
+          "name": "_internal/VCRUNTIME140.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "vcruntime140.dll"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "name": "LicenseRef-Microsoft-Distributable-Code"
+          }
+        }
+      ],
+      "name": "Microsoft Visual C++ runtime (VCRUNTIME140.dll)",
+      "purl": "pkg:generic/microsoft/vcruntime140@14.51.36247.0",
+      "type": "library",
+      "version": "14.51.36247.0"
+    },
+    {
+      "bom-ref": "pyinstaller",
+      "components": [
+        {
+          "bom-ref": "file:GitHubCommunityAgent.exe",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
+            }
+          ],
+          "name": "GitHubCommunityAgent.exe",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "PyInstaller/bootloader/Windows-64bit-intel/run.exe"
+            }
+          ],
+          "type": "file"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "GPL-2.0-or-later WITH Bootloader-exception"
+        }
+      ],
+      "name": "PyInstaller bootloader and loader",
+      "purl": "pkg:pypi/pyinstaller@6.22.3",
+      "type": "library",
+      "version": "6.22.3"
+    },
+    {
+      "bom-ref": "pyinstaller-rthooks",
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "name": "PyInstaller run-time hooks",
+      "purl": "pkg:pypi/pyinstaller@6.22.3",
+      "type": "library",
+      "version": "6.22.3"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "bzip2",
+        "cpython",
+        "expat",
+        "libffi",
+        "libmpdec",
+        "msvc-runtime",
+        "openssl",
+        "pyinstaller",
+        "pyinstaller-rthooks",
+        "pypi:anyio",
+        "pypi:certifi",
+        "pypi:h11",
+        "pypi:httpcore",
+        "pypi:httpx",
+        "pypi:idna",
+        "pypi:typing-extensions",
+        "sqlite",
+        "tcl-tk",
+        "xz",
+        "zlib"
+      ],
+      "ref": "github-community-agent"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "github-community-agent",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "name": "github-community-agent",
+      "type": "application",
+      "version": "1.0.0rc1"
+    },
+    "tools": {
+      "components": [
+        {
+          "name": "scripts/third_party_notices.py",
+          "type": "application"
+        }
+      ]
+    }
+  },
+  "serialNumber": "urn:uuid:06e4f763-b593-53fb-8ba5-25bc86838269",
+  "specVersion": "1.5",
+  "version": 1
+}

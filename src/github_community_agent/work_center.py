@@ -1,0 +1,507 @@
+"""Independent, loopback-only Work Center with dynamic product Task definitions.
+
+Task entry selects ONE taxonomy route (Work Type OR Domain) before choosing
+a definition. This app is not a NATURE AI Platform Task engine. Credential
+material stays in the request/worker memory, never the SQLite work journal.
+"""
+from __future__ import annotations
+
+import json
+import os
+import secrets
+import sqlite3
+import threading
+import webbrowser
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from .desktop import execute_workflow
+from .model_provider import ChatCompletionsModel, ModelSettings
+from .errors import ToolError
+from .encrypted_settings import EncryptedSettings, SettingsError
+
+MAX_REQUEST_BYTES = 12000
+MAX_DISCARD_BYTES = 64 * 1024  # largest rejected body drained before replying
+
+
+@dataclass(frozen=True)
+class TaskDefinition:
+    id: str
+    title: str
+    work_type: str
+    domain: str
+    workflow: str | None
+    version: str
+    enabled: bool
+
+
+# Product-specific, mutually exclusive Task definition routes. V1 concrete
+# operations ARE the Work Types; V2 promotion targets are Domains. Blank
+# classification means the Task belongs solely to the other route.
+DEFINITIONS = (
+    TaskDefinition("review_issues", "Review Issues", "Review Issues", "", "review_issues", "V1", True),
+    TaskDefinition("review_discussions", "Review Discussions", "Review Discussions", "", "review_discussions", "V1", True),
+    TaskDefinition("draft_issue", "Draft Issue Reply", "Draft Issue Reply", "", "draft_replies", "V1", True),
+    TaskDefinition("draft_discussion", "Draft Discussion Reply", "Draft Discussion Reply", "", "draft_replies", "V1", True),
+    TaskDefinition("community_report", "Community Report", "Community Report", "", "community_report", "V1", True),
+    TaskDefinition("promote_self", "Promote GitHub Community Agent", "", "Self-Promotion", None, "V2", False),
+    TaskDefinition("promote_worker", "Promote Nature AI Worker", "", "Product Promotion", None, "V2", False),
+    TaskDefinition("promote_other", "Promote Other Repository", "", "Product Promotion", None, "V2", False),
+)
+BY_ID = {d.id: d for d in DEFINITIONS}
+
+# Each Task owns its own user-facing definition. The Work Center only renders
+# these records; another product can supply different classification/fields.
+TASK_DETAILS = {
+    "review_issues": {
+        "goal": "Review recent public GitHub Issues and identify items that may need maintainer attention.",
+        "steps": ["Read a bounded page of Issues from the configured repository.",
+                  "Analyze the retrieved issues with the configured AI model.",
+                  "Return prioritized findings grounded in actual GitHub evidence."],
+        "output": "Issue analysis with evidence and source references; no GitHub changes.",
+        "requires": "Public repository, configured AI model and API key.",
+        "review": "Human review recommended before acting on findings.",
+        "limitations": "Only fetched issues are covered; not a complete audit of every Issue."
+    },
+    "review_discussions": {
+        "goal": "Review recent GitHub Discussions and identify questions or conversations needing follow-up.",
+        "steps": ["Read a bounded page of Discussions and selected available details/comments.",
+                  "Analyze topics and unanswered or pending conversations.",
+                  "Produce a source-backed review for a maintainer."],
+        "output": "Discussion analysis with actual links; no replies are published.",
+        "requires": "Public repository, AI model, and GitHub Discussions READ token.",
+        "review": "Human review required before any community reply.",
+        "limitations": "Only fetched discussions and comments are covered."
+    },
+    "draft_issue": {
+        "goal": "Prepare a suggested maintainer reply to one specific GitHub Issue.",
+        "steps": ["Read the selected Issue and its existing context.",
+                  "Generate a relevant reply draft using the AI model.",
+                  "Place the draft in Needs My Attention for human review."],
+        "output": "Unposted reply draft and associated GitHub source evidence.",
+        "requires": "Public repository, Issue number, AI model and API key.",
+        "review": "Must be reviewed by a person; Mark reviewed never posts to GitHub.",
+        "limitations": "Read-only: no comments or replies are sent."
+    },
+    "draft_discussion": {
+        "goal": "Prepare a suggested maintainer reply to one specific GitHub Discussion.",
+        "steps": ["Read the selected Discussion and available context.",
+                  "Generate a context-specific reply draft.",
+                  "Place the draft in Needs My Attention for human review."],
+        "output": "Unposted discussion reply draft and source evidence.",
+        "requires": "Public repository, Discussion number, Discussions READ token, AI model and API key.",
+        "review": "Must be reviewed by a person; Mark reviewed never posts to GitHub.",
+        "limitations": "Read-only: no discussion replies are sent."
+    },
+    "community_report": {
+        "goal": "Summarize observed community activity and follow-up opportunities.",
+        "steps": ["Retrieve bounded available Issue and Discussion evidence.",
+                  "Analyze observed activity with the configured AI model.",
+                  "Report findings with coverage limitations and source evidence."],
+        "output": "Community activity report, based only on retrieved data.",
+        "requires": "Public repository, AI model; Discussions READ token needed for Discussion coverage.",
+        "review": "Human review recommended; no changes are published.",
+        "limitations": "A missing Discussions token or limited fetched data makes coverage incomplete."
+    },
+    "promote_self": {
+        "goal": "Plan promotion of GitHub Community Agent itself.",
+        "steps": ["V2 planned: assess the project's current public materials.",
+                  "V2 planned: propose promotion opportunities and prepare content.",
+                  "V2 planned: require review before any publication."],
+        "output": "Future promotion plan and draft materials; not yet available.",
+        "requires": "V2 Promotion implementation and explicit review/approval safeguards.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+    "promote_worker": {
+        "goal": "Plan promotion of the separate Nature AI Worker product.",
+        "steps": ["V2 planned: analyze product positioning and public materials.",
+                  "V2 planned: prepare tailored outreach and community content.",
+                  "V2 planned: require review and approval before publication."],
+        "output": "Future promotion plan and drafts; not yet available.",
+        "requires": "V2 Promotion implementation and approved target scope.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+    "promote_other": {
+        "goal": "Plan promotion of another explicitly selected GitHub repository.",
+        "steps": ["V2 planned: review the specified repository and audience.",
+                  "V2 planned: prepare an evidence-based promotion plan and content.",
+                  "V2 planned: require approval before any external action."],
+        "output": "Future promotion plan and drafts; not yet available.",
+        "requires": "V2 Promotion implementation and an explicitly authorized target repository.",
+        "review": "Future external publication requires human approval.",
+        "limitations": "V2 is not implemented; this Task cannot run."
+    },
+}
+
+
+
+
+def task_choices(route: str, value: str) -> list[TaskDefinition]:
+    """Choice route is mutually exclusive; Task definitions own both classifications."""
+    if route not in ("work_type", "domain"):
+        raise ToolError("Choose Work Type or Domain, not both.")
+    return [d for d in DEFINITIONS if value and getattr(d, route) == value]
+
+
+def data_directory() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share")
+    return base / "GitHubCommunityAgent"
+
+
+def _utc() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+class Journal:
+    def __init__(self, db: Path):
+        self.db = db
+        db.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS work (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                definition_id TEXT NOT NULL, repository TEXT NOT NULL,
+                status TEXT NOT NULL, created_utc TEXT NOT NULL,
+                updated_utc TEXT NOT NULL, result_json TEXT, error TEXT
+            )""")
+            # Backward-compatible in-place migration of existing local Work
+            # history. A tombstone hides deleted items but preserves evidence.
+            columns = {row[1] for row in con.execute("PRAGMA table_info(work)")}
+            if "deleted_utc" not in columns:
+                con.execute("ALTER TABLE work ADD COLUMN deleted_utc TEXT")
+            # Append-only minimal Task activity. Older records cannot be
+            # retroactively reconstructed as witnessed events.
+            con.execute("""CREATE TABLE IF NOT EXISTS work_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                happened_utc TEXT NOT NULL,
+                FOREIGN KEY(task_id) REFERENCES work(id)
+            )""")
+
+    def _connect(self):
+        return sqlite3.connect(self.db, timeout=15)
+
+    @staticmethod
+    def _event(con, task_id: int, event: str, at: str):
+        # Only internal event names/timestamps. Never API keys, tokens or the
+        # source's arbitrary untrusted content.
+        con.execute(
+            "INSERT INTO work_events(task_id,event,happened_utc) VALUES (?,?,?)",
+            (task_id, event, at))
+
+    def create(self, definition_id: str, repository: str) -> int:
+        now = _utc()
+        with self._connect() as con:
+            row = con.execute(
+                "INSERT INTO work(definition_id,repository,status,created_utc,updated_utc) VALUES (?,?,?,?,?)",
+                (definition_id, repository, "running", now, now))
+            task_id = int(row.lastrowid)
+            self._event(con, task_id, "created", now)
+            return task_id
+
+    def finish(self, task_id: int, status: str, result: dict | None = None, error: str | None = None):
+        if status not in ("finished", "needs_attention", "failed"):
+            raise ValueError("Invalid terminal work status.")
+        with self._connect() as con:
+            now = _utc()
+            row = con.execute(
+                "UPDATE work SET status=?, updated_utc=?, result_json=?, error=? WHERE id=? AND status='running' AND deleted_utc IS NULL",
+                (status, now, json.dumps(result, ensure_ascii=False) if result is not None else None,
+                 error, task_id))
+            if row.rowcount == 1:
+                self._event(con, task_id, "completed" if status == "finished" else status, now)
+
+    def review(self, task_id: int) -> bool:
+        with self._connect() as con:
+            now = _utc()
+            result = con.execute("UPDATE work SET status='finished', updated_utc=? "
+                                 "WHERE id=? AND status='needs_attention' AND deleted_utc IS NULL", (now, task_id))
+            if result.rowcount == 1:
+                self._event(con, task_id, "marked_reviewed_locally", now)
+            return result.rowcount == 1
+
+    def delete(self, task_id: int) -> bool:
+        """Soft-delete an inactive record; never delete running or pending work.
+
+        Retain a tombstone for history/audit; no GitHub API or filesystem action.
+        """
+        if type(task_id) is not int or task_id < 1:
+            return False
+        with self._connect() as con:
+            now = _utc()
+            row = con.execute(
+                "UPDATE work SET deleted_utc=? WHERE id=? AND deleted_utc IS NULL "
+                "AND status IN ('finished','failed')",
+                (now, task_id))
+            if row.rowcount == 1:
+                self._event(con, task_id, "archived", now)
+            return row.rowcount == 1
+
+    def list(self, include_archived: bool = False) -> list[dict]:
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            where = "" if include_archived else "WHERE deleted_utc IS NULL"
+            rows = con.execute(f"SELECT * FROM work {where} ORDER BY id DESC LIMIT 200").fetchall()
+            ids = [row["id"] for row in rows]
+            events = {}
+            if ids:
+                marks = ",".join("?" for _ in ids)
+                for e in con.execute(
+                    f"SELECT task_id,event,happened_utc FROM work_events WHERE task_id IN ({marks}) ORDER BY id",
+                    ids):
+                    events.setdefault(e["task_id"], []).append(
+                        {"event": e["event"], "at_utc": e["happened_utc"]})
+        output = []
+        for row in rows:
+            record = dict(row)
+            definition = BY_ID.get(record["definition_id"])
+            record["title"] = definition.title if definition else record["definition_id"]
+            record["classifications"] = (
+                {"work_type": definition.work_type, "domain": definition.domain}
+                if definition else {})
+            record["version"] = definition.version if definition else "unknown"
+            record["result"] = json.loads(record.pop("result_json")) if record["result_json"] else None
+            record["archived"] = record["deleted_utc"] is not None
+            record["activity"] = events.get(record["id"], [])
+            output.append(record)
+        return output
+
+
+class WorkService:
+    def __init__(self, journal: Journal):
+        self.journal = journal
+
+    def definitions(self) -> list[dict]:
+        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in DEFINITIONS]
+
+    def start(self, payload: dict) -> int:
+        """Create a real Work record then launch one existing production workflow."""
+        route = payload.get("route")
+        selected = payload.get("selection")
+        definition_id = payload.get("definition_id")
+        definition = BY_ID.get(definition_id)
+        if (not definition or not definition.enabled
+                or definition not in task_choices(route, selected)):
+            raise ToolError("Task must match the selected Work Type OR Domain.")
+        repository = payload.get("repository", "")
+        provider = payload.get("provider")
+        model_name = payload.get("model_name")
+        model_key = payload.get("model_key")
+        discussion_token = payload.get("discussion_token") or ""
+        target = "discussion" if definition_id == "draft_discussion" else "issue"
+        number = payload.get("number")
+        if definition.workflow == "draft_replies":
+            if type(number) is not int or number <= 0:
+                raise ToolError("A positive Issue/Discussion number is required.")
+        if not isinstance(model_key, str) or not model_key:
+            raise ToolError("Model API key must be provided for this run.")
+        # Validate user-supplied settings BEFORE creating a work record.
+        from .runtime import CommunitySettings
+        from .model_provider import ModelSettings
+        CommunitySettings(repository)
+        ModelSettings(provider, model_name)
+        task_id = self.journal.create(definition_id, repository)
+        args = dict(repository=repository, workflow=definition.workflow, provider=provider,
+                    model_name=model_name, model_key=model_key, discussion_token=discussion_token,
+                    target=target, number=number)
+        threading.Thread(target=self._run, args=(task_id, definition_id, args), daemon=True).start()
+        return task_id
+
+    def _run(self, task_id: int, definition_id: str, args: dict):
+        try:
+            result = execute_workflow(**args)
+            status = "needs_attention" if definition_id.startswith("draft_") else "finished"
+            self.journal.finish(task_id, status, result=result)
+        except ToolError as exc:
+            self.journal.finish(task_id, "failed", error=str(exc)[:300])
+        except Exception:
+            self.journal.finish(task_id, "failed", error="Execution failed; inspect application settings.")
+
+
+def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None):
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "GitHubCommunityAgent/0.1"
+
+        def log_message(self, format, *args):
+            # Disable request logging (never log posted request content or credentials).
+            return
+
+        def _send(self, status: int, obj: dict | list):
+            raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Security-Policy", "default-src 'none'")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def _authorized(self) -> bool:
+            # Browsers from foreign origins cannot trigger even loopback actions.
+            origin = self.headers.get("Origin")
+            return (self.headers.get("X-App-Nonce") == nonce and
+                    origin == f"http://127.0.0.1:{self.server.server_port}" and
+                    self.headers.get("Host") == f"127.0.0.1:{self.server.server_port}")
+
+        def do_GET(self):
+            path = urlsplit(self.path).path
+            if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
+                return self._send(403, {"error": "Invalid host."})
+            if path in ("/static/worker_v011.css", "/static/gc.css"):
+                name = path.removeprefix("/static/")
+                raw = (Path(__file__).parent / name).read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/css; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                return self.wfile.write(raw)
+            if path == "/":
+                html = (Path(__file__).parent / "home.html").read_text(encoding="utf-8")
+                html = html.replace("__APP_NONCE__", nonce)
+                raw = html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'nonce-" + nonce +
+                                 "'; style-src 'self' 'nonce-" + nonce + "'; connect-src 'self'; "
+                                 "img-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                return self.wfile.write(raw)
+            if path == "/api/settings":
+                if self.headers.get("X-App-Nonce") != nonce:
+                    return self._send(403, {"error": "Unauthorized."})
+                if settings is None:
+                    return self._send(503, {"error": "Settings storage unavailable."})
+                try:
+                    return self._send(200, settings.public())
+                except SettingsError:
+                    return self._send(503, {"error": "Cannot read protected settings."})
+            if path == "/api/definitions":
+                return self._send(200, {"definitions": service.definitions()})
+            if path == "/api/tasks":
+                if self.headers.get("X-App-Nonce") != nonce:
+                    return self._send(403, {"error": "Unauthorized."})
+                include_archived = urlsplit(self.path).query == "include_archived=1"
+                return self._send(200, {"tasks": service.journal.list(include_archived=include_archived)})
+            return self._send(404, {"error": "Not found."})
+
+        def _discard_body(self) -> None:
+            # Consume a small unread request body before replying, so Windows
+            # does not reset the connection (unread receive data -> RST) and
+            # the client reliably receives the error status. Never processed.
+            self.close_connection = True
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                return
+            # Hard cap: a huge declared length is never read; that connection
+            # is simply closed after the reply.
+            if 0 < n <= MAX_DISCARD_BYTES:
+                try:
+                    self.connection.settimeout(5)  # never wait on a stalled client
+                    self.rfile.read(n)
+                except OSError:
+                    pass
+
+        def do_POST(self):
+            if not self._authorized():
+                self._discard_body()
+                return self._send(403, {"error": "Unauthorized."})
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                if n < 2 or n > MAX_REQUEST_BYTES:
+                    self._discard_body()
+                    return self._send(413, {"error": "Invalid request size."})
+                payload = json.loads(self.rfile.read(n))
+                if not isinstance(payload, dict):
+                    return self._send(400, {"error": "Expected a JSON object."})
+                path = urlsplit(self.path).path
+                if path == "/api/settings":
+                    if settings is None:
+                        return self._send(503, {"error": "Settings storage unavailable."})
+                    return self._send(200, settings.save(payload))
+                if path == "/api/test-connection":
+                    provider = payload.get("provider")
+                    model_name = payload.get("model_name")
+                    model_key = payload.get("model_key")
+                    if not model_key and settings is not None:
+                        saved = settings.load()
+                        if provider == saved["provider"]:
+                            model_key = saved["model_key"]
+                    if not isinstance(model_key, str) or not model_key:
+                        return self._send(400, {"error": "Enter a model API key."})
+                    model = ChatCompletionsModel(
+                        ModelSettings(provider, model_name), api_key=lambda: model_key
+                    )
+                    answer = model(
+                        "This is a model-connection verification. Reply with the exact word OK.",
+                        "Connection test; no GitHub content or data.",
+                    )
+                    return self._send(200, {
+                        "status": "connected" if answer.strip() else "failed",
+                        "note": "Live model request completed; no GitHub operation."
+                    })
+                if path == "/api/tasks":
+                    if settings is None:
+                        return self._send(503, {"error": "Settings storage unavailable."})
+                    saved = settings.load()
+                    payload = {**payload, "repository": saved["repository"],
+                               "provider": saved["provider"], "model_name": saved["model"],
+                               "model_key": saved["model_key"],
+                               "discussion_token": saved["read_token"]}
+                    task_id = service.start(payload)
+                    return self._send(202, {"id": task_id, "status": "running"})
+                if path.startswith("/api/tasks/") and path.endswith("/delete"):
+                    parts = path.split("/")
+                    if len(parts) != 5 or not parts[3].isdigit():
+                        return self._send(404, {"error": "Not found."})
+                    task_id = int(parts[3])
+                    if service.journal.delete(task_id):
+                        return self._send(200, {"id": task_id, "deleted": True,
+                                                "scope": "local_work_only"})
+                    return self._send(409, {
+                        "error": "Only finished or failed tasks can be deleted."
+                    })
+                if path.startswith("/api/tasks/") and path.endswith("/review"):
+                    task_id = int(path.split("/")[3])
+                    if task_id > 0 and service.journal.review(task_id):
+                        return self._send(200, {"id": task_id, "status": "finished", "posted": False})
+                    return self._send(409, {"error": "Task does not need review."})
+                return self._send(404, {"error": "Not found."})
+            except (ToolError, SettingsError, ValueError, TypeError):
+                # Do not echo input, secrets, or exception payload.
+                return self._send(400, {"error": "Invalid task selection or connection settings."})
+
+    return Handler
+
+
+def main() -> int:
+    journal = Journal(data_directory() / "work.sqlite3")
+    service = WorkService(journal)
+    settings = EncryptedSettings(data_directory())
+    nonce = secrets.token_urlsafe(24)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings))
+    url = f"http://127.0.0.1:{server.server_port}/"
+    print(f"GitHub Community Agent Work Center: {url}")
+    webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

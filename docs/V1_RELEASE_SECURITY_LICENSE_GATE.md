@@ -1,0 +1,2615 @@
+# GC Agent V1 — Windows release security and license gate
+
+**Status: public release BLOCKED.** This checklist is not a certification, signed package, malware scan, or complete software bill of materials (SBOM).
+
+> **Current status (2026-11-10, `1.0.0rc1`, PR #11 Draft).** This file is an
+> append-only log, and older sections below describe earlier states. The latest
+> results are summarized here.
+>
+> | Gate | State | Where |
+> |---|---|---|
+> | CI (Ubuntu and Windows, Python 3.11–3.13, plus Windows wheel smoke) | **7/7 PASS** (run 42839465707, `56ce103`) | GitHub Actions |
+> | Clean bundle, installer payload, upgrade, frozen-EXE security, TLS | **PASS** (technical) | "`1.0.0rc1` committed for RC preparation" |
+> | Gate 3: cross-account DPAPI | **PASS** (owner-run, owner-reported) | "Gate 3: cross-account DPAPI — PASS" at the end |
+> | Third-party license package | Technically consistent; **legal approval NOT given** | [`V1_LICENSE_APPROVAL_CHECKLIST.md`](V1_LICENSE_APPROVAL_CHECKLIST.md) |
+> | Code signing (Azure Artifact Signing) | **Prepared, not done.** Scripts and verifier are ready; no Azure resources exist and nothing is signed | [`WINDOWS_CODE_SIGNING_READINESS.md`](WINDOWS_CODE_SIGNING_READINESS.md) |
+> | Defender scan of the **unsigned** RC1 installer, app EXE and bundle | **PASS: no threats** (2026-11-10) | "Defender scan of the verified unsigned RC1" at the end |
+> | Defender and SmartScreen on the **signed** build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | `WINDOWS_CODE_SIGNING_READINESS.md` §6 |
+> | Merge, tag, release | **Not authorized** | — |
+> | **Release procedure (owner decision 2026-11-10)** | Simplified, Nature AI Worker-style: no signed attestation; no internal approval record; counsel optional. The earlier attestation dated 2026-11-10 is **withdrawn**. The RC approval-gate spec was removed | [`release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md`](release/v1.0.0-rc1/FINAL_APPROVAL_CHECKLIST.md) |
+> | **Final GO / NO-GO (2026-11-10)** | Technical **GO**; overall **NO-GO** pending release text, legal decisions, owner VM/SmartScreen check and authorization | [`release/v1.0.0-rc1/RELEASE_READINESS.md`](release/v1.0.0-rc1/RELEASE_READINESS.md) |
+
+## Evidence already confirmed on Windows
+
+- All five V1 read-only Community Management Work Types have real application-run evidence.
+- Native Windows regression: 214 passed on the earlier head; rerun on latest audit changes.
+- PyInstaller onedir, per-user Inno Setup installation, upgrade trial, uninstall and reinstall preserved ten Task records and saved Windows DPAPI credentials.
+- Live OpenAI model connection succeeded with the stored encrypted API key.
+- Installer is unsigned; app version remains 0.0.0.dev0. The upgrade trial reuses identical application code and does not prove a real code/schema upgrade.
+
+## Security gates
+
+- Verify GitHub is read-only in the installed executable. Fixed GraphQL queries may use HTTP POST but are not GitHub mutations; observe zero actual GitHub write operations.
+- Validate user GitHub Discussions token least privilege and no credential leakage into Task reports, SQLite, UI GET responses, browser storage or logs.
+- Validate the local HTTP server binds only to 127.0.0.1 and enforces Host, Origin and session nonce on state-changing requests; repeat negative tests on the frozen installed build.
+- DPAPI is scoped to the Windows user; it does not defend against malicious software running under the SAME Windows user.
+- Check separate Windows test account with no migrated data; ensure no Task history or credential cross-user visibility. Do NOT copy a real settings.dpapi into a second account.
+- Preserve app identity separate from Nature AI Worker and enforce user-data retention on upgrade, uninstall and reinstall.
+- Independently validate Windows Defender/security findings. Read-only security status is NOT a malware scan.
+
+## License and software inventory gates
+
+- Repository LICENSE is Apache-2.0 and NOTICE names the Nature AI Worker origins; installed package includes both LICENSE and NOTICE.
+- These documents do NOT yet prove that PyInstaller, bundled Python interpreter, compiled binaries, httpx dependencies, bootloader and other frozen components have the complete license attribution required for redistribution.
+- The offline Python-environment inventory is a CANDIDATE LIST ONLY. It includes build/test dependencies and cannot establish the exact PyInstaller bundle contents or constitute a complete SBOM.
+- Review all actual bundled third-party notices, licenses, compiled files, dependency versions and packaging obligations before signing or distribution.
+- Establish approved stable product version, exact source commit, hashes and signature verification. No signing certificate is available in this repo.
+
+## Safe Windows audit commands
+
+From the project root:
+
+    git pull --ff-only
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-release-security-preflight.ps1
+
+The release preflight checks the installed vs built executable SHA256, reads Authenticode and optional Defender status, and writes a local build/release-audit/python-environment-dependencies.json candidate inventory. It does not run a scan, sign binaries, disable protections, modify Work data, or publish.
+
+## Still blocked
+
+Latest exact-head regression, separate-account isolation, negative frozen HTTP/token tests, true app-code/schema upgrade, frozen dependency license/SBOM, Windows security review, publisher signing, stable version and PR dependency review. All PRs remain Draft, no merge/tag/release.
+
+## User-run latest Windows release preflight — 2026-11-08
+
+On branch `feature/unified-task-home` at `422dc91` the user executed:
+
+- `windows-upgrade-uninstall-verify.ps1 -Phase AfterReinstall`: **PASS**;
+  original work.sqlite3 and settings.dpapi SHA256 equal baseline, 10 Task rows
+  including archived, frozen executable self-check passed.
+- `windows-test-regression.ps1`: **218 passed in 3.99s**, zero failed,
+  `GC Agent Windows regression PASS`.
+- `windows-release-security-preflight.ps1`: both frozen bundle and installed
+  app self-check passed; installed EXE matched built EXE SHA256.
+  Authenticode **NotSigned** (public release BLOCKER).
+- Defender status: `AntivirusEnabled=True` and
+  `RealTimeProtectionEnabled=True`. No malware scan was run or claimed.
+- Candidate Python environment license inventory produced at
+  `build/release-audit/python-environment-dependencies.json`:
+  **22 distributions, 2 with missing license metadata**.
+  Names of the two were NOT present in the user-submitted terminal output.
+- Preflight concluded `RELEASE PREFLIGHT INCOMPLETE`: signing, third-party
+  notices, Windows security and actual frozen payload review still open.
+
+### Next evidence
+
+From the existing local inventory (do not modify data or run a new audit):
+
+```powershell
+$inventory = Get-Content ".\build\release-audit\python-environment-dependencies.json" -Raw | ConvertFrom-Json
+$inventory.dependencies | Where-Object license_metadata_missing |
+    Select-Object name, version
+```
+
+Missing metadata is **not proof of an unlicensed or prohibited component**.
+Review actual distribution LICENSE files and exact frozen bundle before
+classifying redistribution risk. Do not resolve by inventing license
+identifiers or treating the build environment list as a final SBOM.
+
+## License metadata clarification from Windows evidence (Nov 8, 2026)
+
+The user inspected the candidate environment inventory: both entries flagged
+`license_metadata_missing` were **github-community-agent 0.0.0.dev0**.
+Thus these are *two metadata instances for the project's own first-party
+package*, not two identified unlicensed third-party dependencies.
+
+Actions:
+- `pyproject.toml` now declares the first-party project's
+  `license = "Apache-2.0"` and `license-files = ["LICENSE", "NOTICE"]`.
+  Build backend minimum is setuptools 77 so PEP 639 SPDX metadata is
+  supported. No public version change.
+- The candidate inventory de-duplicates canonical package name + version,
+  preserves the number of duplicate metadata instances, and reports
+  first-party and THIRD-PARTY missing license metadata independently.
+- It does not erase, rewrite or silently invent historical installed
+  package license data. A new editable installation/build is required
+  before the new project license metadata appears in the environment.
+
+### Native Windows recheck (not yet executed)
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,build]"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\python-environment-dependencies.json -NewName python-environment-dependencies-before-license-fix.json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-release-security-preflight.ps1
+```
+
+The previous inventory is preserved under a distinct name. The new audit
+should identify zero missing third-party license metadata **if no other
+packages changed**; the actual Windows output controls acceptance. Even
+zero metadata gaps is not proof of complete redistribution notices, a
+bundled-binary SBOM, malware scan, code signing or release approval.
+
+## Native Windows license metadata remediation verified — 2026-11-08
+
+User ran `pip install -e ".[dev,build]"` on branch
+`feature/unified-task-home` at `e9eb271`, followed by
+`windows-test-regression.ps1` and the read-only
+`windows-release-security-preflight.ps1`.
+
+Exact reported results:
+- **220 passed in 1.80s**, 0 failed — `GC Agent Windows regression PASS`.
+- Frozen onedir and installed EXE self-check PASS; installed EXE equals built
+  EXE SHA256.
+- Environment inventory: **21 unique distributions**, **22 metadata
+  instances**, **one duplicated name/version metadata**.
+- **Missing license metadata: 0**.
+- **Missing third-party license metadata: 0**.
+- Windows Defender AntivirusEnabled=True, RealTimeProtectionEnabled=True,
+  but no malware scan was executed.
+- Authenticode `NotSigned` — public release BLOCKER.
+- The local preflight still correctly reports
+  `RELEASE PREFLIGHT INCOMPLETE` because exact frozen payload, required
+  third-party redistribution notices, signing and broader security assessment
+  remain open.
+
+The previously missing two entries were duplicate first-party
+`github-community-agent 0.0.0.dev0` metadata. The SPDX metadata addition
+and unique-distribution accounting are therefore **verified as successful
+for the build environment**. This result must **not** be extrapolated into
+a completed frozen-binary SBOM, malware/security clearance or public-release
+approval. The application currently installed for user testing remains the
+existing unsigned build; updating editable packaging metadata does not
+magically rebuild/sign that installed EXE.
+
+## Actual PyInstaller onedir manifest and embedded modules — source prepared, Windows run pending
+
+The environment dependency metadata check is complete (**220 passed**
+native Windows regression on the prior head; 21 unique environment packages,
+0 missing license metadata). This does **not** establish which files or
+embedded modules actually shipped.
+
+New two-part, offline, read-only audit:
+- `scripts/frozen_bundle_inventory.py`: hashes every real file under the
+  existing `dist\\GitHubCommunityAgent` onedir folder and reports actual
+  relative path, SHA256, byte size and a coarse file kind. Rejects customer
+  DBs/DPAPI/secret-like files, symbolic links and Windows junctions.
+  The file manifest is actual payload evidence, **not** a legal SBOM.
+- `scripts/windows-frozen-payload-audit.ps1`: runs the Python inventory,
+  then PyInstaller's `pyi-archive_viewer --brief --recursive` against the
+  existing frozen EXE, recording internal archive-module names without
+  extraction or executing GC Agent. These are documented PyInstaller 6
+  inspection options.
+
+The audit preserves previous files and refuses to overwrite its own output.
+Expected results under `build\\release-audit`:
+
+- `frozen-bundle-files.json`
+- `frozen-embedded-archive.txt`
+
+Run from an existing Windows build (the installed executable and customer
+data are unchanged):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-frozen-payload-audit.ps1
+```
+
+**Acceptance requires reviewing the output, not just a successful audit
+command.** In particular, inspect all DLL/PYD runtime binaries, embedded
+third-party Python modules, original license texts, PyInstaller bootloader
+exception, bundled Python runtime and third-party redistribution notices.
+Do not infer actual license identifiers from file extensions. This inventory
+also does not assess the Inno Setup compressed installer EXE itself; its
+installed LICENSE/NOTICE were reviewed separately. Windows signatures,
+malware/security scans and multi-account isolation are still open.
+
+No public release, merge, tag or code signing is authorized.
+
+## Frozen manifest failure: bundled PEM classification (2026-11-08)
+
+The user executed the Windows frozen-payload audit after **227 pytest
+tests passed (0 failures)**. The file inventory blocked at
+`ValueError: Forbidden user-data or secret-like file in frozen bundle`.
+The original script treated **every .pem** as a customer secret, but
+PyInstaller can bundle `certifi/cacert.pem`, which is a *public CA
+certificate trust bundle* rather than a private key.
+
+The error did **not report which file** caused this particular failure;
+the certifi PEM explanation is a plausible root cause, not confirmed
+from the original log. A narrow correction has been prepared:
+- Only `_internal/certifi/cacert.pem` can be treated as a public
+  certificate bundle, and only if the file is small and all PEM BEGIN/END
+  sections are `CERTIFICATE`. All other PEM files and secret-like files
+  remain blocked.
+- A blocked file now reports its **relative path only** without printing
+  its contents or exposing Windows user paths.
+- Added tests for the CA trust bundle, private-key rejection even at the
+  permitted filename, and arbitrary PEM rejection.
+
+Windows must rerun the tests and inventory; do not treat the prior blocked
+audit as PASS and do not modify the frozen bundle by hand. If a different
+path is flagged, inspect the path and adjust rules only with evidence.
+The audit remains incomplete until the file manifest and PyInstaller
+recursive archive listing both succeed and are reviewed.
+
+## Actual frozen payload inventory — Windows PASS (2026-11-08)
+
+The user ran native Windows test and frozen-payload audit on source branch
+`feature/unified-task-home` at `22fd448`, and provided the full output:
+
+- `windows-test-regression.ps1`: **230 passed in 1.95s**, 0 failures.
+- `windows-frozen-payload-audit.ps1`: manifest created successfully:
+  **958 files**, **31,332,500 bytes**.
+- Categories: **1 archive**, **26 binaries**, **1 license/notice candidate**,
+  **926 other files**, **1 public CA certificate bundle**, **3 UI assets**.
+- PyInstaller embedded recursive archive listing successfully generated:
+  **717 lines**.
+- Manifest: `build/release-audit/frozen-bundle-files.json`.
+- Embedded archive: `build/release-audit/frozen-embedded-archive.txt`.
+- No user files, installed applications, credentials, Windows Defender
+  settings or GitHub data were modified by the audit.
+
+The earlier broad `.pem` block had been narrowed to allow only the known
+public certifi CA bundle with certificate-only content. This time the
+inventory **completed**, so that classification issue is operationally
+resolved for this build.
+
+**Accepted:** reproducible read-only *file-and-archive inventory generation*.
+**Not accepted:** complete SBOM, dependency origin attribution, per-binary
+redistribution licensing, notices completeness, malware scan, code signing
+or public release.
+
+### Next local inventory extract — no rebuild, no credential disclosure
+
+Run in the Windows project directory against the already-generated manifest:
+
+```powershell
+$report = Get-Content ".\build\release-audit\frozen-bundle-files.json" -Raw | ConvertFrom-Json
+$report.files | Where-Object { $_.kind -in @("binary","archive","license_or_notice_candidate","public_ca_certificates") } |
+    Select-Object path, kind, size_bytes | Format-Table -AutoSize
+```
+
+Provide the resulting list, or summarize it. Do not upload a full
+local environment dump or secret-bearing files. Review the archive
+listing too, but do not assume the number of listing lines equals the
+number of independent third-party packages. Need to map each included
+component to an origin/version/license before distribution.
+
+## Binary/file-origin review from user-provided manifest extract (2026-11-08)
+
+The user supplied the path/kind/size inventory filtered to 26 binaries,
+one archive, one license/notice candidate and one public CA certificate:
+29 records. Observed notable components (not yet full verified SBOM):
+
+| Origin candidate | Observed files | License-review scope |
+| --- | --- | --- |
+| CPython Windows 3.13 | `python313.dll`, `base_library.zip`, `_asyncio.pyd`, `_ssl.pyd`, `_hashlib.pyd`, `_sqlite3.pyd` etc. | CPython license, Python's bundled extension/linkage notices |
+| OpenSSL 3 runtime | `libcrypto-3.dll`, `libssl-3.dll` | OpenSSL 3 Apache-2.0 license; confirm exact binary origin and version |
+| SQLite engine | `sqlite3.dll`, `_sqlite3.pyd` | Core SQLite declared public domain; confirm precise build origin |
+| Tcl/Tk 8.6 | `tcl86t.dll`, `tk86t.dll`, `_tkinter.pyd`, `_tk_data/license.terms` | Retain licensing text; review Tcl/Tk and bundled script resources |
+| C runtime / other native libs | `VCRUNTIME140.dll`, `libffi-8.dll`, `zlib1.dll`, `pyexpat.pyd` | Need origin-specific version, attribution and redistribution checks |
+| TLS CA bundle | `_internal/certifi/cacert.pem` | Public trust store; provenance and certifi license still require checking |
+| PyInstaller bootloader | `GitHubCommunityAgent.exe` | PyInstaller bootloader licensing/exception and binary signing remain open |
+
+**Important correction:** Tkinter/Tcl/Tk cannot be marked unused or
+removed solely because the installed Work Center uses a web page.
+`src/github_community_agent/desktop.py` imports Tkinter at module load
+and defines a legacy `CommunityDesktop` UI; `work_center.py` imports
+`execute_workflow` from `desktop.py`, so ordinary Work Center execution
+has a code-level dependency on that module. Removing Tk/Tkinter without
+refactoring would risk a runtime regression. No changes to the working
+frozen package are authorized. A future simplification should separate
+workflow logic from Tk GUI in its own PR, then rebuild and rerun real
+Windows acceptance before considering an exclusion.
+
+The observed sole license/notice candidate `_internal/_tk_data/license.terms`
+is **not evidence that this bundle contains all necessary third-party license
+texts**. The 926 files classified as 'other' have not been analyzed.
+The PyInstaller recursive archive output has 717 lines, but package
+identity/version/license coverage is not derived from line count.
+
+Official background sources for *general upstream licensing* (not exact
+binary verification):
+- OpenSSL 3: https://openssl-library.org/source/license/index.html
+- Tcl/Tk: https://www.tcl-lang.com/software/tcltk/license.html
+- SQLite: https://www.sqlite.org/copyright.html
+- CPython on Windows: https://docs.python.org/3.13/using/windows.html
+
+### Local, existing-manifest follow-up — inspect remaining 926 files
+
+```powershell
+$report = Get-Content ".\build\release-audit\frozen-bundle-files.json" -Raw | ConvertFrom-Json
+$report.files | Where-Object kind -eq "other" |
+    Group-Object { ($_.path -split "/")[1] } |
+    Sort-Object Count -Descending |
+    Select-Object -First 15 Count, Name
+$report.files | Where-Object { $_.kind -eq "license_or_notice_candidate" } |
+    Select-Object path, size_bytes
+```
+
+The first grouping is only a descriptive folder summary. To avoid
+incorrect package attribution (e.g. `_internal/_tk_data`, `_internal/tcl`
+and `_internal/tk` paths), inspect actual relative paths before assigning
+software components or licensing obligations.
+
+**Status:** file list reviewed in part, release still BLOCKED on complete
+provenance, licenses, signing, frozen security/AV assessment and additional
+Windows acceptance.
+
+## Remaining 926 onedir 'other' resources — Windows user evidence (Nov 8, 2026)
+
+A read-only PowerShell grouping of the existing frozen-bundle manifest
+shows **all 926** items categorized `other` are in just four directories:
+
+| Directory | Other files |
+| --- | ---: |
+| `_tcl_data` | 832 |
+| `_tk_data` | 88 |
+| `tcl8` | 5 |
+| `certifi` | 1 |
+| **Total** | **926** |
+
+Therefore **925/926** of the `other` entries (99.9%) are concentrated
+under Tcl/Tk-related directory names. Folder names are *origin clues*,
+not a formal mapping of all files to a verified upstream distribution,
+version, notice or license. The remaining one item is in `certifi`;
+the already classified public `cacert.pem` is counted **separately**
+from these 926 `other` files.
+
+This supports preserving current Tkinter/Tcl/Tk dependencies while the
+application still imports `execute_workflow` from `desktop.py` and that
+module imports Tkinter. A smaller, Web-only distribution may be possible
+**only after** separating the workflow logic from Tkinter UI in a separate
+reviewed change and performing full frozen Windows reacceptance. No
+current installer cleanup, rebuild or code exclusion is authorized.
+
+Remaining work on **actual frozen binary SBOM** includes mapping each
+embedded archive Python module to a package/version, inspecting the full
+licenses and required notices for Tcl/Tk, CPython, OpenSSL, libffi, zlib,
+Microsoft runtime, certifi, PyInstaller and any other real bundled
+dependency, and verifying the installer's own included documentation.
+The archive listing alone is not a signed or complete SBOM.
+
+## PyInstaller embedded-module triage tool (Nov 8, 2026) — Windows execution pending
+
+The prior Windows run created a **717-line** embedded-archive listing.
+The new offline `scripts/frozen_archive_module_triage.py` reads that
+existing text file and makes *candidate classifications* for quoted
+PyInstaller module names:
+
+- `first_party`: `github_community_agent.*`
+- `stdlib_candidate`: modules whose top-level name is in the current
+  Python interpreter's `sys.stdlib_module_names`
+- `environment_distribution_candidate`: names mapping through
+  `importlib.metadata.packages_distributions()` to installed Python
+  distribution names, not necessarily frozen versions
+- `unresolved`: no such mapping; manual review required
+
+Only the *first quoted item per line* is interpreted, so labels such as
+`PYMODULE` are not double-counted. The original line count, parse
+occurrences, unique candidate names and unmatched lines are all reported,
+and uncertainty is preserved. The parser is intentionally conservative
+and may miss or misclassify some PyInstaller listings. No external API,
+client credentials, AppData, installed files, binary execution or
+network access are used.
+
+### User Windows step
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+The script refuses to overwrite an existing triage file. Keep the older
+manifests unchanged. Provide the console summary and (optionally) only the
+unresolved *module names*, not the entire report or any secrets.
+This source audit **does not close SBOM, version/provenance, licenses, third-party
+NOTICE, code signing or public release gates**.
+
+## Windows archive-triage result — parser failed to cover actual file (2026-11-08)
+
+The user ran the newly added `frozen_archive_module_triage.py` against
+the prior actual 717-line PyInstaller listing. The source regression suite
+reported **234 passed in 2.02s, zero failed**. However, the parser produced:
+
+- Original listing: **717 lines**
+- Matched module occurrences: **3**
+- Unique parsed names: **2**
+- Unmatched listing lines: **714**
+- Classified `unresolved`: **2**
+
+**Status: TRIAGE FAILED COVERAGE / INVALID SBOM EVIDENCE.** The current
+parser assumes PyInstaller archive member names appear in quotes. The
+actual archive-list format is not yet available in the review context,
+so we cannot conclude which output convention it uses or fix it by guessing.
+Do **not** interpret the 714 unmatched lines as 714 dependencies or
+third-party licensing failures. The underlying frozen file inventory
+(958 files) and the real 234-test native Windows regression remain valid.
+
+Before changing the parser, capture a *small, sanitizable sample* of the
+existing local file, without reading secrets or publishing the entire report:
+
+```powershell
+Get-Content ".\build\release-audit\frozen-embedded-archive.txt" -TotalCount 30
+```
+
+Review the output for user-specific paths before sharing. Next update must
+include fixtures that reflect the **observed** PyInstaller output and fail
+when source coverage is inadequate; never declare SBOM complete based solely
+on a parsing success. Preserve the prior generated report and raw listing.
+
+## Embedded archive parser corrected from ACTUAL Windows format (2026-11-08)
+
+The user supplied the first 30 lines of `frozen-embedded-archive.txt`.
+Unlike the synthetic original fixtures, `pyi-archive_viewer --brief
+--recursive` shows indented bare names beneath `Contents of ...`
+headers. For example:
+
+```text
+Contents of 'PYZ.pyz' (PYZ):
+ __future__
+ _aix_support
+ _colorize
+ _pytest
+ _pytest._version
+ _pytest.outcomes
+```
+
+The initial 3/717 parse was therefore invalid. The parser now accepts
+unquoted indented identifiers, does not treat `PYZ.pyz` as a module,
+continues accepting legacy quoted-list fixture lines, preserves unmatched
+line counts, and flags common development module candidates.
+
+**New release-risk finding (requires diagnosis):** The ACTUAL frozen
+EXE archive listing includes at least `_pytest`, `_pytest._version`,
+`_pytest.outcomes`. These appear to be pytest test framework modules,
+not a normally necessary production dependency. Their presence is
+observed, but **cause, impact and full extent are not yet proven**.
+Do not delete bundled files manually or assume that pytest was shipped
+unavoidably. Diagnose whether `PyInstaller` collected this through
+`desktop.py`, `work_center.py`, the launcher, analysis hooks or an
+unexpected import, and if optimization is justified do it in a separate
+reviewed code/build change with full real Windows reinstall acceptance.
+
+### Windows re-validation without rebuilding or overwriting audit evidence
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\frozen-module-triage.json -NewName frozen-module-triage-before-format-fix.json
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+Preserve the old invalid report for audit traceability. The printed
+`Development module candidates`, `Unmatched listing lines`,
+`unique names` and `unresolved` counts determine next review.
+High unmatched count or unexpected classified names mean the report is
+still incomplete. This only reads the already generated archive listing,
+not customer data, and makes no installed-product changes.
+
+## Follow-up: archive triage regex escaping failure and precise fix
+
+Native Windows test at `06967e1` reported **231 passed / 5 failed**
+(total 236). All five failures were the new archive triage tests.
+The same triage script matched **zero** of 717 lines; its report
+therefore has no SBOM value and is retained as failed audit evidence.
+
+Root cause confirmed in the source: raw regex literals accidentally
+contained *double backslashes* (`\\\\s`, `\\\\d`, `\\\\.`),
+so they matched literal escape characters rather than whitespace,
+digits, or module-name periods. This affected both the bare-name
+regex and the quoted-list prefix.
+
+Commit `b59e366` replaces these with the intended single-backslash
+raw regex sequences. Local isolated expression checks confirmed
+matching sample bare names `_pytest.outcomes` and
+`gc_agent_launcher`, quoted sample `0, 'httpx'`, while the archive
+name `PYZ.pyz` remains excluded as a module by the existing filter.
+These local checks are **not a replacement for the full native Windows
+regression**, which must be rerun.
+
+User Windows steps (preserving the previous unsuccessful triage JSON):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+Rename-Item -LiteralPath .\build\release-audit\frozen-module-triage.json -NewName frozen-module-triage-before-regex-fix.json
+.\.venv\Scripts\python.exe .\scripts\frozen_archive_module_triage.py --archive-list ".\build\release-audit\frozen-embedded-archive.txt" --output ".\build\release-audit\frozen-module-triage.json"
+```
+
+Do not remove the suspected `_pytest` modules or alter the installed
+application before confirming the corrected inventory and its provenance.
+All release gates remain open.
+
+## Native Windows corrected embedded-module triage — verified (2026-11-09)
+
+User pulled branch `feature/unified-task-home` through `924de96`,
+ran `windows-test-regression.ps1` and reanalyzed the preserved actual
+PyInstaller embedded archive. Results:
+
+- **236 passed in 1.94s, 0 failed**.
+- Archive listing **717 lines**, **711 matched module occurrences**,
+  **711 unique parsed names**, **6 unmatched lines**.
+- Classified candidates: **11 first_party**, **228 stdlib_candidate**,
+  **462 environment_distribution_candidate**, **10 unresolved**.
+- **343 development module candidates**; examples from actual audit include
+  `_pytest`, `_pytest._version`, `_pytest.outcomes`, `pygments`,
+  `pygments.console`, and many `pygments.*` submodules.
+- `frozen-module-triage.json` created; previous failed audit outputs preserved.
+
+**Accepted**: corrected module parsing substantially covers the actual
+archive listing and its tests pass on native Windows. **NOT accepted**:
+full SBOM or evidence that 343 distinct *packages* are included. These
+are module names, not distributions. Candidate mappings originate from
+the installed development environment, and may not identify the exact
+provenance or versions of frozen modules.
+
+### Immediate targeted review without rebuilding or modifying installed app
+
+```powershell
+$triage = Get-Content ".\build\release-audit\frozen-module-triage.json" -Raw | ConvertFrom-Json
+$triage.members | Where-Object category -eq "unresolved" |
+    Select-Object member, candidate_distributions
+$triage.members | Where-Object category -eq "environment_distribution_candidate" |
+    ForEach-Object { $_.candidate_distributions } |
+    Sort-Object -Unique
+$triage.development_module_candidates |
+    ForEach-Object { ($_ -split '\\.')[0] } |
+    Group-Object | Sort-Object Count -Descending |
+    Select-Object Count, Name
+```
+
+Investigate the actual import graph and PyInstaller hook analysis before
+excluding `pytest`, `pygments` or other packages. The observed `_pytest`
+and `pygments` content is a build-hygiene concern, not proof of unsafe
+functionality. **Do not delete files in the current proven executable**;
+any future explicit exclusions require a separate build, real Windows
+functional acceptance, installer continuity and security review.
+
+Release remains blocked on full binary/component provenance, licenses
+and notices, signed artifacts, security checks, independent user isolation,
+real changed-code upgrade and approved version.
+
+## Follow-up provenance from actual Windows triage JSON (2026-11-09)
+
+User ran read-only queries against the corrected
+`frozen-module-triage.json`. All **10** items classified
+`unresolved` are identifiable as the first-party launcher or
+PyInstaller runtime/bootstrap helpers:
+
+`gc_agent_launcher`, `pyi_rth__tkinter`,
+`pyi_rth_inspect`, `pyi_rth_multiprocessing`,
+`pyi_rth_pkgutil`, `pyiboot01_bootstrap`,
+`pyimod01_archive`, `pyimod02_importers`,
+`pyimod03_ctypes`, `pyimod04_pywin32`.
+
+They should not be reported as ten unknown unrelated third-party
+distribution packages. The triage tool's generic category remains
+literal; this human-origin attribution does not prove the exact bundled
+PyInstaller build hash or its license obligations.
+
+Installed-environment candidate distribution names extracted from the
+archive module list: `anyio`, `certifi`, `h11`, `httpcore`,
+`httpx`, `idna`, `packaging`, `Pygments`, `pytest`,
+`typing_extensions`. This candidate list is **not** a validated set
+of exact bundled versioned components.
+
+Of **343** flagged dev module names, **340** have top-level
+`pygments` and **3** have `_pytest`. 343 is the number of **module
+names**, not the number of Python distributions. Read-only GitHub
+source inspection of launcher, Work Center, desktop and core model/
+analyst modules showed no direct `pytest` or `pygments` import in
+those entry paths; this does **not** rule out indirect imports,
+metadata hooks or PyInstaller auto-collection.
+
+### Next diagnostic: inspect existing PyInstaller import-reference graph
+
+Existing build work directory should contain a PyInstaller import graph
+`xref-GitHubCommunityAgent.html`. Avoid editing or deleting it.
+Check for the file first:
+
+```powershell
+Get-ChildItem ".\build\gc-agent-pyi" -Filter "xref-*.html" |
+    Select-Object Name, Length, FullName
+```
+
+If present, inspect locally for the import chains into `pygments`
+and `_pytest`. Do not infer a removable production dependency from
+module name alone. If absent, the current real audit evidence is still
+valid; do not rebuild existing accepted EXE just to create it.
+Optimization should use a separate candidate build and require
+repeat frozen functional/security/installer acceptance. No current
+code exclusion or official release is authorized.
+
+## Initial xref excerpt confirms pytest origin, not complete import chain (2026-11-09)
+
+The user located the PyInstaller build-time module graph under
+`build/gc-agent-pyi/GitHubCommunityAgent/xref-GitHubCommunityAgent.html`
+and supplied the first 15 pattern matches from a `Select-String`
+search for `_pytest|pygments`. The excerpt includes actual nodes
+`_pytest`, `_pytest._version`, `_pytest.outcomes` and source
+URLs under the Windows repository's
+`.venv/Lib/site-packages/_pytest/` directory.
+
+This establishes that those pytest modules are included from the
+development Python environment; the excerpt does **not** reveal the
+full directed path from `gc_agent_launcher` to the pytest/Pygments
+root nodes. The `pygments.formatters.img` match in the early output
+appears as an importer of a different missing module and does not
+by itself show who imports Pygments. Avoid assigning responsibility
+to httpx, hooks, or the application without directed evidence.
+
+### Targeted importer extraction using the existing xref, no rebuild
+
+```powershell
+$xref = ".\build\gc-agent-pyi\GitHubCommunityAgent\xref-GitHubCommunityAgent.html"
+$html = Get-Content -LiteralPath $xref -Raw
+foreach ($module in @("pygments","pygments.lexers","_pytest","_pytest.outcomes")) {
+    $marker = '<a name="' + $module + '"></a>'
+    $start = $html.IndexOf($marker, [StringComparison]::Ordinal)
+    if ($start -lt 0) { Write-Host "$module : node not found"; continue }
+    $next = $html.IndexOf('<div class="node">', $start + $marker.Length, [StringComparison]::Ordinal)
+    if ($next -lt 0) { $next = $html.Length }
+    $node = $html.Substring($start, $next - $start)
+    $match = [regex]::Match($node, '(?s)imported by:\s*(.*?)</div>')
+    if (-not $match.Success) { Write-Host "$module : no imported-by section"; continue }
+    $parents = [regex]::Matches($match.Groups[1].Value, '<a href="#([^"]+)">') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+    Write-Host "$module imported by: $($parents -join ', ')"
+}
+```
+
+This displays *immediate importers*, not a full transitive entrypoint
+trace. If it shows PyInstaller hooks or runtime helpers, follow them
+only with evidence. Do not edit the installed EXE or delete existing
+PyInstaller files; the full reviewed signed/licensed SBOM is still open.
+
+## PyInstaller xref: importer evidence for Pygments and pytest (2026-11-09)
+
+Actual Windows user-run `xref-GitHubCommunityAgent.html` importer
+extraction (after 236 native tests PASS) identifies the following **direct
+static import edges**:
+
+- `httpx._main` → `pygments.lexers`.
+  The large set of `pygments.lexers.*` submodules imports
+  `pygments.lexers` and `pygments`, explaining the candidate
+  340-module Pygments footprint. Static imports alone do not establish
+  that all lexers are used at runtime.
+- `anyio._backends._asyncio` → `_pytest.outcomes` →
+  `_pytest`; also `_pytest.outcomes` → `_pytest` and
+  `_pytest._version` → `_pytest`.
+  This explains the three observed `_pytest` module candidates in
+  the frozen archive.
+
+These are **immediate importer relationships**, not proof that removing
+dependencies would preserve every executed code path. In particular the
+xref does not prove if `httpx._main` CLI highlighting is reached by
+GC Agent or whether AnyIO's pytest reference is exercised. The original
+source uses `httpx` as an HTTP client and does not directly import
+Pygments or pytest in the reviewed entrypoints.
+
+### Release engineering decision
+
+**Do not remove files from the currently accepted frozen EXE, signed
+installer or installed user files**. For an independently reviewable
+future optimization, create a **separate isolated candidate** build in
+a new directory (not the current `dist/GitHubCommunityAgent`) with
+explicit PyInstaller excludes for `pytest`, `_pytest`, `pygments`,
+then inspect its new archive. If it fails self-check or any actual
+V1 workflow, reject that candidate. An accepted optimized build would
+still require the full Windows installed-app functional/DPAPI/data-
+retention, tests, negative-security and installer acceptance again
+before it supersedes the prior candidate.
+
+Before building, review whether the PyInstaller `--exclude-module`
+flags have the intended behavior and whether `pygments` or
+`_pytest` is needed in a selected optional code path. No exclusion
+or rebuilding has been undertaken in this review.
+
+**SBOM licensing, notices, publisher signing and independent Windows-user
+security remain blocked.** This xref evidence is specifically a build
+hygiene finding, not a security certification.
+
+## Isolated unsigned exclusion experiment prepared — Windows run pending (2026-11-09)
+
+The actual PyInstaller xref shows `httpx._main` importing
+`pygments.lexers`, and `anyio._backends._asyncio` importing
+`_pytest.outcomes`. The previously accepted EXE and installer remain
+unchanged.
+
+A separate test-only builder is available:
+`scripts/windows-build-exclusion-candidate.ps1`.
+
+- Precondition: existing accepted `dist/GitHubCommunityAgent` onedir
+  bundle and original executable must exist.
+- All NEW output is under
+  `build/gc-agent-exclusion-candidate/` (distinct `dist`, `work`,
+  `spec` folders). The script REFUSES to overwrite that directory.
+- Uses the same source launcher and UI-data inclusion as the baseline,
+  but excludes `pygments`, `pytest` and `_pytest` for an experiment.
+- Candidate EXE must pass `--self-check`, and PyInstaller archive
+  inspection MUST independently verify zero matching `pygments`,
+  `pytest` and `_pytest` module names. Inspecting the archive is not
+  equivalent to validating real V1 workflows.
+- Prints baseline/candidate file counts and total file bytes, and
+  verifies the original baseline EXE hash is unchanged. It does
+  **not** run Inno Setup, install or uninstall, sign, publish, access
+  AppData/DPAPI/work.sqlite3, or modify the original Nature AI Worker.
+- Uses current development environment, so package upgrade drift and
+  other changes could affect the outcome; reported size savings cannot
+  automatically be attributed solely to exclude flags.
+- Source guardrail tests have been added but **real native Windows
+  execution is pending**.
+
+### User-operated native Windows trial
+
+First close any unnecessary GC Agent development windows, then use the
+original project folder:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-build-exclusion-candidate.ps1
+```
+
+If an old `build/gc-agent-exclusion-candidate` folder is present,
+the script fails safely. Do NOT erase prior evidence just to rerun.
+Report the exact Windows test totals, candidate self-check, archive
+exclusion check, candidate/baseline file counts and sizes.
+A failed candidate is **not** a release candidate; keep existing
+installed app and original accepted bundle as-is.
+
+After a candidate succeeds, *before* any decision to replace the
+previous build, confirm full V1 real GitHub read-only tasks, local
+approvals, saved DPAPI key live model connection, nonwrite behavior,
+Windows Host/Origin/nonce controls, upgrade/uninstall/reinstall
+retention, included third-party LICENSE/NOTICE texts and code
+signing prerequisites. No automatic deployment or promotion is
+authorized. All PRs remain Draft, no merge/tag/sign/public release.
+
+## Actual isolated unsigned exclusion candidate — Windows PASS for build/self-check (2026-11-09)
+
+The user executed the independent `scripts/windows-build-exclusion-candidate.ps1`
+on native Windows 11 (Python 3.13.14, PyInstaller 6.22.3, hooks 2026.9)
+after pulling branch `feature/unified-task-home` through `6be9340`.
+The exact log establishes:
+
+- `windows-test-regression.ps1`: **238 passed in 3.57s**, 0 failures.
+- PyInstaller separate candidate onedir build completed successfully at
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/`.
+- Candidate `GitHubCommunityAgent.exe --self-check`: **PASS**.
+- Candidate PyInstaller recursive archive listing: **372 lines**,
+  **366 matched module occurrences**, **366 unique names**,
+  **6 unmatched lines**. Candidate categories: **11 first_party**,
+  **228 stdlib_candidate**, **117 environment_distribution_candidate**,
+  **10 unresolved** (previously identified launcher/PyInstaller helpers).
+- `Development module candidates: 0` and
+  `Excluded module names in candidate archive: 0 verified` for
+  `pytest`, `_pytest`, `pygments`.
+- Previously accepted baseline EXE SHA256 unchanged:
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Baseline onedir: **958 files; 31,332,500 bytes**.
+- Candidate onedir: **958 files; 29,507,071 bytes**.
+- Difference: **1,825,429 bytes less (~5.83%)**,
+  **345 fewer archived modules** (711 → 366).
+- The candidate was **NOT installed, signed or promoted**. There was no
+  installer run and no change to the existing user's Task/DPAPI data.
+
+**Accepted only**: isolated, non-overwriting build; excluded-module
+archive proof; frozen self-check; baseline EXE unchanged; file count and
+size comparison. This does **not** establish that all five authentic V1
+workflows, local review/approval behavior, saved-key DPAPI handling,
+GitHub nonwrite protections, HTTP origin/nonce validation, or Windows
+installation/data-upgrade continuity function in the candidate.
+
+The unchanged 958 file count is consistent with removing Python modules
+embedded in EXE/PYZ while preserving Tcl/Tk and other onedir resources,
+but precise attribution of each saved byte requires controlled
+reproducibility tests. The total size decrease must not be promoted as
+a proven source-only dependency optimization if other build inputs drifted.
+
+**Next gate:** run candidate-specific application-level tests in a
+separate temporary user-data root or authorized independent Windows
+test user, never against real personal Work records and saved API keys;
+prove all five V1 read-only Work Types with actual GitHub/model evidence.
+Any candidate considered for release would need full installer
+upgrade/uninstall/reinstall, negative security, license/SBOM, anti-malware,
+version/signing and PR stack acceptance again. Current public-release
+blockers remain. Draft PRs must not be merged, signed, tagged or released.
+
+## Native Windows isolated REAL frozen Work Center trial (prepared; NOT yet run)
+
+The source at this point includes
+`scripts/windows-run-exclusion-candidate-isolated.ps1`.
+It launches the **already-built optimized candidate**, not an installer or
+the previously accepted EXE. It first checks `--self-check`, then starts
+the actual frozen Work Center, allowing browser-based human acceptance
+against the *real application runtime*, not a mocked service.
+
+For each run it creates a fresh, never-reused directory:
+`build/gc-agent-e2e-trials/trial-<random-guid>/` and temporarily
+overrides `LOCALAPPDATA` for the candidate process to that directory.
+The candidate's actual data paths become:
+`.../trial-<guid>/GitHubCommunityAgent/work.sqlite3` and
+`.../trial-<guid>/GitHubCommunityAgent/settings.dpapi`.
+It does **not** import/copy an existing DPAPI key or touch the original
+`%LOCALAPPDATA%/GitHubCommunityAgent` contents. It restores
+`LOCALAPPDATA` in the calling PowerShell session on exit; retained
+trial files are intentional evidence. The spawned browser may inherit
+the trial-local environment; browser profile behavior must be checked
+rather than assumed.
+
+### Native Windows acceptance command
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-run-exclusion-candidate-isolated.ps1
+```
+
+If GC Agent is already running in a regular installation, keep its
+window/data separate; **do not enter the user's existing saved key**.
+Within the new trial Work Center, explicitly enter independent,
+test-authorized model credentials and, only when needed, a GitHub
+Discussions **read-only** token. Private repositories may require
+read credentials; use a clearly approved test repository. No
+credentials should be pasted back into logs or chat. For real model
+requests there may be API usage charges.
+
+### Human acceptance checklist (record observed evidence, not assumptions)
+
+1. On the new Work Center, open Settings, select model/provider and
+   test repository and verify a real model connection. Verify the new
+   Task list starts empty; old 10 Tasks do not appear.
+2. Run **Review Issues** with real accessible GitHub Issues. Verify
+   source URLs, meaningful evidence and coverage limitations.
+3. Run **Review Discussions**, with an explicitly scoped read token
+   where required. Verify source-backed results and limitations.
+4. Run **Draft Issue Reply** for one actual Issue, confirm Task status
+   **Needs My Attention**, visible draft and source link. Use **Mark
+   reviewed**; status becomes finished **locally only**, and confirm
+   no GitHub comment was actually posted.
+5. Run **Draft Discussion Reply** for one actual Discussion. Repeat the
+   local review/non-publication checks.
+6. Run **Community Report** against actual accessible activity;
+   verify issue/discussion coverage and explicit caveats.
+7. Inspect Task history, readable report, technical JSON, and copy/
+   export. Reopen with a new isolated trial root only for a genuinely
+   fresh test; retained prior trial artifacts are not wiped.
+8. Negative security checks: no Github write capability; no response
+   to forged Host/Origin/nonce; DPAPI file should be unreadable under
+   another independent Windows account (separate authorized setup).
+   Existing unit security tests do **not** prove these live behaviors.
+
+Record only Task IDs/statuses and non-sensitive evidence; redact repo
+secrets if any. Test failures remain failures, do not mark completed
+based on the build-only `--self-check`. A full second-Windows-user
+isolation and installer-upgrade pass are **not performed** by this
+script.
+
+**Current status: trial script and guard tests committed, Windows
+execution pending.** This is not authorization to replace or release
+the accepted installed program. PR #11 stays Draft, no merge, tag,
+signing or release. Original Nature AI Worker remains untouched.
+
+## Five real V1 Task exports supplied by user (2026-11-09 UTC)
+
+User provided five distinct JSON exports timestamped approximately
+13:36–13:40 UTC for repository `nature-ai-corp/nature-ai-worker`:
+
+| Task | Definition | Exported status | Evidence |
+|---|---|---|---|
+| #1 | `review_issues` | `finished` | 9 issue records fetched in one page, 5 analyzed, details read 5, source-linked assessment |
+| #2 | `review_discussions` | `finished` | Discussion #32 fetched/analyzed, source-linked report |
+| #3 | `draft_issue` | `finished` | unposted Issue #33 reply draft, `requires_human_review=true`, `posted=false` |
+| #4 | `draft_discussion` | `finished` | unposted Discussion #32 reply draft, `requires_human_review=true`, `posted=false` |
+| #5 | `community_report` | `finished` | 9 Issues fetched, 5 analyzed; 1 Discussion included; bounded/incomplete caveats |
+
+All five have `error=null`, `read_only=true` and source
+URLs. The Discussions read operation returned real #32 content,
+indicating that configured read access was operational for this run,
+not merely that a token was encrypted on disk.
+
+**What the exports prove:** actual output artifacts of all five V1
+workflows on the specified GitHub repo; coherent workflow type,
+number and source references; draft generation without a claimed post.
+
+**What they do NOT prove by themselves:**
+- The screenshots previously showed a failed `git pull` for the
+  newly introduced isolation runner, and the exports do not contain a
+  build EXE SHA256, trial data-root path, or process command line.
+  Therefore they cannot authenticate that the five tasks were run
+  specifically with the **optimized isolated frozen candidate**, rather
+  than the existing installed GC Agent.
+- Both draft exports have `status=finished` while
+  `requires_human_review=true`. The Work Center's intended state
+  is `needs_attention` immediately after drafting and
+  `finished` after a user explicitly marks the draft reviewed.
+  Since exports do not include `work_events`, these documents do
+  not establish whether the review transition occurred or whether it
+  was bypassed. Check the source-app My Work activity before claiming
+  approval-flow acceptance.
+- `posted=false` is app-reported; source/side-effect verification
+  or a guarded GitHub audit check is needed before treating no-write
+  as independently witnessed.
+- `sample_limited=true` in Tasks #1 and #5 is correctly flagged.
+  For Task #2 `sample_limited=false` refers to the one fetched
+  discussion, while `total_pages_known=false`; it must not be
+  interpreted as an independently verified complete repository survey.
+- The generated drafts and summaries require factual/editing review
+  before actual human use. For example, the Discussion reply assumes
+  release/documentation links, which should be verified against real
+  release status. No live post is authorized.
+
+**Disposition:** five actual V1 Work Type output artifacts witnessed
+from user-exported application JSON. **Candidate-specific E2E,
+review-state transition, cross-user DPAPI isolation, live host/
+origin/nonce security, and proof of no GitHub write remain pending**.
+Do not convert this output review into full release approval.
+
+## User confirmation of human review transition (2026-11-09)
+
+Following the five actual application JSON Task exports, the user
+explicitly confirmed: **"i did review for Needs My Attention"**.
+
+For both generated draft reply Tasks (#3 Issue #33 and #4
+Discussion #32), the final exported `finished` status is therefore
+consistent with the user having reviewed those drafts through
+**Needs My Attention** rather than an unexplained automatic completion.
+This resolves the earlier ambiguity about why the exports showed
+`finished` together with `requires_human_review=true` and
+`posted=false`.
+
+**Accepted with user-attested operation**: two draft outputs
+were human-reviewed and their final states are consistent with
+the intended local `needs_attention` → `finished` transition.
+The exports do not include individual `work_events`, so event-level
+forensic proof of every transition is not independently captured.
+Neither the final statuses nor `posted=false` alone independently
+prove GitHub side-effect absence; these remain separate security
+assertions. Candidate executable provenance is still unverified
+because prior failed `git pull` and the JSON exports omit executable
+path/hash and isolated LOCALAPPDATA root.
+
+No release authorization is implied. PR #11 remains Draft with no
+merge, signature, tag or release.
+
+## EXE/process and isolated data provenance check (prepared, Windows run pending)
+
+The five real V1 Task exports and user-verified Needs My Attention
+transition remain accepted as **application-level evidence**. Their
+source EXE path was not embedded, and a previous attempt to pull
+the new isolated launcher failed with DNS resolution errors. It would
+be incorrect to retroactively claim those exports were generated
+by the optimized isolated build.
+
+A new **read-only** diagnostic is available:
+`scripts/windows-check-exclusion-candidate-provenance.ps1`.
+It prints SHA256 and paths of the original build and independently
+optimized candidate, attempts to identify running
+`GitHubCommunityAgent.exe` process executable paths through Windows
+CIM, and inspects ONLY
+`build/gc-agent-e2e-trials/trial-*/GitHubCommunityAgent/work.sqlite3`
+using SQLite `mode=ro`. It outputs aggregate Task definition/status
+counts and `work_events` event-name/count totals, NOT Task content,
+DB mutations, protected settings, credentials or tokens.
+
+Run after the updated branch is available:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-check-exclusion-candidate-provenance.ps1
+```
+
+If `git pull` fails again, do not assume local new scripts exist;
+fix/check DNS and only run scripts verified to be present.
+No process may be running when inspected, in which case record that
+provenance remains unresolved.
+
+For **future newly launched isolated trials**, the updated
+`windows-run-exclusion-candidate-isolated.ps1` writes a
+non-secret `candidate-launch-attestation.json` within the unique
+trial directory before EXE launch, containing actual candidate EXE
+path/hash, UTC launch intent, and isolated data-root path. This file
+is **not** retrospective evidence for older Tasks; by itself it also
+does not prove that each Task used that process or that no GitHub post
+occurred. Correlate the attestation with new Task events and
+running-process path; security/side-effect acceptance stays separate.
+
+**No existing executable, installer, database, protected settings or
+Nature AI Worker repo was modified.** Diagnostic and attestation scripts
+have static guard tests but native Windows verification is pending.
+All PRs remain Draft. No signing, merge, tagging or release.
+
+## Actual read-only Windows provenance-inspection results (2026-11-09)
+
+The user pulled branch `feature/unified-task-home` through
+`939a99e` and ran the newly added read-only script, with this
+observed native Windows output:
+
+- `windows-test-regression.ps1`: **242 passed in 1.82s**,
+  zero failures.
+- Baseline EXE path:
+  `dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256:
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Optimized candidate EXE path:
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256:
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- No `GitHubCommunityAgent.exe` process was running at inspection.
+- Unique retained trial folder:
+  `build/gc-agent-e2e-trials/trial-5b5fbee064604fe2acf85ff4deea42c8`.
+  Its `GitHubCommunityAgent/work.sqlite3` was inspected read-only,
+  without any protected settings or Task body access.
+- **Five total Task records**, one each for
+  `review_issues`, `review_discussions`, `draft_issue`,
+  `draft_discussion`, and `community_report`, all currently
+  `finished`.
+- Verified event-name counts from the real isolated trial SQLite
+  database: `created=5`, `completed=3`,
+  `needs_attention=2`, `marked_reviewed_locally=2`.
+- The two local review events are consistent with the user's
+  explicit confirmation of reviewing both drafts through
+  **Needs My Attention**, resolving the earlier review-state
+  question at the stored-event level, not just status/export level.
+
+**Disposition:** accept **isolated trial dataset** and persisted
+local approval event evidence plus source regression **242 PASS**.
+The trial database is demonstrably distinct from the ordinary
+`%LOCALAPPDATA%/GitHubCommunityAgent` storage location.
+
+**Remaining precise limitation:** because this trial predates the
+new `candidate-launch-attestation.json` addition and no process was
+running at inspection, the database and frozen-candidate hashes
+cannot *cryptographically link* the historical Task executions to
+the optimized candidate EXE. Historical candidate identity remains
+strongly consistent with user workflow but formally unproven.
+Independent GitHub no-write verification, signed installer, second
+Windows-account DPAPI protection and full versioned installer
+upgrade/NOTICE/SBOM reviews also remain open.
+
+Do not require all five real workflows to be rerun merely to repeat
+already validated business behavior. A newly instrumented, minimal
+isolated trial with an EXE hash attestation may address formal
+candidate-source provenance separately.
+
+No software installation/release or existing user's saved data changed.
+PR #11 stays Draft; no merge, tag, signing or publication.
+
+## Native Windows provenance diagnostics — 242 tests PASS, isolated Task-event evidence (2026-11-09)
+
+The user successfully pulled through `939a99e`, ran all native
+Windows tests and the read-only provenance script. The exact observed
+output is as follows:
+
+- **242 tests passed in 1.82 seconds; 0 failures.**
+- Accepted baseline EXE:
+  `dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256 `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+  This is unchanged from the previous accepted baseline.
+- Optimized EXE:
+  `build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe`;
+  SHA256 `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+  These hashes distinguish baseline and optimized binaries.
+- **No running GitHubCommunityAgent.exe process found** at inspection,
+  so no runtime process path/PID was available for direct attribution.
+- Exactly one inspected isolated trial directory:
+  `build/gc-agent-e2e-trials/trial-5b5fbee064604fe2acf85ff4deea42c8/`
+  containing a Task database with exactly **5** Task records.
+- Grouped states: `community_report finished=1`,
+  `draft_discussion finished=1`, `draft_issue finished=1`,
+  `review_discussions finished=1`, `review_issues finished=1`.
+- Actual local Task event counts: `created=5`,
+  `completed=3`, `needs_attention=2`,
+  `marked_reviewed_locally=2`.
+
+These event counts **corroborate** the five previously supplied real
+Task exports, and the user's explicit statement that both draft Tasks
+were reviewed via **Needs My Attention**. This substantially strengthens
+the evidence for the local review-state transitions compared with
+final-status JSON exports alone. An isolated trial data root did hold
+the matching five Task definitions. The user has not supplied the
+historical trial process command line or matching EXE launch hash
+attestation: those five Task records cannot be assigned with
+cryptographic certainty to the optimized EXE merely because the
+database sits under the isolated-trial path.
+
+**Accepted**: 242 regression tests; baseline/candidate EXE hashes and
+unchanged baseline; actual isolated Task states and event counts;
+user-attested local review transition. **Still pending**:
+authenticated historic trial EXE execution provenance, independent
+GitHub no-write side-effect verification, cross-account DPAPI access
+denial, native live Host/Origin/nonce negative security, full candidate
+installer/upgrade acceptance, validated component SBOM/licenses and
+signing.
+
+For a new trial, a launch attestation is now available through
+`windows-run-exclusion-candidate-isolated.ps1`, but repeating all
+five model/GitHub workflow calls is unnecessary just to confirm process
+identity: a minimal separately attested candidate launch plus
+read-only inspection is preferable, clearly labeled as **new**
+evidence, not retrospective proof.
+
+## Live running optimized EXE process identity and fresh trial data isolation PASS (2026-11-09)
+
+User supplied a Windows screenshot of
+`scripts/windows-check-exclusion-candidate-provenance.ps1` while the
+optimized GC Agent was actively running. The read-only OS/CIM query
+actually returned:
+
+- `PID 23796 : EXCLUSION_CANDIDATE`, whose executable path was
+  `C:\Users\aiuser\projects\github-community-agent\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent\GitHubCommunityAgent.exe`.
+- Optimized candidate SHA256
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- Original baseline EXE SHA256 remained
+  `B0BB3F5D954CC44F8B8BB968ADF36B0C98EDDB4D9D128750EBDE5CE094C4008A`.
+- Fresh trial directory
+  `trial-0c7e076a671c47aba78cbdd9071ef237` contained a database
+  with **Task total: 0**.
+- Previous separate trial
+  `trial-5b5fbee064604fe2acf85ff4deea42c8` still contained the
+  five finished V1 Task definitions and events:
+  `created=5`, `completed=3`,
+  `needs_attention=2`, `marked_reviewed_locally=2`.
+
+**Accepted at live-evidence level**: operating-system observation of a
+real running optimized candidate EXE process; separate newly initialized
+trial data with zero tasks; preserved earlier five-task test data;
+unchanged baseline EXE hash. No launch provenance from historical
+Task timestamps to the old process was independently established, so
+DO NOT label the earlier five Task results as cryptographically
+authenticated executions of the candidate. The new zero-task trial
+is not an additional five-workflow E2E pass.
+
+Remaining independent security and release gates: GitHub no-write
+side-effect verification, separate-Windows-user DPAPI denial, live
+Host/Origin/nonce attack-path checks, genuine changed-code installer
+upgrade, binary/component SBOM/license NOTICE, signed public version.
+No installed files or original Nature AI Worker files touched.
+
+## Read-only live Windows loopback HTTP negative checks prepared (not yet executed)
+
+The GC Agent Work Center uses a random per-launch HTTP port on
+`127.0.0.1`, and the current verified optimized EXE is not replaced.
+New script `scripts/windows_candidate_http_negative_probe.py` uses
+only standard-library loopback HTTP. The operator supplies the
+**current** Work Center URL from the already-running isolated
+optimized candidate, with no port guessing or service discovery.
+
+The test checks:
+
+1. GC Agent Work Center identity via public `GET /api/definitions`
+   (must contain five V1 definitions).
+2. Invalid `Host` on GET must be HTTP 403.
+3. `GET /api/tasks` and `GET /api/settings` without the session
+   nonce must be HTTP 403.
+4. `POST /api/tasks`, `POST /api/test-connection` with an
+   intentionally WRONG nonce must be HTTP 403.
+5. A POST with BOTH foreign `Origin` and wrong nonce must be HTTP
+   403. This combined test **does not separately isolate the Origin
+   control**; a later independent Origin test using a valid test
+   nonce could be needed.
+6. Forged `Host` with invalid nonce on POST must be HTTP 403.
+
+The script deliberately NEVER obtains a valid nonce, reads
+`settings.dpapi`, opens the user DB, passes credentials or triggers
+authorized HTTP write operations. It disables proxy usage for the
+loopback probe and validates the URL format/host/port. Test payloads
+are the empty JSON object `{}`; no model/GitHub operations are
+authorized. The script is a **security-negative smoke check**,
+not proof that GitHub has no write capability nor complete CSRF
+security. Source tests enforce loopback-only and no-secret
+constraints, but native Windows test execution is PENDING.
+
+### Live native Windows steps
+
+In PowerShell window 1, in the GC Agent repository, run the already
+prepared isolated optimized candidate launcher, and keep the window
+running:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-run-exclusion-candidate-isolated.ps1
+```
+
+Note the current `GitHub Community Agent Work Center:
+http://127.0.0.1:<port>/` line from Window 1. The port is randomized
+and should **not** be assumed from earlier sessions.
+
+In PowerShell window 2, run with exactly the current printed local
+URL (replace `<port>` with the actual numeric port, without angle
+brackets):
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+.\.venv\Scripts\python.exe .\scripts\windows_candidate_http_negative_probe.py --url "http://127.0.0.1:<port>/"
+```
+
+Expected: all eight checks PASS including identity; if anything fails,
+preserve output and investigate before continuing. **Do not** paste
+API keys or GitHub tokens. No new five-task/model execution is needed.
+After tests stop the isolated candidate with Ctrl+C. The user-data
+root for all newly created trials remains preserved, not deleted.
+
+A complete Windows security gate still needs separately isolated
+valid-nonce/foreign-origin checks, second-Windows-user DPAPI
+negative test, actual no-GitHub-write evidence, changed-version
+installer acceptance, third-party SBOM/NOTICE and signing.
+Do not merge, tag, sign or release.
+
+## Real Windows optimized candidate negative loopback HTTP probe — 8/8 PASS (2026-11-09)
+
+User-provided actual PowerShell screenshot documents the optimized
+isolated Work Center running at `http://127.0.0.1:64887/`. They ran
+`scripts/windows_candidate_http_negative_probe.py` against that exact
+current port; **8 / 8 tests passed**, specifically:
+
+| Check | Expected/observed |
+|---|---|
+| GC Agent definitions discovery | 200 / 200 |
+| Forged Host GET refused | 403 / 403 |
+| Tasks GET without nonce refused | 403 / 403 |
+| Settings GET without nonce refused | 403 / 403 |
+| Tasks POST invalid nonce refused | 403 / 403 |
+| Test connection POST invalid nonce refused | 403 / 403 |
+| Settings POST foreign Origin **plus invalid nonce** refused | 403 / 403 |
+| Tasks POST forged Host refused | 403 / 403 |
+
+The running optimized candidate EXE had been independently identified
+earlier as SHA256
+`620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+The screenshot of this specific test confirms live loopback behavior.
+No valid nonce, authorized POST, model key or GitHub token was used.
+
+**Accepted:** real Windows negative HTTP smoke test **8/8 PASS** for
+malformed/unauthorized requests. **Not established:** foreign Origin
+rejection *independent of invalid nonce*, authenticated workflow
+authorization, independent proof of no GitHub-side write actions,
+cross-Windows-user DPAPI, true changed-code installer upgrade,
+complete actual-frozen SBOM/NOTICE, signing/release. These remain
+independent release gates. No app installation or user data changed.
+
+## Six outstanding public-release gates — execution status and next steps (2026-11-09)
+
+The user explicitly authorized proceeding to **finish the six gates**.
+This authorization is to prepare and run safe checks; it does **not**
+authorize a merge, a signed public installer, use of a signing identity,
+a tag, a publication, deletion of a user's existing data or access
+to another Windows user's secrets.
+
+### Gate 1: independent Origin enforcement — SOURCE READY; native run PENDING
+
+New `scripts/windows_candidate_origin_isolated_probe.py` compares
+four HTTP POSTs with controlled Origin/nonce values against a
+**nonexistent** route only:
+
+- correct Origin + valid local UI session nonce → 404;
+- foreign Origin + **valid** nonce → 403;
+- missing Origin + **valid** nonce → 403;
+- correct Origin + invalid nonce → 403.
+
+Nonce is extracted only from the *current local Work Center HTML*
+into process memory and is never logged or saved. No actual Task,
+Settings, model, or GitHub POST occurs. This isolates Origin from the
+previous bad-nonce-only tests. Native results are required before PASS.
+
+In PowerShell 1, keep the already-available isolated candidate running
+using `scripts/windows-run-exclusion-candidate-isolated.ps1`.
+Use its freshly printed `http://127.0.0.1:<port>/` URL in PowerShell 2:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\windows_candidate_origin_isolated_probe.py --url "http://127.0.0.1:<actual-port>/"
+```
+
+The literal placeholder must be replaced with the current real port;
+previous ports become invalid when the first window closes. Success
+requires **4/4 PASS**; anything else blocks sign-off.
+
+### Gate 2: GitHub no-write — STATIC CONTRACT prepared; independent proof pending
+
+`scripts/github_readonly_transport_audit.py` parses the current
+`github_readonly.py` adapter source without credentials or network.
+It checks exactly two GitHub transport call sites, one REST GET and
+one GraphQL POST, and that both constant GraphQL documents begin
+with `query` rather than `mutation` or `subscription`, plus an
+explicit query allowlist, no environment proxies and no redirects.
+
+Run this source-only check (choose a fresh output filename; existing
+reports are never overwritten):
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\github_readonly_transport_audit.py --source .\src\github_community_agent\github_readonly.py --output .\build\release-audit\github-readonly-transport-v1.json
+```
+
+This confirms only the **inspected source adapter contract**. GitHub's
+GraphQL query legitimately uses HTTP POST; all POSTs must not be
+misreported as publishing. Not every possible path through future
+code/dependencies is proven by source inspection. Independent GitHub
+server-side observation (e.g. before/after comment IDs and commit/
+activity audit from an approved account) is a separate gate and must
+be tied to the actual candidate runtime, not just app-reported
+`posted=false`. Never generate a GitHub write or delete a comment
+merely to test absence of writing.
+
+### Gate 3: Windows cross-account DPAPI isolation — PENDING
+
+Needs a **second separate real Windows user account** and permission
+to test with benign throwaway credentials. Record the first user's
+trial `settings.dpapi` ciphertext hash only; do not disclose or copy
+actual production credentials. Test decrypt under the second user
+using a separate throwaway trial file; success condition is
+`CryptUnprotectData` fails under that user. Confirm application
+cannot silently load or substitute another account's saved key.
+Creating/using a real Windows test account requires the user's
+explicit environment action. Same-user tests are insufficient.
+
+### Gate 4: final installer/upgrade/uninstall continuity — PENDING
+
+Prior installed-app continuity passed for the old unchanged-code
+installer. To accept the optimized candidate, assign a real approved
+version and validate an **actual change between installed builds** in
+an independent Windows test account/profile. Verify install paths,
+existing Task DB + encrypted settings SHA before/after, successful
+saved-model live connection and task reuse, uninstall/reinstall
+preservation, signing and malware scan. **Do not install the
+unsigned optimized candidate over the user's current validated
+installation**. Never copy the user's production DPAPI blob to a new
+identity or overwrite existing data to simulate upgrade.
+
+### Gate 5: frozen-component SBOM/licenses/NOTICE — PENDING
+
+Current audit generated 958 onedir files and candidate module list
+366; neither constitutes validated component provenance or a complete
+SBOM. Produce a versioned list of the *actual new frozen build*,
+including Python 3.13, Tcl/Tk, bundled binaries, certifi trust store,
+PyInstaller bootloader, native dependencies, all bundled Python
+distributions and exact license/NOTICE obligations. The source
+dependency metadata inventory is auxiliary, not a substitute.
+Coordinate packaging notices and copyright review before public use.
+
+### Gate 6: official version/signing — AWAIT OWNER CONTROL
+
+The project metadata remains `0.0.0.dev0`. A public version and
+publisher signing identity, private-key custody, Authenticode validation,
+signed installer, Defender/smart-screen acceptance and repository
+release approval are **not yet authorized or completed**. Signing
+requires user-controlled credentials/certificate or a signing
+provider; this chat must not manufacture or impersonate signing.
+No tag/merge/release without explicit owner approval.
+
+**The next actionable user evidence is the 4/4 independent Origin
+check and GitHub adapter static audit on real Windows.**
+The repo and all parent PRs remain Draft/unmerged. Original
+Nature AI Worker and existing GC Agent data untouched.
+
+## Independent Origin enforcement — real optimized Windows EXE 4/4 PASS (2026-11-09)
+
+The user provided native Windows PowerShell screenshots after pulling
+the changes to the above independent Origin probe:
+
+- `windows-test-regression.ps1`: **248 passed in 3.83s**,
+  zero failures.
+- The isolated optimized EXE self-check succeeded and launched a new
+  Work Center on `http://127.0.0.1:60503/`, with a unique trial data
+  directory and non-secret launch attestation. Candidate executable
+  SHA256 stayed
+  `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`.
+- Live `windows_candidate_origin_isolated_probe.py` against the
+  **current** port `60503` yielded **4/4 PASS**:
+  - correct Origin + correct nonce at nonexistent route: HTTP 404;
+  - foreign Origin + **correct** nonce: HTTP 403;
+  - missing Origin + **correct** nonce: HTTP 403;
+  - correct Origin + invalid nonce: HTTP 403.
+- No valid nonce printed or saved; no authorized Task or Settings
+  route, model request or GitHub request issued by this check.
+
+**ACCEPT** independent Origin/nonce enforcement for the tested live
+candidate. This resolves the earlier ambiguity from the combined
+foreign-Origin/bad-nonce probe. Scope is restricted to the four negative
+and control cases on the nonexistent local HTTP route, not a full
+security certification.
+
+**Not yet shown by the screenshots:** execution or output of
+`github_readonly_transport_audit.py`; therefore Gate 2 source-level
+read-only review and independent GitHub-side no-write evidence remain
+OPEN. Cross-Windows-user DPAPI isolation, optimized installer upgrade,
+real frozen SBOM/NOTICE and signing remain OPEN as well.
+
+No code signing, PR merge, release tagging or publishing performed.
+
+## Native Windows GitHub read-only transport source audit — PASS (2026-11-09)
+
+The user ran `scripts/github_readonly_transport_audit.py` natively
+from `C:\Users\aiuser\projects\github-community-agent` and
+supplied the complete PowerShell result screenshot:
+
+- `GitHub transport source audit: PASS`
+- `Source send methods: GET, POST`
+- `GraphQL fixed documents: DISCUSSIONS_QUERY, DISCUSSION_QUERY`
+- Report saved to `build/release-audit/github-readonly-transport-v1.json`
+- Tool explicitly confirms:
+  `INDEPENDENT GITHUB NO-WRITE EVIDENCE STILL REQUIRED.`
+
+**Gate 2 substep ACCEPTED:** static analysis of the current source
+GitHub adapter's bounded REST GET and fixed GraphQL query transport
+contract. GraphQL's HTTP POST is not a publication or mutation.
+This is not a frozen-runtime network capture and not a GitHub
+server-side before/after mutation audit. Therefore **Gate 2 as a
+whole is still OPEN** until independently observed server-side
+activity or a sufficiently controlled test can corroborate the lack
+of writes without initiating a write.
+
+Suggested next evidence path: use a dedicated, explicitly authorized
+test repository and strictly read-only GitHub token; record server-side
+comment/discussion/issue state or audit activity before and after
+bounded live V1 read/draft/review runs. Do not perform a GitHub write
+for the sake of testing, and do not claim a historical before-state
+from a later snapshot. Where immutable/reliable audit visibility is
+unavailable, document that uncertainty rather than marking independent
+no-write as proven. All PRs remain Draft, no merge, signing, tag or
+publication.
+
+## Gate 2/3 next-stage evidence tools prepared (2026-11-09; Windows runs PENDING)
+
+### Gate 2: bounded GitHub public Issue state before/after (NOT complete no-write proof)
+
+New `scripts/github_public_issue_before_after_audit.py` uses ONLY unauthenticated
+GitHub REST GET requests to the fixed `https://api.github.com` host,
+with proxies and redirects disabled. It checks that the repository
+is public and that the selected number refers to an Issue (not a PR).
+It records the Issue's state/update timestamp plus bounded comment IDs
+and timestamps, **never comment body or token**. Full pagination
+beyond three pages refuses verification instead of claiming complete coverage.
+Results are written create-only, with no overwrite.
+
+A genuinely prospective test workflow:
+1. BEFORE performing an authorized read-only V1 Task against a selected
+   public test Issue, capture `before.json`.
+2. Perform only the authorized GC Agent read or draft operation; no posting.
+3. AFTER the run capture `after.json`.
+4. Compare the two snapshots and retain the comparison result.
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py snapshot --repository owner/public-test-repository --issue 33 --output .\build\release-audit\issue-before-test.json
+# ONLY AFTER taking the above snapshot: execute the authorized V1 read/draft test
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py snapshot --repository owner/public-test-repository --issue 33 --output .\build\release-audit\issue-after-test.json
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py compare --before .\build\release-audit\issue-before-test.json --after .\build\release-audit\issue-after-test.json --output .\build\release-audit\issue-comparison-test.json
+```
+
+Replace both the public test repo and the Issue number with the same
+authorized target used for the task. Use unique filenames if reports
+already exist; **never overwrite historical audit evidence**.
+Matching snapshots are at most limited corroboration for one public
+Issue. They do not cover Discussions, all Issues, GitHub audit events,
+transient changes later reverted, or prove causation. Until the
+server-side monitoring scope is sufficiently complete and correlated
+with the candidate run, Gate 2 as a whole remains OPEN.
+
+### Gate 3: real separate-Windows-account DPAPI deny test, disposable bytes only
+
+New `scripts/windows_dpapi_two_account_throwaway.py` exercises the
+same native Win32 DPAPI protection API as GC Agent, but encrypts only
+32 random disposable bytes. It deliberately does not use the user's
+real saved model key, GitHub token, original settings file or database.
+A first Windows account creates the file using exclusive create; the
+same account verifies decryption; then a **different Windows sign-in
+identity** attempts decryption and must receive a denial. The
+two accounts must be able to READ the test ciphertext, otherwise a
+filesystem access denial alone is not a successful DPAPI test.
+
+Operator selects an existing, appropriately accessible shared
+folder, for example a temporary user-authorized folder under
+`C:\Users\Public\Documents\GC-Agent-DPAPI-Test\`. The script
+does not create an account, choose a directory, modify ACLs, elevate,
+copy production data or clean up automatically.
+
+Run as account A:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\windows_dpapi_two_account_throwaway.py create --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin"
+.\.venv\Scripts\python.exe .\scripts\windows_dpapi_two_account_throwaway.py verify --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin" --expect allowed
+```
+
+Sign in as a DIFFERENT Windows account B (using an authorized
+Windows Python installation with this repo/imports available, or an
+approved equivalent test runner), then run:
+
+```powershell
+python .\scripts\windows_dpapi_two_account_throwaway.py verify --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin" --expect denied
+```
+
+Do not report PASS if the second account could not read the file or
+if both commands ran as the same Windows identity. Actual native
+two-account evidence is still required; do not paste/disclose tokens,
+credentials or plaintext.
+
+### Remaining gates
+
+Gate 4 requires a real changed-code optimized installer upgrade in
+a dedicated Windows test profile; Gate 5 requires exact optimized
+frozen payload/version/binary-license mapping and appropriate NOTICE
+redistribution; Gate 6 requires owner-approved official version
+and trustworthy publisher Authenticode certificate/signature.
+These cannot be accepted from source scripts alone. Existing
+GC Agent install, Task records, DPAPI settings, original Worker
+repository and Draft PR state are untouched; no merge, tag, signing
+or release.
+
+## Native Windows actual prospective GitHub no-write Issue before-snapshot — PASS (2026-11-10 00:59 UTC)
+
+User pulled branch `feature/unified-task-home` through
+`4802621`, executed all regression tests:
+**252 passed in 3.90s**, zero failures.
+Then ran read-only public GitHub REST Issue snapshot for
+`nature-ai-corp/nature-ai-worker` Issue **#33**:
+
+- `GitHub public Issue comment metadata REST GET snapshot acquired.`
+- `Comment records: 2`
+- Baseline evidence file:
+  `build/release-audit/issue-before-test.json`
+- Audit tool printed:
+  `LIMITED evidence only; NOT independent proof of all GitHub no-write actions.`
+
+This is a genuine **prospective** BEFORE snapshot of the Issue's
+public comment IDs/timestamps and state. Preserve the file unchanged.
+The absence of an AFTER snapshot means Gate 2 overall remains OPEN.
+Next operator action should execute only a bounded authorized GC Agent
+**Draft Issue Reply** for the same Issue #33 with the isolated
+candidate, review it locally (never publish), and promptly collect
+`issue-after-test.json` using the same read-only snapshot tool,
+then compare with `issue-before-test.json`. If after state matches
+it proves only no *observed persistent changes* to Issue #33 in
+that window, not no write capability across GitHub or transient
+writes/deletions.
+
+Do not overwrite baseline or ask to regenerate a historical
+before-state; don't use real production credentials in test logs.
+This trial may require a fresh isolated test-authorized model API key
+and may incur model cost. Do not merge, sign, tag, install or release.
+
+## Prospective Issue #33 bounded no-write evidence — snapshots MATCH (2026-11-10)
+
+User supplied actual GC Agent Work Center and PowerShell screenshots
+showing a NEW real `Draft Issue Reply` Task #1 against
+`nature-ai-corp/nature-ai-worker` Issue **#33**. The app displayed
+`needs_attention` (not finished), `Draft Reply — Not Published`,
+and an explicit notice that no GitHub reply had been posted. The
+user did not report publishing.
+
+The previously preserved genuine BEFORE snapshot
+`build/release-audit/issue-before-test.json` contained **2**
+Issue comments. User captured a prospective AFTER snapshot in
+`build/release-audit/issue-after-test.json` with **2** Issue
+comments, then ran a compare to
+`build/release-audit/issue-comparison-test.json`:
+
+- `Observed change categories: []`
+- `Matching snapshots: True`
+- The tool explicitly stated:
+  `LIMITED evidence only; NOT independent proof of all GitHub no-write actions.`
+
+**Accepted:** during this observed trial, no persistent differences
+were detected in the bounded Issue #33 state/update metadata and its
+two accessible comment IDs/timestamps, while GC Agent produced an
+unposted reply draft awaiting human attention. This is useful
+independent corroboration of the application read-only contract.
+
+**Not accepted as an absolute guarantee:** a before/after match for
+one public Issue cannot rule out transient changes later reverted,
+other Issue/Discussion writes, unobserved GitHub activity, or
+provide full GitHub audit-log coverage. The on-screen screenshot
+alone does not supply a matching candidate launch attestation hash,
+though earlier independent optimized process identity and isolated
+trial evidence exist. Overall Gate 2 is **partially satisfied**,
+with bounded runtime no-change evidence; retain explicit limits
+instead of claiming global zero-write proof.
+
+No write requests were deliberately issued. Do not overwrite the
+before/after/compare evidence and do not merge, sign, tag or publish.
+
+## Optimized frozen-bundle SBOM/NOTICE provenance audit prepared (2026-11-10; native run pending)
+
+The user has no second Windows test account, so cross-account DPAPI
+testing stays explicitly PENDING. Proceeding with the user-authorized
+optimized-frozen SBOM and licensing review without modifying any
+previously accepted build.
+
+New `scripts/windows-optimized-frozen-sbom-review.ps1` analyzes the
+EXISTING optimized candidate only:
+`build/gc-agent-exclusion-candidate/dist/GitHubCommunityAgent`.
+It invokes existing `frozen_bundle_inventory.py` to hash every
+allowed onedir file, `pyi-archive_viewer.exe --brief --recursive`
+to obtain actual embedded module names, existing
+`frozen_archive_module_triage.py` to classify those module names,
+and new `frozen_candidate_provenance_review.py` to prepare an explicit
+candidate-component and compiled-binary license review report.
+No file is extracted or executed; no Windows installed GC Agent or
+user AppData, DPAPI, Task DB, signing certificate, or GitHub account is
+touched.
+
+It creates **only new** local audit files under:
+`build/release-audit/optimized-candidate-sbom-review/`
+and refuses to overwrite existing review outputs. Expected artifacts:
+`actual-frozen-files.json`, `pyinstaller-embedded-archive.txt`,
+`embedded-module-candidates.json`,
+`component-provenance-review.json`.
+The review ties actual file hashes/relative paths to module candidates,
+but **Python package names and versions from the current .venv remain
+CANDIDATES ONLY**, not verified frozen-package provenance. It
+explicitly lists all native binaries as pending exact component
+attribution and flags Python, Tcl/Tk, OpenSSL, SQLite, libffi, zlib,
+C runtime, PyInstaller bootloader, certifi and redistribution NOTICE
+obligations as open. Report fields `actual_package_versions_verified`,
+`complete_third_party_notices_verified` and
+`approved_public_redistribution` must stay FALSE without independent
+license evidence.
+
+On native Windows, from repo root:
+
+```powershell
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-optimized-frozen-sbom-review.ps1
+```
+
+Do NOT delete an earlier audit folder to repeat the same filename;
+retain prior output and select a new separately reviewed run if
+necessary. The accepted optimized onedir should previously contain
+approximately 958 files and 366 embedded module candidates, but
+current results rather than assumed numbers must establish this.
+
+**Gate 5 remains OPEN** after report creation until human review
+resolves actual frozen distribution versions, native binary origins,
+license texts, NOTICE placement in installer, and applicable license
+requirements. Gate 4 installer and Gate 6 signing remain pending.
+No PR merge/tag/sign/release without explicit owner authorization.
+
+## Native Windows optimized frozen audit executed — 254 regression PASS, 7 candidate distributions (2026-11-10)
+
+The user pulled branch `feature/unified-task-home` through
+`6614030`, then executed `windows-test-regression.ps1` and
+`windows-optimized-frozen-sbom-review.ps1` on native Windows.
+
+**Observed output:**
+
+- **254 passed in 2.54s, 0 failed.**
+- Optimized onedir **958 actual files, 29,507,071 bytes**.
+- File categories: **26 binary**, **1 archive**, **1
+  license_or_notice_candidate**, **926 other**, **1 public certifi CA
+  bundle**, **3 UI assets**.
+- Embedded PyInstaller listing **372 lines**, **366 parsed unique
+  modules**, **6 unmatched lines**; categories **117
+  environment_distribution_candidate**, **11 first_party**, **228
+  stdlib_candidate**, **10 unresolved** (previously identified as
+  first-party launcher/PyInstaller runtime helpers).
+- **Zero development-module candidates** in the optimized archive.
+- Combined provenance report identifies **7 Python distribution
+  candidates**, **26 native binary files**, **10 unresolved
+  archive members**. Distribution *names*, exact frozen version
+  matches, binary component origin and redistribution license text
+  are **not** established by the console summary.
+- Optimized EXE SHA256:
+    `620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`;
+  This agrees with the previously accepted optimized candidate.
+- Created four preserved reports under
+  `build/release-audit/optimized-candidate-sbom-review/`:
+  `actual-frozen-files.json`,
+  `pyinstaller-embedded-archive.txt`,
+  `embedded-module-candidates.json`, and
+  `component-provenance-review.json`.
+
+**Gate 5: actual frozen file/module inventory PASS; exact SBOM,
+license/NOTICE and binary origin review STILL OPEN.** The single
+`license_or_notice_candidate` file within the frozen bundle is
+not proof of full redistributed notices. The console counts are
+not license clearance.
+
+**Next read-only check**: inspect just the seven candidate
+distribution names plus their unverified environment metadata,
+and the 26 native binary relative paths from the saved
+`component-provenance-review.json`. Preserve and do not overwrite
+all files; do not print secrets, which this review does not collect.
+
+No changes to installed app, saved GC Tasks or credentials,
+original Nature AI Worker, Draft PR states, signing or release.
+
+## Seven Python candidates and 26 frozen native binaries — actual Windows report (2026-11-10)
+
+User directly read `component-provenance-review.json` generated from
+the optimized bundle and supplied all seven current-build-environment
+candidate versions/licenses:
+
+| Distribution | Candidate version (development venv ONLY) | Metadata license | Embedded modules |
+|---|---|---|---:|
+| anyio | 4.16.0 | MIT | 43 |
+| certifi | 2026.10.23 | MPL-2.0 | 2 |
+| h11 | 0.16.0 | MIT | 11 |
+| httpcore | 1.0.9 | BSD-3-Clause | 31 |
+| httpx | 0.28.1 | BSD-3-Clause | 23 |
+| idna | 3.20 | BSD-3-Clause | 6 |
+| typing-extensions | 4.16.0 | PSF-2.0 | 1 |
+
+**These are build-venv metadata candidates, not exact immutable
+component versions independently reconstructed from the frozen EXE.**
+All individual binary origin/license verification flags remain FALSE.
+
+The 26 native binaries in the optimized onedir are:
+
+`_internal/_asyncio.pyd`, `_internal/_bz2.pyd`,
+`_internal/_ctypes.pyd`, `_internal/_decimal.pyd`,
+`_internal/_hashlib.pyd`, `_internal/_lzma.pyd`,
+`_internal/_multiprocessing.pyd`,
+`_internal/_overlapped.pyd`, `_internal/_queue.pyd`,
+`_internal/_socket.pyd`, `_internal/_sqlite3.pyd`,
+`_internal/_ssl.pyd`, `_internal/_tkinter.pyd`,
+`_internal/libcrypto-3.dll`, `_internal/libffi-8.dll`,
+`_internal/libssl-3.dll`, `_internal/pyexpat.pyd`,
+`_internal/python313.dll`, `_internal/select.pyd`,
+`_internal/sqlite3.dll`, `_internal/tcl86t.dll`,
+`_internal/tk86t.dll`, `_internal/unicodedata.pyd`,
+`_internal/VCRUNTIME140.dll`, `_internal/zlib1.dll`,
+`GitHubCommunityAgent.exe`.
+
+These file names suggest runtime origin categories (CPython extension
+modules, OpenSSL, SQLite, Tcl/Tk, C runtime, libffi/zlib and PyInstaller
+bootloader), **not legally verified provenance**. Actual file version
+metadata, SHA256, linked import/data source and exact applicable
+redistribution license text remain to be checked before Gate 5 PASS.
+
+The source-level list and file manifest are not yet a signed,
+version-locked final SBOM. Do not invent license obligations or claim
+that seven package metadata entries cover all compiled runtime
+libraries.
+
+## Frozen 26-native-binary Windows VERSIONINFO evidence prepared (native run pending)
+
+Following the native optimized frozen audit (254 tests PASS), the user
+listed seven Python package candidates (anyio 4.16.0 MIT, certifi
+2026.10.23 MPL-2.0, h11 0.16.0 MIT, httpcore 1.0.9 BSD-3-Clause,
+httpx 0.28.1 BSD-3-Clause, idna 3.20 BSD-3-Clause,
+typing-extensions 4.16.0 PSF-2.0) and the 26 actual binary filenames.
+These are current build-venv metadata candidates and native file
+names; no frozen package version/redistribution clearance implied.
+
+A new read-only `scripts/windows-optimized-native-binary-versions.ps1`
+checks the **existing optimized frozen bundle** against each of the
+26 binary SHA256 values in previously generated
+`actual-frozen-files.json`, then records Windows VERSIONINFO fields
+(file/product version, company name, description) to a new,
+create-only file:
+
+`build/release-audit/optimized-candidate-sbom-review/native-binary-fileversion-evidence.json`
+
+VERSIONINFO labels are **untrusted embedded metadata**, helpful in
+investigating native binary origins but not proof of copyright,
+license identity, or redistribution permission. The report must
+leave all origin/license checks unverified. No executable, user
+credential, installed app, or historic report is changed.
+
+Native Windows next:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-optimized-native-binary-versions.ps1
+```
+
+If the report path already exists, preserve it; this command refuses
+overwrites. Do not infer a license from a version string. Gate 5
+remains OPEN until actual version-locked component/NOTICE texts and
+native binary redistribution rights have been assessed.
+
+## Native Windows frozen 26-binary VERSIONINFO evidence created — hashes 26/26 PASS (2026-11-10)
+
+User pulled branch `feature/unified-task-home` through `6e90ac4`
+and ran the updated native Windows regression:
+
+- **256 passed in 1.89s, 0 failed**.
+- `windows-optimized-native-binary-versions.ps1` completed.
+- **All 26 native executable/DLL/PYD SHA256 values matched the previously saved actual optimized bundle file manifest**.
+- New file created (preserved): `build/release-audit/optimized-candidate-sbom-review/native-binary-fileversion-evidence.json`.
+- Tool explicitly warned: `VERSIONINFO names are self-reported; legal origins and licenses still need verification.`
+
+**Accepted:** hash integrity of 26 native binaries against the frozen
+manifest, and a local report of embedded Windows VERSIONINFO metadata.
+**Not accepted:** legally verified origin, exact upstream build
+provenance, redistribution license text, third-party NOTICE coverage
+or release-ready SBOM. The user has not yet supplied the individual
+VERSIONINFO rows, so do not infer per-file company/product metadata
+from the tool's success line.
+
+Next read-only review: examine the saved JSON's `binaries` array,
+particularly `path`, `file_version_string`,
+`product_version_string`, `company_name_unverified`, and
+`product_name_unverified`. Retain `third_party_licenses_verified=false`
+until underlying authoritative source/redistribution evidence is
+checked. No modified executable, production credentials or signed
+installer involved.
+
+## Actual optimized native VERSIONINFO records reviewed (2026-11-10)
+
+The user ran the read-only Windows listing of all 26 entries in
+`native-binary-fileversion-evidence.json`. Windows self-reported
+VERSIONINFO establishes the following **version/provenance hints only**:
+
+- 17 CPython-named binary files, including `python313.dll` and
+  Python extension `.pyd` modules: file/product `3.13.14`,
+  company field `Python Software Foundation`.
+- `libcrypto-3.dll` and `libssl-3.dll`: `3.0.21`,
+  company field `The OpenSSL Project, https://www.openssl.org/`.
+- `sqlite3.dll`: `3.50.4.0`, company `SQLite3`.
+- `tcl86t.dll` and `tk86t.dll`: `8.6.15`,
+  company information blank.
+- `VCRUNTIME140.dll`: `14.42.34438.0`,
+  company `Microsoft Corporation`.
+- `zlib1.dll`: `1.3.1`, company blank.
+- `libffi-8.dll`: no version/company string in the output.
+- `GitHubCommunityAgent.exe`: no version/company string in the output.
+- The overall total remains **26 binary files** and their hashes
+  have already been checked **26/26** against the frozen manifest.
+
+This is **NOT** an independent verification of binary build origin,
+the complete CPython runtime license chain, OpenSSL/Tcl/Tk/libffi/zlib
+redistribution conditions, Microsoft runtime distribution conditions,
+PyInstaller bootloader license/attribution or installer NOTICE
+coverage. Do not infer that a missing field means the component lacks
+a license; investigate the actual upstream distribution materials.
+A component version printed by Windows is useful for source-matching,
+but does not independently prove that exact upstream binary was
+bundled.
+
+**Next gate actions:** identify authoritative redistribution
+LICENSE/NOTICE texts for the exact CPython 3.13.14 runtime and
+bundled libraries, OpenSSL 3.0.21, Tcl/Tk 8.6.15, zlib 1.3.1,
+SQLite 3.50.4, libffi and MS VC runtime. Confirm the PyInstaller
+version/bootloader origin and whether third-party notices are
+included within the installer. Keep the SBOM/NOTICE approval flag
+FALSE until each item has concrete evidence.
+
+All audit scripts remain read-only and non-overwriting; no
+installed app, Task, DPAPI data, signed installer or release touched.
+
+## Authoritative third-party license references and installer NOTICE gap (research + source check; 2026-11-10)
+
+Reviewed the actual GC Agent Inno Setup source
+`packaging/windows/gc-agent.iss`: it includes the project's
+root `LICENSE` and `NOTICE` as installed files, plus the frozen
+onedir tree. The root `NOTICE` currently documents Nature AI Worker
+adaptation and explicitly says third-party license inventory remains
+unfinished. **There is no explicit installer rule or prepared
+THIRD_PARTY_NOTICES file currently identified** that covers the
+seven candidate Python packages and native libraries. This is an
+OPEN redistribution gate, not a reason to invent or prematurely copy
+license texts.
+
+Authoritative material reviewed:
+
+| Component | Official source / review implication |
+|---|---|
+| CPython 3.13.14 | https://www.python.org/downloads/release/python-31314/ and https://docs.python.org/3.13/license.html — PSF license plus incorporated-software notices; upstream Windows release offers SBOM/provenance references |
+| OpenSSL 3.0.21 | https://openssl-library.org/source/license/index.html — OpenSSL 3.0+ Apache-2.0; verify bundled version and license/NOTICE |
+| Tcl/Tk 8.6.15 | https://www.tcl-lang.org/software/tcltk/license.html — copyright/license terms should be retained in redistributed Tcl/Tk binaries/data; frozen `_internal/_tk_data/license.terms` previously observed, but coverage of Tcl data/binaries must be checked |
+| SQLite 3.50.4 | https://www.sqlite.org/copyright.html — SQLite core public domain; still validate this packaged DLL's origin |
+| zlib 1.3.1 | https://zlib.net/zlib_license.html — zlib license, version-specific source/legal attribution still to confirm |
+| libffi | https://github.com/libffi/libffi/blob/master/LICENSE — upstream permissive license text with notice condition; exact packaged binary source/version unknown |
+| PyInstaller | https://www.pyinstaller.org/en/stable/license.html — bundled programs can be redistributed under app license via stated GPL exception, subject to dependency licenses; verify PyInstaller version/bootloader if modified |
+| VCRUNTIME140.dll | https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files — Microsoft imposes licensing conditions on redistributing Visual C++ runtime files; Windows VERSIONINFO is not proof of rights |
+| certifi MPL-2.0 | https://www.mozilla.org/en-US/MPL/2.0/FAQ/ and https://www.mozilla.org/en-US/MPL/2.0/ — executable distribution can require notice of how recipients obtain covered source; review exact package/certificate-bundle content |
+| other Python packages | Inspect exact files and licenses in corresponding distributions; venv metadata is candidate evidence, not a signed immutable artifact |
+
+These references support **review criteria**, not a conclusion that
+GC Agent fulfills them. No third-party license text has been
+manufactured or represented as already included.
+
+A new script `scripts/frozen_license_material_presence.py` inventories
+existing license/NOTICE-like paths, hashes and sizes in the **CURRENT
+build virtual environment** and actual optimized frozen onedir, plus
+the Inno source file-declaration contract. It copies no license
+material and will create only a NEW JSON report. It records all
+final installer, origin, version and redistribution approval fields
+as FALSE. It never reads user AppData/DPAPI, tasks, tokens or network.
+
+Native Windows instructions:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\frozen_license_material_presence.py --bundle .\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent --installer-script .\packaging\windows\gc-agent.iss --output .\build\release-audit\optimized-candidate-sbom-review\license-material-presence.json
+```
+
+If the output file exists, preserve it and use a different audit
+filename; do not overwrite prior evidence. Native execution pending.
+Next identify which exact third-party texts are available, which
+should be distributed, which need separate source-availability
+notices (particularly MPL), then create reviewed THIRD_PARTY_NOTICES
+and installer changes ONLY after verifying authoritative materials.
+No installation/sign/merge/tag/release authorized.
+
+## Native Windows license-material presence audit — 258 tests PASS; packaging gap confirmed (2026-11-10)
+
+User pulled the previous implementation and executed on native Windows:
+**258 pytest tests passed in 2.91s**, zero failures.
+`scripts/frozen_license_material_presence.py` completed with:
+
+- Inno source `includes_first_party_LICENSE=True` and
+  `includes_first_party_NOTICE=True`.
+- `copies_frozen_bundle_recursive=True`.
+- `explicit_third_party_license_directory=False`.
+- Exactly **one VENV LICENSE/NOTICE file candidate each** for
+  `anyio`, `certifi`, `h11`, `httpcore`, `httpx`,
+  `idna`, `typing-extensions` — seven candidate license files.
+- Exactly **one existing frozen onedir license material file** was
+  found by the script's bounded known-path checks. This is not a
+  complete recursive search or proof that no other licenses exist.
+- Report preserved:
+  `build/release-audit/optimized-candidate-sbom-review/license-material-presence.json`
+- Explicit output:
+  `RELEASE BLOCKED: not verified versioned frozen licenses, source availability or actual installer.`
+
+**Accepted:** source script/installer license declaration gap and
+candidate availability in the current build venv. **Not accepted:**
+a complete third-party NOTICE inventory, actual installer inclusion,
+exact immutable frozen distribution versions or compliance signoff.
+
+No installation, data mutation, signing, packaging or release occurred.
+The next safe change is to gather REVIEW-ONLY exact text bytes from
+candidate LICENSE files into a separate create-only audit staging
+folder; this must NOT automatically include them in the release
+installer or represent that legal review has passed.
+
+## Review-only verbatim license candidates staging prepared (native Windows run pending)
+
+New script `scripts/stage_venv_license_candidates_for_review.py`
+selects only license/copyright/notice candidate files inside
+the **current build virtual environment's .dist-info metadata**
+for the seven named packages (anyio, certifi, h11, httpcore, httpx,
+idna, typing-extensions); writes the exact bytes and individual
+SHA256 values into a NEW, create-only, operator-selected audit folder,
+with `REVIEW_MANIFEST.json` marking frozen provenance, license
+compliance and installer inclusion FALSE. It does NOT invoke
+PyInstaller, Inno Setup, GitHub/network or an installed application,
+and does NOT change the original frozen bundle.
+
+Native Windows command (after `git pull --ff-only`; preserve
+any existing output folder instead of deleting/overwriting):
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\stage_venv_license_candidates_for_review.py --output-dir .\build\release-audit\optimized-candidate-sbom-review\venv-license-candidates-for-review
+```
+
+These candidate texts are for **human examination only**, not yet
+`THIRD_PARTY_NOTICES` and must NOT be inserted automatically into
+a distributable installer. Still to review: actual frozen versions,
+applicable source availability (notably certifi/MPL-2.0), complete
+CPython incorporated-software attribution, OpenSSL notice,
+Tcl/Tk `license.terms` and all Tcl data, libffi, zlib,
+SQLite provenance, and Microsoft Visual C++ runtime rights.
+`Gate 5` remains OPEN until these are fully checked.
+
+## Actual Windows third-party license candidate text staging PASS (2026-11-10)
+
+The user pulled branch `feature/unified-task-home` through
+`400f7e8`. Native Windows regression **261 passed in 2.59s,
+zero failures**. The create-only human-review helper
+`scripts/stage_venv_license_candidates_for_review.py`
+completed and stated:
+
+- `Staged seven current-venv license sets for HUMAN review`
+- `Candidate text files: 7`
+- Folder:
+  `build/release-audit/optimized-candidate-sbom-review/venv-license-candidates-for-review`
+- `NEITHER installer package NOR copyright clearance; frozen origin and obligations OPEN`
+
+**Accepted:** 7 candidate text files and an audit manifest were
+created under the separate, previously absent review directory. They
+are not automatically copied into PyInstaller, the Inno Setup
+installer, or any user's installed application.
+
+**Not accepted:** exact frozen-version provenance, coverage of all
+native libraries and embedded Python licenses, MPL-2.0 executable
+source-availability fulfillment, actual installer inclusion and
+complete redistribution LICENSE/NOTICE compliance.
+
+Next work should compare the staged license file relative paths,
+digests and contents against authoritative package-distribution
+materials, then prepare a complete THIRD_PARTY_NOTICES structure and
+installer declaration with tests. Any such package changes remain
+unreleased until actual installer payload acceptance and user
+authorization; retain this staged evidence unmodified.
+
+## Isolated optimized installer source with fail-closed legal-material gate prepared (2026-11-10)
+
+In response to owner instruction to proceed with **actual packaging
+readiness rather than more file-count scripts**, added
+`packaging/windows/gc-agent-release-candidate.iss` as a
+**separate** Inno Setup source. It does not alter the existing
+`packaging/windows/gc-agent.iss`, installed GC Agent executable,
+user Task DB, DPAPI data, original Nature AI Worker or approved frozen
+candidate. No installer has been built or signed.
+
+The new RC installer source is deliberately NOT compilable
+out-of-the-box: Inno preprocessor errors are specified when the
+approved non-dev AppVersion, independently reviewed
+ReviewedLegalDir with THIRD_PARTY_NOTICES.txt and
+REVIEW_APPROVAL.json, or separately identified
+LegalReviewEvidence are absent. If and only if these independent
+materials later exist and are approved, the spec will include the
+actual optimized frozen onedir, repository LICENSE/NOTICE, and
+explicit reviewed third-party materials under an installed
+`third-party-licenses` directory. It emits to a separate
+`build/gc-agent-release-candidate-installer` area, never
+overwriting existing unsigned internal installer artifacts.
+Compile-time existence checks alone do NOT validate the truth
+or integrity of legal approval, version provenance, legal
+requirements or final installed payload.
+
+Added `tests/test_release_candidate_installer_contract.py`
+for static guardrails. Added
+`docs/THIRD_PARTY_NOTICE_REVIEW_MATRIX.md`
+as the single compact checklist of seven venv-only distribution
+candidates and all native runtime groups, source links, and
+unresolved provenance/notice obligations.
+
+**Native tests for this new source change are still pending.**
+Suggested safe next step:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+```
+
+**Do not attempt to compile this RC installer** by inventing
+REVIEW_APPROVAL.json or other gate files. It is a blocker-by-design
+until independent license review is complete. The internal
+installer source remains unchanged, and PR #11 stays Draft.
+
+## Third-party license package built and verified inside an actual installed payload (2026-11-10)
+
+Gate 5 moves from "inventory only" to **provenance + packaging VERIFIED;
+human legal sign-off still OPEN.** Details and per-component table:
+`docs/THIRD_PARTY_NOTICE_REVIEW_MATRIX.md`.
+
+- New `scripts/third_party_notices.py` derives the package from the actual
+  optimized onedir (EXE SHA256 `620268DE…3DA4E`, 958 files) and fails
+  closed on any unclassified file, non-identical module/binary, or license
+  metadata differing from the pinned table. Evidence: 355/355 PYZ + 11/11
+  CArchive code objects identical to known sources; 25/25 native binaries
+  and 926/926 Tcl/Tk data files byte-identical to the CPython 3.13.14
+  runtime; bootloader code sections identical to PyInstaller 6.22.3.
+- Committed `packaging/third-party-licenses/` (15 files): notices with full
+  texts, CycloneDX 1.5 SBOM (26 hashed binaries), SHA256 `MANIFEST.json`
+  with `legal_review_approved: false`. Upstream texts not present locally
+  (CPython `Doc/license.rst` @ v3.13.14, MPL-2.0) are pinned by SHA256.
+  `.gitattributes` marks the tree `-text` so bytes never change on checkout.
+- `packaging/windows/gc-agent.iss` installs it to `{app}\third-party-licenses`
+  with `#error` guards; `windows-build-installer.ps1` refuses to compile
+  unless the package matches the bundle being packaged (the legacy
+  `dist/` baseline with Pygments/pytest is rejected).
+- `scripts/windows-verify-installer-license-payload.ps1`: native Windows
+  **PASS three times** (third run on committed `2475b58`, incl. updated
+  `NOTICE`) — compile log lists all 15 license files; isolated-AppId
+  silent install produced 977 files, all byte-verified; clean uninstall
+  (files and HKCU entry removed); real installation EXE, `work.sqlite3`
+  and `settings.dpapi` hashes unchanged. Evidence under
+  `build/license-payload-verification/run-20261110T024602Z`,
+  `run-20261110T024957Z` and `run-20261110T025259Z`. Installer unsigned, never launched.
+- Windows regression: **280 passed, 1 skipped** (opt-in installer test,
+  which also passed when run explicitly).
+
+**Not done / still required:** human license review and approval record;
+decision on MPL-2.0 source-offer method for certifi; acceptance of the
+Microsoft Distributable Code conditions; Gate 3 two-account DPAPI test
+(still not executed: no result or test file exists); Gate 4 changed-code
+upgrade; Gate 6 version/signing. The RC installer spec remains blocked by
+design. No signing, tag, merge or release.
+
+## Release-readiness verification round (2026-11-10)
+
+### Gate 4: real upgrade between different builds — PASS (isolated)
+
+`scripts/windows_upgrade_continuity_trial.py`, native Windows, run
+`build/upgrade-continuity/run-20261110T030824Z`:
+
+- OLD = application source of commit `a2bc626`, which predates the
+  soft-delete SQLite migration and Task activity table. Frozen with the
+  optimized-candidate options; code verified identical to that commit and
+  different from current `src` (`work_center` module and UI assets differ).
+  Note: no older prebuilt artifact had different app code. All three
+  existing bundles share identical `github_community_agent` code, so the old
+  build was rebuilt from the commit. The first attempt was correctly rejected
+  because `--collect-data` pulled the CURRENT `home.html` through the
+  editable install; the script now adds the old commit's data files
+  explicitly and verifies them.
+- NEW = optimized candidate `620268DE…3DA4E`, identical to current `src`.
+- Both packaged with the real `gc-agent.iss` recipe under a fresh random
+  AppId, with an isolated install folder and LOCALAPPDATA.
+- OLD app saved throwaway DPAPI settings and created 3 Tasks through its API.
+  The Tasks failed at GitHub: the repo name does not exist, there was an
+  unauthenticated read-only GET, and no model call. NEW was installed over
+  it, with the registry version updated in place and all 977 files exact.
+- NEW app: settings identical and model key still decryptable;
+  `settings.dpapi` bytes unchanged; all Task core fields identical; schema
+  migrated in place (`deleted_utc`, `work_events`); new soft-delete works on
+  a migrated Task. Uninstall left data byte-identical; reinstall read
+  3 Tasks; final uninstall clean.
+- Real installation, real `work.sqlite3`/`settings.dpapi` and real AppId
+  registry entry unchanged.
+- Limits: unsigned, same Windows user, installer wrapper from today's recipe
+  for both builds, rebuilt (not historical) OLD binary.
+
+### Gate 5: license — report prepared, human decisions open
+
+`docs/V1_LICENSE_REVIEW_REPORT.md`. Added the PSF clause-3 "summary of
+changes: none" statement to the notices; package regenerated, check PASS,
+installer payload PASS (`run-20261110T031829Z`). Open DECISIONS 1–5,
+including certifi source-offer method, Microsoft Distributable Code terms and
+**"GitHub" (a Microsoft subsidiary trademark) in the product name**.
+New non-license finding: **OpenSSL 3.0 is past upstream support**.
+
+### Gate 3: DPAPI cross-account — still NOT RUN (superseded: see "Gate 3: cross-account DPAPI — PASS" below)
+
+Owner procedure: `docs/DPAPI_CROSS_ACCOUNT_TEST.md`. New built-in PowerShell
+verifier `scripts/windows-dpapi-verify-throwaway.ps1`, because account B
+cannot read aiuser's profile or venv. Validated on account A only: the app
+module and the verifier both decrypt the same blob; garbage bytes are denied;
+an unreadable file is INCOMPLETE. **That is not cross-account evidence.**
+
+### Gate 6: versioning — recommendation only (no change made)
+
+Version is declared in `pyproject.toml` and `__init__.__version__`
+(`0.0.0.dev0`), plus the Inno default (`0.0.0-dev0`). The frozen EXE has no
+Windows VERSIONINFO. There are no tags or releases. Recommendation once
+authorized:
+`1.0.0rc1` (installer `1.0.0-rc1`) for the first signed candidate, then
+`1.0.0` after its acceptance, with the EXE stamped via a PyInstaller version
+file (FileVersion `1.0.0.0`). `tests/test_version_consistency.py` now keeps
+the declarations in agreement.
+
+### Automated verification added
+
+- `tests/test_work_center_http.py`: real loopback HTTP tests of Host, Origin
+  and nonce enforcement, size limits, no input echo, delete/review rules and
+  DPAPI on-disk secrecy. `work_center.py` coverage went from 49% to 84%, total
+  71% to 78%. Mutation check: removing the Origin check fails 3 tests;
+  removing the GET Host check fails 4.
+- Contract tests for the upgrade trial and the DPAPI verifier.
+- Windows regression: **305 passed, 1 skipped** (opt-in installer test).
+- GitHub Actions is still not running (account billing). Branch protection
+  and required checks are unavailable on the current plan for this private
+  repository.
+
+## Release-preparation round: supported OpenSSL runtime and clean installer input (2026-11-10)
+
+### OpenSSL remediation — runtime replaced as a whole (no DLL swapping)
+
+- Previously shipped: `_internal/libssl-3.dll` and `libcrypto-3.dll`, OpenSSL
+  **3.0.21** (via `_ssl.pyd`/`_hashlib.pyd`), from the CPython 3.13.14 build.
+  OpenSSL 3.0 is past upstream support.
+- Selected: the official **CPython 3.13.17** x64 build (2026-10-21), which
+  ships OpenSSL **3.5.9** (3.5 LTS). Its `PCbuild/get_externals.bat` differs
+  from 3.13.14 only in OpenSSL. SQLite, xz, zlib, libffi, Tcl/Tk 8.6.15,
+  mpdecimal, bzip2 and expat are unchanged. The same Python minor version keeps
+  application compatibility. 3.14 was not chosen: it changes Tcl/Tk to 9.0
+  and zlib to zlib-ng.
+- Obtained without a system install. The python.org `core`/`exe`/`lib`/`tcltk`
+  MSIs were extracted administratively (`msiexec /a`) into
+  `build/runtime-3.13.17`; no product registration was created. All runtime
+  DLLs and the MSIs are Authenticode-valid (Python Software Foundation). The
+  key files are byte-identical to the PSF NuGet package, whose SHA512 matches
+  the nuget.org catalog. NuGet alone was rejected: it omits Tcl/Tk, which
+  `work_center` → `desktop` imports.
+
+### Clean installer input
+
+- New `scripts/windows-build-release-bundle.ps1`:
+  - verifies PSF signatures, CPython 3.13.17, OpenSSL 3.5.x and tkinter;
+  - creates a fresh venv with only `packaging/windows/build-requirements.txt`
+    (hash-locked, `--require-hashes --only-binary`), so there is no
+    pytest/Pygments/colorama;
+  - stamps EXE VERSIONINFO from `__version__`;
+  - after the build, rejects any test-only distribution in the venv or test
+    module in the archive.
+- `gc-agent.iss`, `gc-agent-release-candidate.iss`,
+  `windows-build-installer.ps1` and the payload verifier now default to
+  `build/release-bundle/dist/GitHubCommunityAgent` and its venv. The
+  installer build also checks the EXE version and passes `AppVersion` derived
+  from the package. A new `-OutputDir` option means existing `dist\installer`
+  files are never touched.
+- Third-party package regenerated from that exact bundle:
+  - 958 bundle files, all accounted for;
+  - native files byte-identical to the 3.13.17 runtime;
+  - stock bootloader;
+  - CPython `license.rst` and `get_externals.bat` evidence re-pinned to
+    v3.13.17. That `license.rst` adds a Unicode License V3 section.
+
+### License preparation (no approval)
+
+- certifi MPL-2.0: the exact sdist now ships in
+  `third-party-licenses/certifi-2026.10.23/source/`. The build fails unless
+  the bundled `cacert.pem` and certifi sources are identical to the files in
+  that archive.
+- `docs/VCRUNTIME_REDISTRIBUTION_BASIS.md`: facts, verbatim terms, options and
+  open questions. No conclusion is drawn.
+- Independence-from-GitHub disclaimer added to `NOTICE`, the notices,
+  `README.md` and the EXE `FileDescription`.
+
+### Defect found and fixed
+
+A POST rejected with 403 replied without reading its body. On Windows the
+leftover data reset the connection, so a client could see a reset instead of
+the 403. This was intermittent in `tests/test_work_center_http.py`: without
+the fix, 3 of 8 runs failed; with `_discard_body()`, 0 of 8 failed. The same
+race also affected oversized POSTs answered with 413, which are now drained
+too. The drain reads at most 64 KiB with a 5 s socket timeout and then closes
+the connection. New tests: a repeated rejected-POST race test (4 of 5 runs
+fail without the fix, 0 of 5 with it) and a test that a lying
+`Content-Length` cannot stall the reply.
+
+### Results at `0.0.0.dev0`
+
+- Release bundle build: PASS. `third_party_notices.py check`: PASS.
+- Installer build script: PASS, into `build/installer-check-dev0`.
+- Native install, byte-verify and uninstall: PASS (978 files), with real
+  install and user data unchanged.
+- Regression after both fixes: **324 passed, 1 skipped** on CPython 3.13.17,
+  including the bundle-bound tests; **322 passed, 3 skipped** on the 3.13.14
+  dev venv. Payload re-verified after the rebuild: `run-20261110T051322Z`.
+
+### Provisional `1.0.0rc1` validation (superseded by the committed RC version below)
+
+At that point the version bump had **not been authorized**, so it was kept only in the
+working tree and as `build/PROVISIONAL-1.0.0rc1-version.patch`. That covers
+`pyproject.toml`, `__init__.__version__`, the `gc-agent.iss` default
+`1.0.0-rc1`, and the package regenerated for the rc1 EXE. On that tree, built
+with `-OutRoot build\release-bundle-1.0.0rc1` from commit `9424fad`, which
+includes the 403/413 fix (rc1 EXE SHA256 `ad830121…49feb8`):
+
+- **Versions agree:**
+  - `pyproject` = `__version__` = SBOM `metadata.component.version` =
+    `1.0.0rc1`;
+  - installer AppVersion `1.0.0-rc1`;
+  - EXE FileVersion/ProductVersion `1.0.0rc1`, numeric `1.0.0.0`; Windows
+    Explorer shows ProductName, CompanyName and the independence
+    FileDescription.
+- **Package and installer:** `third_party_notices.py check` PASS; installer
+  build PASS (`build/installer-check-rc1`, setup ProductVersion `1.0.0-rc1`);
+  native install, byte-verify and uninstall PASS (978 files,
+  `run-20261110T051646Z`).
+- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T051715Z`):
+  - OLD = commit `a2bc626` on CPython 3.13.14 / OpenSSL 3.0.21; NEW = rc1 on
+    CPython 3.13.17 / OpenSSL 3.5.9.
+  - The NEW install went over the OLD one with an isolated AppId. Settings were
+    identical and the DPAPI key still decrypted; Tasks were identical; the
+    schema was migrated and soft-delete worked on a migrated Task.
+  - Uninstall kept the data, and the reinstall read 3 Tasks.
+  - The real installation and data were unchanged, and the trial registry
+    entry was removed.
+- **Security, frozen rc1 EXE with isolated data:**
+  - negative HTTP probe 8/8 PASS;
+  - one unauthenticated GitHub read of a nonexistent repository returned
+    HTTP 404 ("GitHub issues not found."). That message requires an HTTP
+    response, so TLS with certificate verification through the bundled
+    OpenSSL 3.5.9 and certifi works.
+  - Real `work.sqlite3`/`settings.dpapi` were unchanged.
+- **Regression:** 324 passed, 1 skipped on 3.13.17 (bundle-bound tests
+  pointed at the rc1 bundle via `GC_AGENT_BUNDLE`); 322 passed, 3 skipped on
+  the 3.13.14 dev venv.
+- **Fixed during this step:** a relative `-OutRoot` broke `--version-file`,
+  because PyInstaller resolves it against `--specpath`. The script now makes
+  `OutRoot` absolute.
+
+Not done (requires the owner):
+- signing;
+- Defender/SmartScreen checks on a signed build;
+- a real-AppId upgrade from the currently installed internal build;
+- the DPAPI cross-account test;
+- legal approval;
+- CI (Actions billing).
+
+### `1.0.0rc1` committed for RC preparation (2026-11-10)
+
+The owner authorized version `1.0.0rc1` **for release-candidate preparation
+only**. That authorization does not cover publishing, signing, tagging, merging
+or releasing. The working-tree version change was reviewed and committed.
+
+The default release bundle `build/release-bundle` was rebuilt from that tree.
+The previous dev0 bundle was moved to `build/release-bundle-0.0.0dev0-superseded`.
+PyInstaller output is not byte-reproducible, so the EXE hash changed:
+
+- before: `ad830121…49feb8`
+- after: `0a4b022f…fe3d89`
+
+The license package was regenerated against the rebuilt bundle. Only the EXE
+hash (and the SBOM serial derived from it) changed in MANIFEST, notices and
+SBOM. All upstream texts are byte-identical.
+
+- **Versions agree:**
+  - `pyproject` = `__version__` = SBOM component = `1.0.0rc1`;
+  - `gc-agent.iss` AppVersion and setup ProductVersion are `1.0.0-rc1`;
+  - `windows_version_info.py check` on the EXE: MATCHES `1.0.0rc1`.
+- **Package:** `third_party_notices.py check` PASS (958 bundle files).
+- **Installer build:** PASS into `build/installer-check-rc1-final`, SHA256
+  `FD684B31…E6E4B4`. `dist\installer` was not touched.
+- **Native install, byte-verify and uninstall:** PASS, 978 files
+  (`build/license-payload-verification/run-20261110T130527Z`).
+- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T130602Z`):
+  - OLD = `a2bc626` on CPython 3.13.14 / OpenSSL 3.0.21; NEW = this bundle.
+  - Every check is true: settings, DPAPI key, Tasks, schema migration,
+    soft-delete, and data kept through uninstall and reinstall.
+  - The real installation and data were unchanged.
+- **Frozen-EXE security probe:** 13/13 PASS
+  (`build/security-probe-rc1/final-20261110T130822Z`). Each check is repeated
+  10 times.
+  - **403 cases:** foreign Host, Origin and nonce.
+  - **413 cases:** empty body, a body just over the 12000-byte limit, and a
+    60 KB body.
+  - **Huge bodies:** a 2 MB body is rejected by closing the connection,
+    because bodies over 64 KB are deliberately never read.
+  - **Stall check:** a lying Content-Length gets a 403 within the 5 s timeout.
+  - The server stays healthy afterwards.
+- **TLS probe:** an unauthenticated read of a nonexistent repository returned
+  "GitHub issues not found." (`tls-20261110T130836Z`). TLS and certificate
+  verification work through OpenSSL 3.5.9 and certifi.
+- **Regression:**
+  - 3.13.17: 324 passed, 1 skipped (the opt-in installer test, covered by
+    the payload run);
+  - 3.13.14 dev venv: 322 passed, 3 skipped.
+
+### Gate 3: cross-account DPAPI — PASS (owner-run, owner-reported)
+
+The owner ran the procedure in `docs/DPAPI_CROSS_ACCOUNT_TEST.md` on this PC
+with two real local Windows accounts. Only 32 random throwaway bytes were
+used; no real GC Agent settings were read or copied. The owner reported the
+results on 2026-11-10:
+
+| Step | Account | Reported result |
+|---|---|---|
+| A: decrypt before the cross-account step (A3/A5) | A = `aiuser`, SID ending `-1006` | Decrypted (PASS) |
+| B: DPAPI SelfCheck | B = `GCDPAPITest`, SID ending `-1007` | `DPAPI SELF-CHECK PASS`: DPAPI works for B |
+| B: verify A's blob | B | File **readable**, decryption **denied** (PASS). A denial at the DPAPI layer, not a file-permission failure |
+| A: decrypt after the cross-account step (A7) | A | Decrypted (PASS): the blob was unchanged and still valid for A |
+| Cleanup | owner | Temporary test files and the `GCDPAPITest` account removed |
+
+**Result: Gate 3 PASS.** On this PC, a secret protected with Windows DPAPI
+for account A cannot be decrypted by another local account B, even when B can
+read the file. B's working SelfCheck shows the denial is not a broken profile.
+
+Scope and limits:
+- **Not observed by the agent.** Claude did not see the console output; this
+  record relies on the owner's report. The procedure asks for the console output
+  of A3, A5, B1, B2, SelfCheck, B verify and A7. If that output was kept, file
+  it with the release record.
+- **Independently confirmed afterwards (read-only, 2026-11-10):**
+  - no local user `GCDPAPITest` exists;
+  - `C:\Users\GCDPAPITest` does not exist;
+  - no user profile with a SID ending `-1007` remains;
+  - `C:\Users\Public\Documents\GC-Agent-DPAPI-Test` does not exist;
+  - `aiuser`'s SID ends `-1006`.
+
+  B's SID could not be re-checked, because the account is deleted.
+- **What it does not prove:** DPAPI does not protect against malware running
+  as the **same** user. Administrators, and domain or roaming setups, were not
+  tested.
+- **Data safety:** this was a technical security check only. It used no real
+  user data and changed no application code.
+
+### Code-signing preparation (2026-11-10; nothing signed, nothing purchased)
+
+Details and owner steps are in `docs/WINDOWS_CODE_SIGNING_READINESS.md`.
+
+New files:
+- `scripts/windows-verify-signatures.ps1`: read-only verifier;
+- `scripts/windows-sign-release.ps1`: plan mode by default, `-Execute` is
+  owner-only;
+- an opt-in `SignTool`/`SignedUninstaller` block in `gc-agent.iss`, active only
+  when the build script is given `-SignMetadata`;
+- `tests/test_code_signing_contract.py`.
+
+No application code changed.
+
+**Evidence:**
+- **Inventory:** only `GitHubCommunityAgent.exe` and the setup EXE are
+  unsigned. The 25 third-party DLL/PYD files are validly signed by the PSF or
+  Microsoft with SHA-256 and timestamps, and must not be re-signed.
+- **Verifier:**
+  - a PSF-signed file with the expected signer: PASS;
+  - the same file with the wrong signer: FAIL;
+  - the current build: 25/27 PASS, with exactly our 2 files `NotSigned`.
+- **Signing script guards:** plan mode exits 0. A credential-like key in the
+  metadata, a non-Azure endpoint, or an already-signed target is refused. The
+  real bundle EXE stayed byte-identical and `NotSigned`.
+- **Signed-installer guard:** refuses an unsigned bundle before compiling.
+- **Inno wiring:** dry run with an argument recorder in place of SignTool (no
+  signing). The arguments were exact (`/fd SHA256 /tr
+  http://timestamp.acs.microsoft.com /td SHA256 /dlib … /dmdf …`). Inno then
+  aborted because the uninstaller had no signature: it fails closed.
+- **Unsigned default build unchanged:** the installer built from the edited
+  `.iss` is byte-identical (`FD684B31…E6E4B4`) to the previous rc1 build.
+  Installed payload PASS, 978 files (`run-20261110T171406Z`).
+- **Consistency:** `third_party_notices.py check` PASS. EXE version metadata
+  matches `1.0.0rc1`. The EXE SHA256 equals the MANIFEST and SBOM hashes.
+  `legal_review_approved: false`.
+
+**Process consequence of signing.** Signing changes the EXE's SHA256, so the
+license MANIFEST, notices and SBOM must be regenerated against the **signed**
+bundle before the installer is built. The installer build enforces this.
+
+**Licensing requirements in the shipped build (no new purchases or audits;
+legal status unchanged, NOT approved):**
+- **Still open (counsel decision needed before public release):**
+  1. *Microsoft Distributable Code (`VCRUNTIME140.dll`)*: the condition to
+     "require … external end users to agree to terms that protect the Microsoft
+     Distributable Code" is not met by the current installer, which has no
+     terms page. Options are in `VCRUNTIME_REDISTRIBUTION_BASIS.md` §5.
+  2. *Product name "GitHub Community Agent"*: the same license's condition not
+     to use Microsoft trademarks in program names, plus GitHub's own trademark
+     policy.
+- **Met technically, legal confirmation pending (not blocking work):**
+  - MPL-2.0 source for certifi (shipped in the installer);
+  - MIT, BSD, Apache-2.0, PSF, Zlib and TCL notices (shipped and byte-verified);
+  - the PSF "summary of changes" (stated as none);
+  - the PyInstaller bootloader exception (stock bootloader);
+  - the public-domain statements.
+- **Signing-specific:** CPython's license forbids altering Microsoft's notices
+  in the Distributable Code, so third-party binaries are never re-signed. The
+  scripts and the verifier enforce this.
+
+### Final release checklist (`1.0.0rc1` → public release)
+
+Technical items are verified by automation. Approvals need a named human.
+
+- [x] CI 7/7 on PR #11 (Draft).
+- [x] Clean release bundle (CPython 3.13.17 / OpenSSL 3.5.9); versions agree.
+- [x] Installer install, byte-verify and uninstall; upgrade from the previous build; frozen-EXE security and TLS probes.
+- [x] Gate 3: cross-account DPAPI PASS (owner-run).
+- [x] License package and SBOM technically consistent with the bundle.
+- [x] Signing scripts, verifier and procedures prepared and tested without signing.
+- [ ] **Counsel:** VCRUNTIME end-user-terms condition, and the product name/trademark (`V1_LICENSE_APPROVAL_CHECKLIST.md` items 1–2).
+- [ ] **Counsel/owner:** remaining approval-checklist items (certifi MPL, public-domain wording, notices/SBOM, pin governance) and a recorded approval for the exact MANIFEST hash set.
+- [ ] **Owner:** if counsel chooses the installer terms page or a rename, authorize that packaging change; then re-run the installer, payload and upgrade checks.
+- [ ] **Owner:** Azure Artifact Signing set up, through a completed Public Trust identity validation and certificate profile (`WINDOWS_CODE_SIGNING_READINESS.md` §7).
+- [ ] **Owner-authorized signing run:** sign the EXE → regenerate the package (commit) → build and sign the installer and uninstaller → run the §5 verifier.
+- [ ] Repeat the payload, upgrade, security and TLS checks on the **signed** build; confirm CI on the commit with the regenerated package.
+- [ ] Defender scan and clean Windows 11 SmartScreen test on the signed setup (§6); no Defender detection.
+- [ ] Real-AppId upgrade over the currently installed internal build; user data preserved.
+- [ ] **Owner:** authorize merge of the Draft PR chain (#6→#7→#8→#9→#11), tag and release; publish the signed setup with its SHA256.
+
+### Defender scan of the verified unsigned RC1 (2026-11-10)
+
+**Artifacts scanned.** These are the committed and verified RC1 build; nothing
+was rebuilt for the scan.
+
+| Artifact | SHA256 | Identity evidence |
+|---|---|---|
+| `build/installer-check-rc1-final/GitHubCommunityAgent-InternalTest-Unsigned.exe` (13,079,273 bytes, ProductVersion `1.0.0-rc1`, NotSigned) | `FD684B31B56E3DCCF288CC44C30BFDFF266E0FA0C1163F1C7A220B2FB6E6E4B4` | Built by `windows-build-installer.ps1` after `third_party_notices.py check` against the bundle below. A later rebuild from the same bundle was byte-identical. |
+| `build/release-bundle/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe` (3,652,158 bytes, `1.0.0rc1`, NotSigned) | `0A4B022F94B00AC7EEAB80C6C75D16ABF8C6C771B8DBC8A792B30022B2FE3D89` | Equals `MANIFEST.json` `exe_sha256` and the SBOM hash at commit `cf1a73f`; `third_party_notices.py check` PASS |
+| The whole bundle folder (958 files) | — | Same bundle |
+
+**Scanner:**
+- Microsoft Defender Antivirus, platform/service `4.18.26100.4`, engine
+  `1.1.26100.4`, `MpCmdRun.exe` `4.18.25080.5`;
+- security intelligence (AV, AS and NIS) `1.463.226.0`, updated
+  2026-11-10 03:11 local time;
+- real-time protection on, tamper protection on, running mode Normal.
+
+**Command:** `MpCmdRun.exe -Scan -ScanType 3 -File <target> -DisableRemediation`.
+This is a custom scan with no quarantine or changes.
+
+**Result:**
+- installer: exit 0, "found no threats";
+- app EXE: exit 0, "found no threats";
+- bundle folder: exit 0, "found no threats";
+- `Get-MpThreatDetection` shows 0 detections since the scan started.
+
+Both hashes were re-checked after the scan and are unchanged. The raw output is
+in `build/defender-scan-rc1/`.
+
+**Limits:**
+- This scan covers the **unsigned** build. It must be repeated on the signed
+  files, because signing changes the bytes.
+- A local Defender scan is not SmartScreen reputation and not a multi-engine
+  scan. The clean Windows 11 SmartScreen test is still required
+  (`WINDOWS_CODE_SIGNING_READINESS.md` §6).
+
+### Final owner decisions (as of 2026-11-10; nothing approved)
+
+Only these remain before signing and release. Nothing in this repo records any
+of them as decided.
+
+| # | Decision | Who | Options and evidence | Effect |
+|---|---|---|---|---|
+| 1 | Product name | **Counsel → owner** | (A) keep "GitHub Community Agent" and obtain GitHub's written permission; (B) a descriptive form such as "Community Agent for GitHub"; (C) a neutral name. GitHub's brand rules require prior written permission for trademark use and forbid implying GitHub origin or endorsement. The same question settles the CPython/Microsoft "trademarks in program names" condition (b) | Option B or C means renaming the installer, EXE metadata and docs, then re-running the checks |
+| 2 | Microsoft Distributable Code end-user terms (condition e) | **Counsel drafts or approves; owner authorizes** | Add an installer license page that users accept. No Visual Studio license is assumed; leaving out `VCRUNTIME140.dll` would not remove the condition | Small packaging change, then re-run the installer, payload and upgrade checks |
+| 3 | ~~Attest that the program is not malicious, deceptive or unlawful (condition d)~~ **Removed 2026-11-10**: condition (d) is met by the product; no attestation | — | V1 is read-only toward GitHub | — |
+| 4 | Approve the license package for the exact MANIFEST hash set | **Counsel/owner** | `V1_LICENSE_APPROVAL_CHECKLIST.md` items 3–5; previously verified upstream items are not reopened | Must be redone after signing and any repackaging, because the EXE hash changes |
+| 5 | Set up Azure Artifact Signing and authorize the signing run | **Owner** | `WINDOWS_CODE_SIGNING_READINESS.md` §7 | Enables the signed build |
+| 6 | Authorize merge, tag and release | **Owner** | After items 1–5, plus the signed-build Defender and SmartScreen checks and the real-AppId upgrade | — |
+
+### Owner decisions and draft installer license page (2026-11-10)
+
+**Owner decisions recorded:**
+- KEEP the product name "GitHub Community Agent";
+- publisher NATURE AI CORP;
+- keep the independence disclaimer;
+- the official PSF Windows runtime is used, and no Visual Studio license is
+  assumed.
+
+The name decision is **not** legal or trademark approval, and counsel review
+remains open.
+
+**Installer license page:**
+- `packaging/windows/END_USER_TERMS.txt` (ASCII, **DRAFT FOR LEGAL REVIEW**) is
+  `LicenseFile` in `gc-agent.iss` and `gc-agent-release-candidate.iss`, and is
+  also installed as `{app}\END_USER_TERMS.txt`.
+- Contents: the Apache-2.0 grant and disclaimer (pointing to `LICENSE`/`NOTICE`);
+  the third-party components (pointing to `THIRD_PARTY_NOTICES.txt`); the
+  CPython "Additional Conditions" for Microsoft Distributable Code, **verbatim**
+  (a test checks every clause against the shipped `LICENSE.txt`, and that no
+  Microsoft permission or extra restriction is invented); and the existing
+  independence disclaimer, verbatim from `NOTICE`.
+- `scripts/third_party_notices.py verify-installed` now also byte-checks the
+  installed `END_USER_TERMS.txt`, so the installed payload is 979 files.
+
+**Isolation defect found and fixed:**
+- **What happened.** An interactive license-page probe used an isolated-AppId
+  build, which still defaulted to the real install folder
+  `%LOCALAPPDATA%\Programs\GitHub Community Agent`. The wizard reached a
+  "Folder Exists" prompt for that folder; the agent stopped it before the
+  install step. Nothing was installed, and the real EXE, `work.sqlite3` and
+  `settings.dpapi` hashes are unchanged. The scripted checks were never
+  affected, because they always pass `/DIR`.
+- **Fix: compile time.** An isolated build (`PayloadVerificationAppId`) now
+  fails to compile without `/DIsolatedInstallDir`. It uses that folder as
+  `DefaultDirName`, with `UsePreviousAppDir=no` and `DisableDirPage=yes`.
+- **Fix: install time.** A `PrepareToInstall` guard refuses, before any file is
+  copied, to install into the real installation folder or the real data folder
+  `%LOCALAPPDATA%\GitHubCommunityAgent`, even when `/DIR` overrides the default.
+- **Scripts updated:** both the payload verifier and the upgrade trial pass
+  their own run folder.
+- **Real installer unchanged:** the real (non-isolated) installer is
+  byte-identical before and after this fix.
+
+**Evidence** (all isolated; real installation and data hashes unchanged after every step):
+
+| Check | Result |
+|---|---|
+| Isolated compile without `IsolatedInstallDir` | Compile error, no setup produced |
+| Guard: silent install with `/DIR` inside a protected test root (`/DGuardTestRoot`, scratch folder) | Exit 7, "PrepareToInstall failed: Isolated trial build refuses …"; no files, no registry entry |
+| Same build with its isolated default folder, then uninstall | Installed (including `END_USER_TERMS.txt`); uninstall removed the files and the registry entry |
+| Interactive wizard probe (isolated AppId and folder; UI Automation; Next never pressed) | First page = license; default "I do not accept", **Next disabled**; after "I accept", Next enabled; after "I do not accept", Next disabled again. The page text, read from the wizard, contains the DRAFT marker and the Microsoft section. No install folder or registry entry was created. Automated Cancel was not achieved (UI Automation never saw the confirmation dialog), so the probe force-stopped the wizard on the license page; nothing was copied (`build/license-page-probe/`) |
+| Unsigned RC1 installer rebuild | PASS; SHA256 `F4262E5301A11E47B0C8BB247B6C9E4EC223B76CCC99FCB01756A085622E09EA`, ProductVersion `1.0.0-rc1`, NotSigned; Defender: no threats (intelligence `1.463.226.0`) |
+| Installer install, byte-verify and uninstall | PASS, 979 files (`run-20261110T174206Z`) |
+| Upgrade trial (OLD `a2bc626` → RC1 with terms page) | PASS: every check true; data kept through uninstall and reinstall; real install and data unchanged (`run-20261110T174231Z`) |
+| Frozen-EXE security and TLS probes | 13/13 PASS; TLS OK |
+| Version and SBOM | Package check PASS; EXE `1.0.0rc1`; SBOM `github-community-agent 1.0.0rc1`; `legal_review_approved: false` |
+
+**Still open:**
+- counsel review of the DRAFT terms wording and of the name/trademark question;
+- ~~the owner attestation (not malicious, deceptive or unlawful)~~ (removed 2026-11-10);
+- package approval, signing, signed-build Defender and SmartScreen checks, and
+  the real-AppId upgrade;
+- merge, tag and release.

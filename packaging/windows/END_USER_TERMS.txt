@@ -1,0 +1,75 @@
+GitHub Community Agent - End-User Terms and Third-Party Notice
+Version 1.0.0rc1 - Publisher: NATURE AI CORP
+
+Please read these terms before installing. To install, select "I accept the
+agreement". If you do not agree, select "I do not accept the agreement" and
+cancel the installation.
+
+1. GitHub Community Agent license
+
+GitHub Community Agent is Copyright 2026 NATURE AI CORP and contributors. It is
+licensed under the Apache License, Version 2.0 (the "Apache License"). The
+Apache License is installed as LICENSE and the attribution notices as NOTICE in
+the installation folder. You may use, reproduce, prepare derivative works of
+(modify), publicly display, publicly perform, sublicense and distribute GitHub
+Community Agent in accordance with the Apache License. Nothing in these terms
+limits the rights that the Apache License grants for GitHub Community Agent's
+own code.
+
+Unless required by applicable law or agreed to in writing, the software is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See sections 7 and 8 of the Apache License for the
+disclaimer of warranty and the limitation of liability.
+
+2. Third-party components
+
+This installation also contains third-party software: the official Python
+Software Foundation (PSF) Windows build of CPython 3.13.17 and the libraries it
+incorporates, Tcl/Tk, the PyInstaller bootloader and bundled Python packages.
+Each component is provided under its own license, which governs that
+component. The license texts, notices, source-availability information and a
+software bill of materials (SBOM) are installed in the "third-party-licenses"
+folder. Start with third-party-licenses\THIRD_PARTY_NOTICES.txt.
+
+3. Microsoft Distributable Code in the Python runtime
+
+The PSF Windows build of CPython included here is linked with and uses
+Microsoft Distributable Code, copyrighted by Microsoft Corporation. That code
+is embedded in the build's .exe, .dll and .pyd files, and the included
+VCRUNTIME140.dll is itself Microsoft Distributable Code.
+NATURE AI CORP redistributes that runtime unmodified, under the PSF license for
+that build, which sets the following conditions. If you further distribute
+programs that include the Microsoft Distributable Code, you must comply with
+the restrictions on distribution specified by Microsoft. In particular, you
+must require distributors and external end users to agree to terms that
+protect the Microsoft Distributable Code at least as much as Microsoft's own
+requirements for the Distributable Code. Redistribution of the Windows binary
+build of the Python interpreter complies with that license, provided that you
+do not:
+
+  - alter any copyright, trademark or patent notice in Microsoft's
+    Distributable Code;
+  - use Microsoft's trademarks in your programs' names or in a way that
+    suggests your programs come from or are endorsed by Microsoft;
+  - distribute Microsoft's Distributable Code to run on a platform other than
+    Microsoft operating systems, run-time technologies or application
+    platforms; or
+  - include Microsoft Distributable Code in malicious, deceptive or unlawful
+    programs.
+
+These conditions apply only to the Microsoft Distributable Code, not to Python
+itself or to GitHub Community Agent's own code. The full text is in
+third-party-licenses\cpython-3.13.17\LICENSE.txt, section "Additional
+Conditions for this Windows binary build".
+
+4. Independence and trademarks
+
+GitHub Community Agent is an independent product of NATURE AI CORP. It is not
+affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft
+Corporation. "GitHub" is a trademark of GitHub, Inc. and is used only to
+identify the service this software works with. All other trademarks are the
+property of their respective owners. These terms grant no right to use any
+trademark of GitHub, Inc., Microsoft Corporation, the Python Software
+Foundation or any other third party.
+
+A copy of these terms is installed as END_USER_TERMS.txt.
