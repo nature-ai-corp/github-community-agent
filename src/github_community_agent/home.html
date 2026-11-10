@@ -37,7 +37,7 @@
 <div id="task-details" class="task-details" aria-live="polite"><p class="muted small">Choose a Task above to see its purpose, what it will do, expected output, and required review.</p></div>
 <div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="Configure repository in Settings → Advanced" readonly></div>
 <div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
-<p class="muted small" id="planned-note">V1 uses real GitHub and AI models; V2 Promotion is planned.</p>
+<p class="muted small" id="planned-note">V1 uses real GitHub and AI models. V2 Promotion publishes nothing without your explicit approval.</p>
 <div class="form-actions"><span class="spacer"></span><button class="primary" id="start" disabled>Create &amp; Run Task</button></div>
 </div></div></section>
 <section id="page-work" class="view">
@@ -58,6 +58,15 @@
 <label>GitHub Discussions READ token<input type="password" id="read-key" autocomplete="off" placeholder="Leave empty to keep current token"></label><p class="muted small" id="s-read-status"></p>
 <p class="muted small">Read-only access; GitHub posting is disabled.</p>
 </details>
+<details id="settings-promotion"><summary>Promotion</summary>
+<p class="muted small">One Promotion Agent for any product repository you are authorized to promote. Default: nature-ai-corp/github-community-agent.</p>
+<label>Promotion repository<input id="promo-repo" placeholder="owner/repository" autocomplete="off"></label>
+<label>GitHub token for this repository<input type="password" id="promo-token" autocomplete="off" placeholder="Leave empty to keep the stored token"></label>
+<p class="muted small" id="promo-status"></p><p class="muted small" id="promo-list"></p>
+<p class="muted small">Each token is stored encrypted and used only for its own repository. Publishing needs WRITE access and Discussions enabled; research and drafting do not need a token.</p>
+<div class="dialog-actions"><button type="button" id="promo-remove">Remove token for this repository</button><span class="spacer"></span><button type="button" id="promo-save">Save promotion target</button></div>
+<div id="promo-settings-message" role="status"></div>
+</details>
 <div id="settings-message" role="status"></div>
 <div class="dialog-actions">
 <button type="button" id="test-connection">Test connection</button><span class="spacer"></span>
@@ -71,7 +80,8 @@
 const NONCE="__APP_NONCE__";
 const $=id=>document.getElementById(id);
 const state={definitions:[],tasks:[],page:"all",route:"work_type",definition:null,filterKey:"",filterValue:"",selectedTask:null,
-settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",hasModelKey:false,hasReadToken:false}};
+settings:{repository:"",provider:"openai",model:"gpt-4.1-mini",hasModelKey:false,hasReadToken:false},
+promotion:{available:false,selected:"",repositories:[],selectedHasToken:false}};
 const headers=()=>({"Content-Type":"application/json","X-App-Nonce":NONCE});
 const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function error(message){$("error").textContent=message||""}
@@ -99,11 +109,41 @@ $("s-key-status").textContent=st.hasModelKey?"A key is stored encrypted. Leave e
 $("s-read-status").textContent=st.hasReadToken?"GitHub READ token stored encrypted. Leave empty to keep it.":"No GitHub Discussions READ token saved.";
 $("settings-message").textContent="";
 $("settings-advanced").open=false;
+$("settings-promotion").open=false;$("promo-settings-message").textContent="";
+renderPromotionSettings();
 $("settings-overlay").classList.remove("hid");
 $("provider").focus();
 }
+function promotionState(p){
+return {available:true,selected:p.selected,repositories:p.repositories||[],selectedHasToken:p.selected_has_token===true};
+}
+async function loadPromotion(){
+try{state.promotion=promotionState(await getJSON("/api/promotion/settings"))}
+catch(e){state.promotion={available:false,selected:"",repositories:[],selectedHasToken:false}}
+}
+function renderPromotionSettings(){
+const p=state.promotion;
+$("promo-repo").value=p.selected||"";$("promo-token").value="";
+$("promo-status").textContent=!p.available?"Promotion settings are unavailable on this system.":
+(p.selectedHasToken?"A GitHub token is stored encrypted for "+p.selected+". Leave empty to keep it.":
+"No GitHub token saved for "+(p.selected||"this repository")+". Research and drafting work without one; publishing needs it.");
+$("promo-list").textContent=p.repositories.length?"Tokens stored for: "+p.repositories.map(r=>r.repository).join(", "):"No promotion tokens stored.";
+}
+async function savePromotion(remove){
+const repo=$("promo-repo").value.trim();
+if(!repo){$("promo-settings-message").textContent="Enter a repository as owner/name.";return}
+if(remove&&!window.confirm("Remove the stored GitHub token for "+repo+"? Tokens for other repositories are kept."))return;
+try{
+const p=await postJSON("/api/promotion/settings",{repository:repo,token:remove?"":$("promo-token").value,remove_token:!!remove});
+state.promotion=promotionState(p);
+renderPromotionSettings();
+$("promo-settings-message").textContent=remove?"Token removed for "+p.selected+".":"Promotion target saved: "+p.selected+".";
+if(state.definition&&state.definition.workflow==="promotion")$("target-repo").value=p.selected;
+}catch(e){$("promo-settings-message").textContent="Not saved: "+e.message}
+finally{$("promo-token").value=""}
+}
 function closeSettings(){
-$("model-key").value="";$("read-key").value="";
+$("model-key").value="";$("read-key").value="";$("promo-token").value="";
 $("settings-overlay").classList.add("hid");
 }
 function settingsDraft(){
@@ -150,15 +190,13 @@ state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
 $("selection-label").textContent=state.route==="work_type"?"Community Management — Work Type":"Promotion — Domain";
 const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
-// Concrete V1 Work Types appear in their defined task order; promotion
-// Domains default to Self-Promotion. No separate Community Management layer.
+// Concrete V1 Work Types appear in their defined task order. Promotion is ONE
+// Domain with ONE universal Task; the target repository is a Setting.
 if(state.route==="work_type"){
   vals.sort((a,b)=>state.definitions.findIndex(d=>d.work_type===a)-state.definitions.findIndex(d=>d.work_type===b));
-}else{
-  vals.sort((a,b)=>a==="Self-Promotion"?-1:b==="Self-Promotion"?1:a.localeCompare(b));
 }
 $("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
-$("selection").value=state.route==="domain"&&vals.includes("Self-Promotion")?"Self-Promotion":(vals[0]||"");
+$("selection").value=vals[0]||"";
 renderChoices();
 }
 function renderChoices(){
@@ -170,14 +208,13 @@ if(state.route==="work_type"&&items.length===1){
   choose(items[0].id);
   return;
 }
-// A Domain may contain multiple product targets; show only those concrete
-// options. For single-task Self-Promotion, select it directly.
+// The Promotion Domain has exactly one universal Task: select it directly.
 if(items.length===1){
   $("choices").innerHTML="";
   choose(items[0].id);
   return;
 }
-$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?'V1 available':'V2 planned — view details')+'</span></button>').join("");
+$("choices").innerHTML=items.map(d=>'<button class="taskchoice" type="button" data-id="'+escapeHTML(d.id)+'"><strong>'+escapeHTML(d.title)+'</strong><span class="tag '+(!d.enabled?'planned':'')+'">'+escapeHTML(d.enabled?d.version+' available':'Planned — view details')+'</span></button>').join("");
 $("choices").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.id)));
 choose(null);
 }
@@ -189,7 +226,9 @@ $("selected-title").textContent=d?d.title:"Select a Task";
 const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
 $("start").disabled=!d||!d.enabled;
-$("planned-note").textContent=d?.version==="V2"?"V2 Promotion is planned. You can inspect this Task definition but cannot run it yet.":"V1: real GitHub and AI analysis; no GitHub posting.";
+const promo=d?.workflow==="promotion";
+$("planned-note").textContent=promo?"V2 Promotion: research, plan and draft run automatically for the repository below. Nothing is published until you approve the exact text and confirm publication.":"V1: real GitHub and AI analysis; no GitHub posting.";
+$("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
 return;
@@ -253,6 +292,8 @@ const rows=state.tasks.filter(t=>(state.page==="archived"?t.archived:!t.archived
 $("work-list").innerHTML=rows.length?rows.map(t=>'<button class="work" data-id="'+t.id+'"><div><strong>'+escapeHTML(t.title)+'</strong><div class="note">Task #'+t.id+' · '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+'</div><div class="note">'+escapeHTML(t.repository)+' · '+escapeHTML(t.updated_utc)+'</div></div><span class="status '+escapeHTML(t.status)+'">'+escapeHTML(t.status.replace("_"," "))+'</span></button>').join(""):'<p class="note">No work in this view.</p>';
 $("work-list").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>openTask(Number(b.dataset.id))));
 const selected=rows.find(t=>t.id===state.selectedTask);
+// Never replace a Promotion draft the user is editing.
+if(selected&&document.activeElement?.closest?.("#promo-panel"))return;
 if(selected){
 // Real state changes may require updating the detail. Preserve the user's
 // expanded technical JSON and its scroll position across that update.
@@ -548,17 +589,104 @@ function renderActivity(t){
   const labels={created:"Task created",completed:"Task finished",needs_attention:"Draft needs attention",failed:"Task failed",marked_reviewed_locally:"Marked reviewed locally (not posted)",archived:"Moved to Archived Work",restored:"Restored to My Work"};
   return '<details class="technical-details"><summary>Activity History ('+events.length+')</summary><ol class="task-activity">'+events.map(e=>'<li><strong>'+escapeHTML(labels[e.event]||e.event)+'</strong> <span class="note">'+escapeHTML(e.at_utc)+'</span></li>').join("")+'</ol></details>';
 }
+// V2 Promotion: ONE workflow for the Task's bound repository. Every external
+// action requires an explicit approval of the exact text and a confirmed publish.
+function promotionReport(t){
+  const r=t.result||{}, ev=r.evidence||{}, f=ev.facts||{};
+  const out=['<section class="user-report" aria-label="Promotion"><div class="user-report-title"><strong>Promotion</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>',
+    '<div class="report-subtitle">'+escapeHTML(t.repository)+' · repository bound to this Task</div>'];
+  if(t.result){
+    const facts=[f.description,f.license?"License "+f.license:null,typeof f.stars==="number"?f.stars+" stars":null,
+      Array.isArray(ev.releases)?ev.releases.length+" recent releases read":null].filter(Boolean).join(" · ");
+    out.push('<section class="report-section"><h4>Research — facts read from GitHub</h4><p>'+escapeHTML(facts||"No repository facts captured.")+'</p></section>');
+    out.push('<section class="report-section"><h4>Promotion Plan — AI draft for your review</h4>'+reportLines(r.plan)+'</section>');
+    const src=(Array.isArray(r.sources)?r.sources:[]).filter(u=>typeof u==="string"&&u.startsWith("https://github.com/"));
+    if(src.length)out.push('<section class="report-section"><h4>Sources</h4><ul>'+src.map(u=>'<li><a href="'+escapeHTML(u)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(u)+'</a></li>').join("")+'</ul></section>');
+  }
+  out.push('<div id="promo-panel" aria-live="polite"><p class="note">Loading drafts and approvals…</p></div></section>');
+  return out.join("");
+}
+async function loadPromotionPanel(t){
+  if(!$("promo-panel"))return;
+  try{renderPromotionPanel(t,await getJSON("/api/promotion/tasks/"+t.id+"/detail"))}
+  catch(e){const p=$("promo-panel");if(p)p.innerHTML='<p class="note">'+escapeHTML("Promotion details unavailable: "+e.message)+'</p>'}
+}
+function renderPromotionPanel(t,d){
+  const panel=$("promo-panel");if(!panel)return;
+  const parts=[];
+  for(const a of d.actions){
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>Announcement #'+a.id+' — '+escapeHTML(a.status)+'</h4><p class="report-meta">Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):'')+'</p>');
+    if(["draft","approved","failed"].includes(a.status)){
+      parts.push('<label class="field-label">Title<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
+        '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
+        '<button type="button" class="promo-save">Save edits'+(a.status==="approved"?' (cancels approval)':'')+'</button>');
+    }else{
+      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>');
+    }
+    if(a.error)parts.push('<p class="note">'+escapeHTML(a.error)+'</p>');
+    if(a.status==="draft"||a.status==="failed"){
+      parts.push('<div class="form-actions"><button type="button" class="promo-preflight">Check publishing permission</button>'+
+        '<select class="promo-category" aria-label="Discussion category" disabled><option value="">Category (check permission first)</option></select>'+
+        '<button type="button" class="primary promo-approve" disabled>Approve this exact text</button></div><p class="note promo-check"></p>'+
+        '<p class="note">Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Approval covers exactly this repository, title and body.</p>');
+    }
+    if(a.status==="approved")parts.push('<div class="form-actions"><button type="button" class="primary promo-publish">Publish to GitHub</button></div><p class="note">Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publishing re-checks permission first.</p>');
+    if(a.status==="uncertain")parts.push('<div class="form-actions"><button type="button" class="promo-reconcile">Check whether it was published</button></div>');
+    if(a.status==="published"){
+      parts.push('<p>Published: <a href="'+escapeHTML(a.published_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(a.published_url)+'</a></p><div class="form-actions"><button type="button" class="promo-monitor">Refresh engagement</button></div>');
+      if(a.metrics.length)parts.push('<table class="promo-metrics"><tr><th>Observed (UTC)</th><th>Comments</th><th>Upvotes</th><th>Reactions</th></tr>'+a.metrics.map(m=>'<tr><td>'+escapeHTML(m.observed_utc)+'</td><td>'+escapeHTML(m.comments)+'</td><td>'+escapeHTML(m.upvotes)+'</td><td>'+escapeHTML(m.reactions)+'</td></tr>').join("")+'</table>');
+    }
+    parts.push('</section>');
+  }
+  const published=d.actions.some(a=>a.status==="published");
+  parts.push('<section class="report-section"><h4>Improve</h4>'+(d.improvements.length?d.improvements.map(i=>'<p class="note">'+escapeHTML(i.created_utc)+'</p>'+reportLines(i.text)).join(""):'<p class="note">After publishing and refreshing engagement, ask for improvement suggestions. Suggestions never publish anything.</p>')+'<button type="button" id="promo-improve"'+(published?'':' disabled')+'>Suggest improvements</button></section><p class="note" id="promo-message" role="status"></p>');
+  panel.innerHTML=parts.join("");
+  const msg=m=>{const e=$("promo-message");if(e)e.textContent=m};
+  for(const a of d.actions){
+    const el=panel.querySelector('[data-action="'+a.id+'"]');
+    const call=(verb,data)=>postJSON("/api/promotion/tasks/"+t.id+"/actions/"+a.id+"/"+verb,data||{});
+    const on=(sel,fn)=>{const b=el.querySelector(sel);if(b)b.addEventListener("click",async()=>{b.disabled=true;try{await fn()}catch(e){msg(e.message)}finally{b.disabled=false}})};
+    const edited=()=>el.querySelector(".promo-title")&&(el.querySelector(".promo-title").value!==a.title||el.querySelector(".promo-body").value!==a.body);
+    on(".promo-save",async()=>{await call("edit",{title:el.querySelector(".promo-title").value,body:el.querySelector(".promo-body").value});msg("Draft saved. Review it, then approve.");await loadPromotionPanel(t)});
+    on(".promo-preflight",async()=>{
+      const out=el.querySelector(".promo-check");out.textContent="Checking with the token saved for "+a.repository+"…";
+      const p=await call("preflight");
+      out.textContent=(p.can_publish?"Ready to publish":"Not ready")+" · "+[p.viewer?"as "+p.viewer:null,"permission "+(p.permission||"none"),...(p.reasons||[])].filter(Boolean).join(" · ");
+      const sel=el.querySelector(".promo-category");
+      sel.innerHTML='<option value="">Choose a category</option>'+p.categories.map(c=>'<option value="'+escapeHTML(c)+'">'+escapeHTML(c)+'</option>').join("");
+      sel.disabled=!p.can_publish;sel.onchange=()=>{el.querySelector(".promo-approve").disabled=!sel.value};
+    });
+    on(".promo-approve",async()=>{
+      if(edited()){msg("Save your edits before approving.");return}
+      const category=el.querySelector(".promo-category").value;
+      if(!window.confirm("Approve this exact announcement?\n\nRepository: "+a.repository+"\nCategory: "+category+"\nTitle: "+a.title+"\n\nNothing is posted until you publish."))return;
+      await call("approve",{category,sha256:a.draft_sha256});msg("Approved. Publish when ready.");await loadPromotionPanel(t);
+    });
+    on(".promo-publish",async()=>{
+      if(edited()){msg("You changed the text; save it and approve again.");return}
+      if(!window.confirm("Publish this announcement publicly as a GitHub Discussion?\n\nRepository: "+a.repository+"\nCategory: "+a.category+"\nTitle: "+a.title))return;
+      const res=await call("publish",{sha256:a.approved_sha256});
+      msg(res.status==="published"?"Published: "+res.url:res.status==="uncertain"?"Outcome uncertain: use 'Check whether it was published' before any new attempt.":"Publication failed: "+(res.error||"see details"));
+      await loadPromotionPanel(t);
+    });
+    on(".promo-reconcile",async()=>{const res=await call("reconcile");msg(res.status==="published"?"Found on GitHub: "+res.url:"Not found on GitHub. You may approve and publish again.");await loadPromotionPanel(t)});
+    on(".promo-monitor",async()=>{await call("monitor");msg("Engagement refreshed.");await loadPromotionPanel(t)});
+  }
+  const imp=$("promo-improve");if(imp)imp.addEventListener("click",async()=>{imp.disabled=true;msg("Asking the AI model for improvement suggestions…");try{await postJSON("/api/promotion/tasks/"+t.id+"/improve",{});msg("Suggestions added.");await loadPromotionPanel(t)}catch(e){msg(e.message);imp.disabled=false}});
+}
 function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
 const source=taskSource(t);
 const hasResult=t.result!==null&&t.result!==undefined;
-const resultActions=hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
-c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">Mark draft reviewed (does NOT post)</button>':'')+(t.archived?'<div class="task-management"><span class="note">Archived record — view only. Original result and activity history are retained.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
+const isPromotion=t.definition_id==="promote_repository";
+const resultActions=isPromotion?promotionReport(t):hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
+c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">'+(isPromotion?'Mark promotion work complete (does NOT post)':'Mark draft reviewed (does NOT post)')+'</button>':'')+(t.archived?'<div class="task-management"><span class="note">Archived record — view only. Original result and activity history are retained.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
 const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
 const download=$("export-result");if(download)download.addEventListener("click",()=>exportTaskResult(t));
 const del=$("delete-task");if(del)del.addEventListener("click",()=>deleteTask(t));
 
 const b=$("mark-reviewed");if(b)b.addEventListener("click",async()=>{try{await postJSON("/api/tasks/"+t.id+"/review",{});await refresh()}catch(e){error(e.message)}});
+if(isPromotion)loadPromotionPanel(t);
 }
 document.querySelectorAll(".nav").forEach(b=>b.addEventListener("click",()=>page(b.dataset.page)));
 document.querySelectorAll('input[name="route"]').forEach(r=>r.addEventListener("change",()=>{state.route=r.value;renderRoute()}));
@@ -567,11 +695,13 @@ $("start").addEventListener("click",startTask);
 $("settings-cancel").addEventListener("click",closeSettings);
 $("settings-save").addEventListener("click",saveSettings);
 $("test-connection").addEventListener("click",testSettings);
+$("promo-save").addEventListener("click",()=>savePromotion(false));
+$("promo-remove").addEventListener("click",()=>savePromotion(true));
 $("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
 $("filter-value").addEventListener("change",()=>{state.filterValue=$("filter-value").value;renderWork()});
 
-(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await loadSettings();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
+(async()=>{try{const j=await getJSON("/api/definitions");state.definitions=j.definitions;renderRoute();await loadSettings();await loadPromotion();await refresh();page("all")}catch(e){error("Application initialization failed: "+e.message)}})();
 setInterval(async()=>{if(!["new","settings"].includes(state.page))try{await refresh()}catch(e){/* status kept; retry next cycle */}},2000);
 </script></body></html>

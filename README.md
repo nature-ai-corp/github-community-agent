@@ -17,13 +17,18 @@ GitHub Community Agent helps project maintainers understand and respond to their
 
 The app uses the general UI baseline of Nature AI Worker v0.1.1, with independent GC Agent functions, configuration, database, credentials and release process. It does not modify or ship the original Worker application.
 
-## V2 — Promotion
+## V2 — Promotion (in development, not released)
 
-A single promotion mechanism uses a GitHub repository as its product information base:
-- **Self-Promotion:** this product's official repository is selected automatically.
-- **Product Promotion:** the user selects a GitHub repository for their product.
-
-Planning, writing, approval, publication (where authorized), monitoring and improvement share the same engine. There are no V2 shipping claims in the V1 scope.
+**One** Promotion Agent and **one** Promotion Workflow serve any product
+repository you are authorized to promote. The only settings are the target
+repository (default `nature-ai-corp/github-community-agent`) and the GitHub
+token for that repository. The steps are: research the repository's real
+README and releases → plan → draft an announcement → you approve the exact
+text → publish it as a GitHub Discussion in that repository → monitor
+engagement → get improvement suggestions. Nothing is published without your
+explicit approval, and nothing is posted to other repositories or sites. See
+[V2 Promotion design](docs/V2_PROMOTION.md). The released V1 (`v1.0.0-rc1`)
+does not include V2.
 
 ## Project boundaries
 

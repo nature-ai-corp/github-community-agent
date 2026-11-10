@@ -47,9 +47,9 @@ DEFINITIONS = (
     TaskDefinition("draft_issue", "Draft Issue Reply", "Draft Issue Reply", "", "draft_replies", "V1", True),
     TaskDefinition("draft_discussion", "Draft Discussion Reply", "Draft Discussion Reply", "", "draft_replies", "V1", True),
     TaskDefinition("community_report", "Community Report", "Community Report", "", "community_report", "V1", True),
-    TaskDefinition("promote_self", "Promote GitHub Community Agent", "", "Self-Promotion", None, "V2", False),
-    TaskDefinition("promote_worker", "Promote Nature AI Worker", "", "Product Promotion", None, "V2", False),
-    TaskDefinition("promote_other", "Promote Other Repository", "", "Product Promotion", None, "V2", False),
+    # V2: ONE universal Promotion Task for any authorized product repository.
+    # The target repository and its token are configuration, not separate Tasks.
+    TaskDefinition("promote_repository", "Promote Product Repository", "", "Promotion", "promotion", "V2", True),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
@@ -106,35 +106,20 @@ TASK_DETAILS = {
         "review": "Human review recommended; no changes are published.",
         "limitations": "A missing Discussions token or limited fetched data makes coverage incomplete."
     },
-    "promote_self": {
-        "goal": "Plan promotion of GitHub Community Agent itself.",
-        "steps": ["V2 planned: assess the project's current public materials.",
-                  "V2 planned: propose promotion opportunities and prepare content.",
-                  "V2 planned: require review before any publication."],
-        "output": "Future promotion plan and draft materials; not yet available.",
-        "requires": "V2 Promotion implementation and explicit review/approval safeguards.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
-    },
-    "promote_worker": {
-        "goal": "Plan promotion of the separate Nature AI Worker product.",
-        "steps": ["V2 planned: analyze product positioning and public materials.",
-                  "V2 planned: prepare tailored outreach and community content.",
-                  "V2 planned: require review and approval before publication."],
-        "output": "Future promotion plan and drafts; not yet available.",
-        "requires": "V2 Promotion implementation and approved target scope.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
-    },
-    "promote_other": {
-        "goal": "Plan promotion of another explicitly selected GitHub repository.",
-        "steps": ["V2 planned: review the specified repository and audience.",
-                  "V2 planned: prepare an evidence-based promotion plan and content.",
-                  "V2 planned: require approval before any external action."],
-        "output": "Future promotion plan and drafts; not yet available.",
-        "requires": "V2 Promotion implementation and an explicitly authorized target repository.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
+    "promote_repository": {
+        "goal": "Promote the selected product repository (default: GitHub Community Agent) to its community.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan audience, value proposition, channels, schedule and measurable objectives.",
+                  "Draft one factual announcement for a GitHub Discussion in that repository.",
+                  "You review, edit and approve the exact text; nothing is posted before that.",
+                  "Publish only the approved action, after a fresh permission check.",
+                  "Monitor engagement and get improvement suggestions."],
+        "output": "Evidence, plan, an editable draft, the published Discussion link and engagement metrics.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key; publishing "
+                    "needs that repository's own GitHub token (WRITE access, Discussions enabled).",
+        "review": "Explicit approval of the exact repository, category, title and body before publication.",
+        "limitations": "Publishes only a Discussion in the selected repository itself, never to other "
+                       "repositories or third-party sites."
     },
 }
 
@@ -242,6 +227,19 @@ class Journal:
                 self._event(con, task_id, "archived", now)
             return row.rowcount == 1
 
+    def get(self, task_id: int) -> dict | None:
+        """One Work record (including archived), with its parsed result."""
+        if type(task_id) is not int or task_id < 1:
+            return None
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute("SELECT * FROM work WHERE id=?", (task_id,)).fetchone()
+        if not row:
+            return None
+        record = dict(row)
+        record["result"] = json.loads(record.pop("result_json")) if record["result_json"] else None
+        return record
+
     def list(self, include_archived: bool = False) -> list[dict]:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
@@ -273,8 +271,9 @@ class Journal:
 
 
 class WorkService:
-    def __init__(self, journal: Journal):
+    def __init__(self, journal: Journal, promotion=None):
         self.journal = journal
+        self.promotion = promotion  # the ONE V2 Promotion Agent (promotion.PromotionService)
 
     def definitions(self) -> list[dict]:
         return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in DEFINITIONS]
@@ -288,6 +287,16 @@ class WorkService:
         if (not definition or not definition.enabled
                 or definition not in task_choices(route, selected)):
             raise ToolError("Task must match the selected Work Type OR Domain.")
+        if definition.workflow == "promotion":
+            # V2: the repository comes from Settings → Promotion (bound at creation);
+            # the AI model is the app's shared provider configuration.
+            if self.promotion is None:
+                raise ToolError("Promotion is not available in this session.")
+            model_key = payload.get("model_key")
+            if not isinstance(model_key, str) or not model_key:
+                raise ToolError("Model API key must be provided for this run.")
+            settings = ModelSettings(payload.get("provider"), payload.get("model_name"))
+            return self.promotion.start(ChatCompletionsModel(settings, api_key=lambda: model_key))
         repository = payload.get("repository", "")
         provider = payload.get("provider")
         model_name = payload.get("model_name")
@@ -323,7 +332,24 @@ class WorkService:
             self.journal.finish(task_id, "failed", error="Execution failed; inspect application settings.")
 
 
-def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None):
+MAX_PROMOTION_REQUEST_BYTES = 40000  # an edited announcement (V2 promotion routes only)
+
+
+def _promotion_route(path: str):
+    """Parse /api/promotion/tasks/<id>[/actions/<aid>]/<verb>; None if not a promotion route."""
+    parts = path.strip("/").split("/")
+    if parts[:3] != ["api", "promotion", "tasks"] or len(parts) < 5 or not parts[3].isdigit():
+        return None
+    task_id = int(parts[3])
+    if len(parts) == 5:
+        return task_id, None, parts[4]
+    if len(parts) == 7 and parts[4] == "actions" and parts[5].isdigit():
+        return task_id, int(parts[5]), parts[6]
+    return None
+
+
+def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None,
+                    promotion_credentials=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "GitHubCommunityAgent/0.1"
 
@@ -393,7 +419,65 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(403, {"error": "Unauthorized."})
                 include_archived = urlsplit(self.path).query == "include_archived=1"
                 return self._send(200, {"tasks": service.journal.list(include_archived=include_archived)})
+            if path.startswith("/api/promotion/"):
+                if self.headers.get("X-App-Nonce") != nonce:
+                    return self._send(403, {"error": "Unauthorized."})
+                if service.promotion is None or promotion_credentials is None:
+                    return self._send(503, {"error": "Promotion is not available."})
+                try:
+                    if path == "/api/promotion/settings":
+                        return self._send(200, promotion_credentials.public())
+                    route = _promotion_route(path)
+                    if route and route[1] is None and route[2] == "detail":
+                        return self._send(200, service.promotion.detail(route[0]))
+                except SettingsError:
+                    return self._send(503, {"error": "Cannot read protected promotion settings."})
+                except ToolError as exc:
+                    return self._send(404, {"error": str(exc)[:300]})
             return self._send(404, {"error": "Not found."})
+
+        def _promotion_model(self):
+            saved = settings.load() if settings is not None else {}
+            key = saved.get("model_key")
+            if not key:
+                raise ToolError("Configure an AI model and API key in Settings first.")
+            return ChatCompletionsModel(ModelSettings(saved["provider"], saved["model"]), api_key=lambda: key)
+
+        def _promotion_post(self, path: str, payload: dict):
+            promo = service.promotion
+            if promo is None or promotion_credentials is None:
+                return self._send(503, {"error": "Promotion is not available."})
+            try:
+                if path == "/api/promotion/settings":
+                    return self._send(200, promotion_credentials.update(
+                        payload.get("repository"), payload.get("token") or "",
+                        payload.get("remove_token") is True))
+                route = _promotion_route(path)
+                if not route:
+                    return self._send(404, {"error": "Not found."})
+                task_id, action_id, verb = route
+                if action_id is None:
+                    if verb == "improve":
+                        return self._send(200, {"improvement": promo.improve(task_id, self._promotion_model())})
+                    return self._send(404, {"error": "Not found."})
+                if verb == "edit":
+                    promo.edit(task_id, action_id, payload.get("title"), payload.get("body"))
+                    return self._send(200, {"ok": True})
+                if verb == "preflight":
+                    return self._send(200, promo.preflight(task_id, action_id))
+                if verb == "approve":
+                    approved = promo.approve(task_id, action_id, payload.get("category"), payload.get("sha256"))
+                    return self._send(200, {"ok": True, "status": "approved", "approved_sha256": approved})
+                if verb == "publish":
+                    return self._send(200, promo.publish(task_id, action_id, payload.get("sha256")))
+                if verb == "reconcile":
+                    return self._send(200, promo.reconcile(task_id, action_id))
+                if verb == "monitor":
+                    return self._send(200, promo.monitor(task_id, action_id))
+                return self._send(404, {"error": "Not found."})
+            except (ToolError, SettingsError) as exc:
+                # Our own fixed messages (repository names, permission facts); never credentials.
+                return self._send(400, {"error": str(exc)[:300]})
 
         def _discard_body(self) -> None:
             # Consume a small unread request body before replying, so Windows
@@ -418,14 +502,17 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 self._discard_body()
                 return self._send(403, {"error": "Unauthorized."})
             try:
+                path = urlsplit(self.path).path
+                limit = MAX_PROMOTION_REQUEST_BYTES if path.startswith("/api/promotion/") else MAX_REQUEST_BYTES
                 n = int(self.headers.get("Content-Length", "0"))
-                if n < 2 or n > MAX_REQUEST_BYTES:
+                if n < 2 or n > limit:
                     self._discard_body()
                     return self._send(413, {"error": "Invalid request size."})
                 payload = json.loads(self.rfile.read(n))
                 if not isinstance(payload, dict):
                     return self._send(400, {"error": "Expected a JSON object."})
-                path = urlsplit(self.path).path
+                if path.startswith("/api/promotion/"):
+                    return self._promotion_post(path, payload)
                 if path == "/api/settings":
                     if settings is None:
                         return self._send(503, {"error": "Settings storage unavailable."})
@@ -486,11 +573,14 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
 
 
 def main() -> int:
+    from .promotion import PromotionCredentials, PromotionService, PromotionStore
     journal = Journal(data_directory() / "work.sqlite3")
-    service = WorkService(journal)
+    credentials = PromotionCredentials(data_directory())
+    promotion = PromotionService(journal, PromotionStore(data_directory() / "work.sqlite3"), credentials)
+    service = WorkService(journal, promotion)
     settings = EncryptedSettings(data_directory())
     nonce = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings, credentials))
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"GitHub Community Agent Work Center: {url}")
     webbrowser.open(url)

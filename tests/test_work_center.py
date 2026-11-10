@@ -10,26 +10,30 @@ from github_community_agent.errors import ToolError
 
 def test_new_task_alternative_routes_use_product_defined_taxonomies():
     by_type = w.task_choices("work_type", "Review Issues")
-    self_promotion = w.task_choices("domain", "Self-Promotion")
-    product_promotion = w.task_choices("domain", "Product Promotion")
+    promotion = w.task_choices("domain", "Promotion")
     assert w.BY_ID["review_issues"] in by_type
-    assert w.BY_ID["review_issues"] not in self_promotion
-    assert self_promotion == [w.BY_ID["promote_self"]]
-    assert w.BY_ID["promote_worker"] in product_promotion
-    assert w.BY_ID["promote_other"] in product_promotion
+    assert w.BY_ID["review_issues"] not in promotion
+    # ONE universal Promotion Task; no separate self/product promotion modes.
+    assert promotion == [w.BY_ID["promote_repository"]]
     domains = {d.domain for d in w.DEFINITIONS if d.domain}
-    assert domains == {"Self-Promotion", "Product Promotion"}
+    assert domains == {"Promotion"}
+    v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
+    assert len(v2) == 1 and v2[0].enabled and v2[0].workflow == "promotion"
+    for retired in ("promote_self", "promote_worker", "promote_other"):
+        assert retired not in w.BY_ID
     assert not w.task_choices("domain", "Issues")
-    assert any(d.version == "V2" and not d.enabled for d in w.DEFINITIONS)
     with pytest.raises(ToolError, match="Work Type or Domain"):
         w.task_choices("both", "Issues")
 
 
-def test_definitions_are_product_owned_and_v2_unavailable(tmp_path):
+def test_definitions_are_product_owned_and_promotion_needs_the_agent(tmp_path):
     service = w.WorkService(w.Journal(tmp_path / "work.sqlite"))
+    with pytest.raises(ToolError, match="not available"):
+        service.start({"route": "domain", "selection": "Promotion",
+                       "definition_id": "promote_repository"})
     with pytest.raises(ToolError, match="must match"):
-        service.start({"route": "domain", "selection": "Self-Promotion",
-                       "definition_id": "promote_self"})
+        service.start({"route": "work_type", "selection": "Review Issues",
+                       "definition_id": "promote_repository"})
     with pytest.raises(ToolError, match="must match"):
         service.start({"route": "domain", "selection": "Discussions",
                        "definition_id": "review_issues"})
@@ -98,7 +102,7 @@ def test_unified_html_includes_exclusive_routes_and_standalone_navigation():
     assert 'name="route" value="domain"' in html
     assert "New Task" in html and "My Work" in html
     assert "Needs My Attention" in html
-    assert "Promotion is planned" in html
+    assert "V2 Promotion publishes nothing without your explicit approval." in html
     assert "Settings" in html
 
 
@@ -153,10 +157,10 @@ def test_ui_routes_select_five_concrete_work_types_and_promotion_domains():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     assert 'state.route==="work_type"&&items.length===1' in html
     assert 'if(state.route==="work_type"){' in html
-    assert 'vals.sort((a,b)=>a==="Self-Promotion"?-1' in html
-    assert '$("selection").value=state.route==="domain"&&vals.includes("Self-Promotion")?"Self-Promotion":(vals[0]||"")' in html
+    assert '$("selection").value=vals[0]||"";' in html
     assert 'choose(items[0].id)' in html
-    assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Self-Promotion", "Product Promotion"}
+    assert "Self-Promotion" not in html and "Product Promotion" not in html
+    assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Promotion"}
 
 
 def test_concrete_work_types_and_separate_promotion_domains(tmp_path):
@@ -167,13 +171,13 @@ def test_concrete_work_types_and_separate_promotion_domains(tmp_path):
         "Review Issues", "Review Discussions", "Draft Issue Reply",
         "Draft Discussion Reply", "Community Report",
     }
-    assert domains == {"Self-Promotion", "Product Promotion"}
+    assert domains == {"Promotion"}
     assert all(not d["work_type"] for d in definitions if d["id"].startswith("promote_"))
     assert all(not d["domain"] for d in definitions if d["version"] == "V1")
     assert len(w.task_choices("work_type", "Review Issues")) == 1
     assert len(w.task_choices("work_type", "Community Management")) == 0
-    assert len(w.task_choices("work_type", "Product Promotion")) == 0
-    assert len(w.task_choices("domain", "Product Promotion")) == 2
+    assert len(w.task_choices("work_type", "Promotion")) == 0
+    assert len(w.task_choices("domain", "Promotion")) == 1
 
 
 def test_task_details_available_for_every_definition(tmp_path):
@@ -190,7 +194,7 @@ def test_task_details_available_for_every_definition(tmp_path):
 def test_task_details_are_shown_after_selection():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     for marker in ("id=\"task-details\"", "What this Task does", "Expected result",
-                   "Review and approval", "Scope / availability", "V2 planned — view details"):
+                   "Review and approval", "Scope / availability", "Planned — view details"):
         assert marker in html
 
 
@@ -202,7 +206,7 @@ def test_new_task_entry_labels_are_community_management_and_promotion():
     assert 'Select Community Management or Promotion to choose a Task.' in html
     # UI label changes must not mutate the mutually exclusive backend routes.
     assert w.task_choices("work_type", "Review Issues") == [w.BY_ID["review_issues"]]
-    assert w.task_choices("domain", "Self-Promotion") == [w.BY_ID["promote_self"]]
+    assert w.task_choices("domain", "Promotion") == [w.BY_ID["promote_repository"]]
 
 
 def test_my_work_result_copy_and_json_export_controls():
@@ -226,7 +230,8 @@ def test_my_work_result_copy_and_json_export_controls():
 
 def test_no_work_result_does_not_offer_copy_or_export():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
-    assert 'const resultActions=hasResult?' in html
+    # V1 Tasks keep the original result rendering; only the V2 Promotion Task has its own report.
+    assert 'const resultActions=isPromotion?promotionReport(t):hasResult?' in html
     assert "No result yet." in html
 
 
