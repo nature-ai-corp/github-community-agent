@@ -29,9 +29,16 @@ def test_windows_ci_matrix_and_isolated_wheel_smoke_script():
     assert "ubuntu-latest" in ci
     assert 'python-version: ["3.11", "3.12", "3.13"]' in ci
     assert "scripts/windows-v1-preflight.ps1" in ci
+    # Node 24 action majors (v4 checkout / v5 setup-python run on deprecated Node 20).
+    assert "actions/checkout@v4" not in ci and "actions/setup-python@v5" not in ci
+    assert ci.count("actions/checkout@v7") == 2 and ci.count("actions/setup-python@v7") == 2
     assert "python -m pip" not in ci or "python -m pytest -q" in ci
     assert "pip wheel . --no-deps" in script
     assert "--target $install" in script
+    # Declared runtime deps go into the isolated target, and the smoke runs with
+    # -I -S so the host interpreter's site-packages cannot mask a missing one.
+    assert "--no-deps --no-index --target" not in script
+    assert "$smoke | & $python -I -S -" in script
     assert "github-community-agent-home" in script
     assert "Remove-Item -LiteralPath $temp" in script
     assert "RELEASE BLOCKER" in script

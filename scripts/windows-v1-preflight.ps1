@@ -1,5 +1,6 @@
-# Offline Windows packaging preflight. No API keys, GitHub network, installer
-# installation, signing, or external publishing is involved.
+# Windows packaging preflight. No API keys, GitHub API network, installer
+# installation, signing, or external publishing is involved. pip may download
+# build and declared runtime dependencies from the package index.
 # This script uses only a temporary location and cleans it on exit.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -21,7 +22,12 @@ try {
         $wheels = @(Get-ChildItem -LiteralPath $temp -Filter '*.whl')
         if ($wheels.Count -ne 1) { throw "Expected exactly one GC Agent wheel." }
         $install = Join-Path $temp 'installed'
-        & $python -m pip install --no-deps --no-index --target $install $wheels[0].FullName
+        # Install the wheel WITH its declared runtime dependencies into the
+        # isolated target (pip may fetch them, like the build step above).
+        # The smoke below runs with -I -S, so only the target and the stdlib are
+        # importable: a dependency missing from pyproject.toml fails here instead
+        # of being masked by whatever the host interpreter happens to have.
+        & $python -m pip install --no-input --target $install $wheels[0].FullName
         if ($LASTEXITCODE -ne 0) { throw "Isolated target installation failed." }
         $env:GC_PREFLIGHT_TARGET = $install
         $smoke = @'
@@ -51,7 +57,7 @@ print("Windows wheel smoke PASS; package version:", d.version, "UI assets and en
 if d.version.endswith(".dev0") or d.version == "0.0.0":
     print("RELEASE BLOCKER: development version; do not publish this wheel as an official release.")
 '@
-        $smoke | & $python -
+        $smoke | & $python -I -S -
         if ($LASTEXITCODE -ne 0) { throw "Installed wheel smoke failed." }
     } finally {
         Pop-Location
