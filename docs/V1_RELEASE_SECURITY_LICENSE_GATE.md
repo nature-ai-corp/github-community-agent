@@ -1449,3 +1449,92 @@ from a later snapshot. Where immutable/reliable audit visibility is
 unavailable, document that uncertainty rather than marking independent
 no-write as proven. All PRs remain Draft, no merge, signing, tag or
 publication.
+
+## Gate 2/3 next-stage evidence tools prepared (2026-11-09; Windows runs PENDING)
+
+### Gate 2: bounded GitHub public Issue state before/after (NOT complete no-write proof)
+
+New `scripts/github_public_issue_before_after_audit.py` uses ONLY unauthenticated
+GitHub REST GET requests to the fixed `https://api.github.com` host,
+with proxies and redirects disabled. It checks that the repository
+is public and that the selected number refers to an Issue (not a PR).
+It records the Issue's state/update timestamp plus bounded comment IDs
+and timestamps, **never comment body or token**. Full pagination
+beyond three pages refuses verification instead of claiming complete coverage.
+Results are written create-only, with no overwrite.
+
+A genuinely prospective test workflow:
+1. BEFORE performing an authorized read-only V1 Task against a selected
+   public test Issue, capture `before.json`.
+2. Perform only the authorized GC Agent read or draft operation; no posting.
+3. AFTER the run capture `after.json`.
+4. Compare the two snapshots and retain the comparison result.
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py snapshot --repository owner/public-test-repository --issue 33 --output .\build\release-audit\issue-before-test.json
+# ONLY AFTER taking the above snapshot: execute the authorized V1 read/draft test
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py snapshot --repository owner/public-test-repository --issue 33 --output .\build\release-audit\issue-after-test.json
+.\.venv\Scripts\python.exe .\scripts\github_public_issue_before_after_audit.py compare --before .\build\release-audit\issue-before-test.json --after .\build\release-audit\issue-after-test.json --output .\build\release-audit\issue-comparison-test.json
+```
+
+Replace both the public test repo and the Issue number with the same
+authorized target used for the task. Use unique filenames if reports
+already exist; **never overwrite historical audit evidence**.
+Matching snapshots are at most limited corroboration for one public
+Issue. They do not cover Discussions, all Issues, GitHub audit events,
+transient changes later reverted, or prove causation. Until the
+server-side monitoring scope is sufficiently complete and correlated
+with the candidate run, Gate 2 as a whole remains OPEN.
+
+### Gate 3: real separate-Windows-account DPAPI deny test, disposable bytes only
+
+New `scripts/windows_dpapi_two_account_throwaway.py` exercises the
+same native Win32 DPAPI protection API as GC Agent, but encrypts only
+32 random disposable bytes. It deliberately does not use the user's
+real saved model key, GitHub token, original settings file or database.
+A first Windows account creates the file using exclusive create; the
+same account verifies decryption; then a **different Windows sign-in
+identity** attempts decryption and must receive a denial. The
+two accounts must be able to READ the test ciphertext, otherwise a
+filesystem access denial alone is not a successful DPAPI test.
+
+Operator selects an existing, appropriately accessible shared
+folder, for example a temporary user-authorized folder under
+`C:\Users\Public\Documents\GC-Agent-DPAPI-Test\`. The script
+does not create an account, choose a directory, modify ACLs, elevate,
+copy production data or clean up automatically.
+
+Run as account A:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\windows_dpapi_two_account_throwaway.py create --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin"
+.\.venv\Scripts\python.exe .\scripts\windows_dpapi_two_account_throwaway.py verify --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin" --expect allowed
+```
+
+Sign in as a DIFFERENT Windows account B (using an authorized
+Windows Python installation with this repo/imports available, or an
+approved equivalent test runner), then run:
+
+```powershell
+python .\scripts\windows_dpapi_two_account_throwaway.py verify --file "C:\Users\Public\Documents\GC-Agent-DPAPI-Test\gc-agent-dpapi-throwaway.bin" --expect denied
+```
+
+Do not report PASS if the second account could not read the file or
+if both commands ran as the same Windows identity. Actual native
+two-account evidence is still required; do not paste/disclose tokens,
+credentials or plaintext.
+
+### Remaining gates
+
+Gate 4 requires a real changed-code optimized installer upgrade in
+a dedicated Windows test profile; Gate 5 requires exact optimized
+frozen payload/version/binary-license mapping and appropriate NOTICE
+redistribution; Gate 6 requires owner-approved official version
+and trustworthy publisher Authenticode certificate/signature.
+These cannot be accepted from source scripts alone. Existing
+GC Agent install, Task records, DPAPI settings, original Worker
+repository and Draft PR state are untouched; no merge, tag, signing
+or release.
