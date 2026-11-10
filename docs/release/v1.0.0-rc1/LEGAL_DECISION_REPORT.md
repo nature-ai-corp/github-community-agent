@@ -46,7 +46,7 @@ No upstream license investigation was reopened.
 | 15 | Accurate release statements (avoid misleading recipients) | Not a license clause; consumer-accuracy hygiene | Installed `NOTICE` says "not yet released … awaits human legal review before public distribution"; the terms header says "DRAFT FOR LEGAL REVIEW" | — | Text is wrong for a public release | After decisions 5, 7 and 8, update both lines (and item 2) in one packaging commit; rebuild and re-verify | No (owner wording) |
 
 **Status update (2026-11-10).** Corrected in packaging text; the installer
-was rebuilt and re-verified (SHA256 `CAFEAF6C…8A8E16`):
+was rebuilt and re-verified (SHA256 `84454641…079430`):
 - **#2:** `NOTICE` now reproduces the Nature AI Worker attribution verbatim
   ("Nature AI Worker / Copyright 2026 The Nature AI Worker Authors").
 - **Terms §1:** now lists every Apache §2 right, including "prepare

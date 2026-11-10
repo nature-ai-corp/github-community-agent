@@ -1,1 +1,1 @@
-cafeaf6c8ba9322500e5ddb1397d08aedcf230d12fe0741e3a0ca139a18a8e16  GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe
+84454641961af0c9c03435ff1ddc9b2d9956a2996c1265ceed8a8a973d079430  GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe

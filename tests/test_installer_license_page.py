@@ -86,6 +86,16 @@ def test_notice_reproduces_upstream_nature_ai_worker_attribution():
     assert adapted, "attribution is only required while adapted files exist"
 
 
+def test_installer_embedded_texts_have_pinned_line_endings():
+    # Reproducible installer bytes from any checkout: these files are copied
+    # into the installer verbatim, so their line endings must not depend on
+    # core.autocrlf.
+    attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+    for path in ("LICENSE", "NOTICE", "packaging/windows/END_USER_TERMS.txt"):
+        assert f"{path} text eol=crlf" in attrs, path
+        assert b"\r\n" in (ROOT / path).read_bytes() and b"\n" not in (ROOT / path).read_bytes().replace(b"\r\n", b""), path
+
+
 def test_independence_disclaimer_matches_notice():
     notice = _norm((ROOT / "NOTICE").read_text(encoding="utf-8"))
     terms = _norm(TERMS.read_text(encoding="ascii"))
