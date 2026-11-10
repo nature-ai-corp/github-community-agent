@@ -96,6 +96,8 @@ def test_mpl_source_availability_and_special_conditions_are_stated():
     assert "Source Code Form" in notices and "certifi-2026.10.23/MPL-2.0.txt" in notices
     assert "Mozilla Public License Version 2.0" in (PACKAGE / "certifi-2026.10.23/MPL-2.0.txt").read_text()
     assert "Additional Conditions for this Windows binary build" in notices
+    # PSF License clause 3 requires a summary of changes made to Python.
+    assert "Summary of changes made to Python 3.13.14 (PSF License Agreement,\nclause 3): none." in notices
     assert "Microsoft Distributable Code" in (PACKAGE / "cpython-3.13.14/LICENSE.txt").read_text()
     assert "Bootloader Exception" in (PACKAGE / "pyinstaller-6.22.3/COPYING.txt").read_text()
     for section in ("OpenSSL", "expat", "libffi", "zlib", "libmpdec"):

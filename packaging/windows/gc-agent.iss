@@ -2,9 +2,12 @@
 ; This is a separate per-user installation. Never remove user work records or
 ; encrypted settings in %LOCALAPPDATA%\GitHubCommunityAgent on uninstall.
 #ifdef PayloadVerificationAppId
-  ; Isolated license-payload verification build ONLY (distinct AppId and name,
-  ; no shortcuts), so it can never upgrade or replace a real installation.
-  #define AppName "GitHub Community Agent License Payload Verification"
+  ; Isolated verification/trial build ONLY (distinct AppId and name, no
+  ; shortcuts), so it can never upgrade or replace a real installation.
+  #ifndef IsolatedAppName
+    #define IsolatedAppName "GitHub Community Agent License Payload Verification"
+  #endif
+  #define AppName IsolatedAppName
 #else
   #define AppName "GitHub Community Agent"
 #endif

@@ -2109,3 +2109,78 @@ Microsoft Distributable Code conditions; Gate 3 two-account DPAPI test
 (still not executed: no result or test file exists); Gate 4 changed-code
 upgrade; Gate 6 version/signing. The RC installer spec remains blocked by
 design. No signing, tag, merge or release.
+
+## Release-readiness verification round (2026-11-10)
+
+### Gate 4: real upgrade between different builds — PASS (isolated)
+
+`scripts/windows_upgrade_continuity_trial.py`, native Windows, run
+`build/upgrade-continuity/run-20261110T030824Z`:
+
+- OLD = application source of commit `a2bc626`, which predates the
+  soft-delete SQLite migration and Task activity table. Frozen with the
+  optimized-candidate options; code verified identical to that commit and
+  different from current `src` (`work_center` module and UI assets differ).
+  Note: no older prebuilt artifact had different app code. All three
+  existing bundles share identical `github_community_agent` code, so the old
+  build was rebuilt from the commit. The first attempt was correctly rejected
+  because `--collect-data` pulled the CURRENT `home.html` through the
+  editable install; the script now adds the old commit's data files
+  explicitly and verifies them.
+- NEW = optimized candidate `620268DE…3DA4E`, identical to current `src`.
+- Both packaged with the real `gc-agent.iss` recipe under a fresh random
+  AppId, with an isolated install folder and LOCALAPPDATA.
+- OLD app saved throwaway DPAPI settings and created 3 Tasks through its API.
+  The Tasks failed at GitHub: the repo name does not exist, there was an
+  unauthenticated read-only GET, and no model call. NEW was installed over
+  it, with the registry version updated in place and all 977 files exact.
+- NEW app: settings identical and model key still decryptable;
+  `settings.dpapi` bytes unchanged; all Task core fields identical; schema
+  migrated in place (`deleted_utc`, `work_events`); new soft-delete works on
+  a migrated Task. Uninstall left data byte-identical; reinstall read
+  3 Tasks; final uninstall clean.
+- Real installation, real `work.sqlite3`/`settings.dpapi` and real AppId
+  registry entry unchanged.
+- Limits: unsigned, same Windows user, installer wrapper from today's recipe
+  for both builds, rebuilt (not historical) OLD binary.
+
+### Gate 5: license — report prepared, human decisions open
+
+`docs/V1_LICENSE_REVIEW_REPORT.md`. Added the PSF clause-3 "summary of
+changes: none" statement to the notices; package regenerated, check PASS,
+installer payload PASS (`run-20261110T031829Z`). Open DECISIONS 1–5,
+including certifi source-offer method, Microsoft Distributable Code terms and
+**"GitHub" (a Microsoft subsidiary trademark) in the product name**.
+New non-license finding: **OpenSSL 3.0 is past upstream support**.
+
+### Gate 3: DPAPI cross-account — still NOT RUN
+
+Owner procedure: `docs/DPAPI_CROSS_ACCOUNT_TEST.md`. New built-in PowerShell
+verifier `scripts/windows-dpapi-verify-throwaway.ps1`, because account B
+cannot read aiuser's profile or venv. Validated on account A only: the app
+module and the verifier both decrypt the same blob; garbage bytes are denied;
+an unreadable file is INCOMPLETE. **That is not cross-account evidence.**
+
+### Gate 6: versioning — recommendation only (no change made)
+
+Version is declared in `pyproject.toml` and `__init__.__version__`
+(`0.0.0.dev0`), plus the Inno default (`0.0.0-dev0`). The frozen EXE has no
+Windows VERSIONINFO. There are no tags or releases. Recommendation once
+authorized:
+`1.0.0rc1` (installer `1.0.0-rc1`) for the first signed candidate, then
+`1.0.0` after its acceptance, with the EXE stamped via a PyInstaller version
+file (FileVersion `1.0.0.0`). `tests/test_version_consistency.py` now keeps
+the declarations in agreement.
+
+### Automated verification added
+
+- `tests/test_work_center_http.py`: real loopback HTTP tests of Host, Origin
+  and nonce enforcement, size limits, no input echo, delete/review rules and
+  DPAPI on-disk secrecy. `work_center.py` coverage went from 49% to 84%, total
+  71% to 78%. Mutation check: removing the Origin check fails 3 tests;
+  removing the GET Host check fails 4.
+- Contract tests for the upgrade trial and the DPAPI verifier.
+- Windows regression: **305 passed, 1 skipped** (opt-in installer test).
+- GitHub Actions is still not running (account billing). Branch protection
+  and required checks are unavailable on the current plan for this private
+  repository.

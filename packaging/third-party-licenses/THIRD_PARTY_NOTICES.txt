@@ -78,6 +78,13 @@ The CPython runtime incorporates further software whose notices are
 reproduced in cpython-3.13.14/license.rst (section "Licenses and
 Acknowledgements for Incorporated Software").
 
+Modifications
+-------------
+Summary of changes made to Python 3.13.14 (PSF License Agreement,
+clause 3): none. The bundled CPython runtime files are unmodified copies
+of the Python Software Foundation's Windows release. All other
+third-party components listed above are likewise included unmodified.
+
 Source Code Form availability (Mozilla Public License 2.0)
 ----------------------------------------------------------
 certifi 2026.10.23 is distributed under the Mozilla Public License 2.0.
