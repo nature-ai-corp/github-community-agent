@@ -1716,3 +1716,51 @@ all files; do not print secrets, which this review does not collect.
 
 No changes to installed app, saved GC Tasks or credentials,
 original Nature AI Worker, Draft PR states, signing or release.
+
+## Seven Python candidates and 26 frozen native binaries — actual Windows report (2026-11-10)
+
+User directly read `component-provenance-review.json` generated from
+the optimized bundle and supplied all seven current-build-environment
+candidate versions/licenses:
+
+| Distribution | Candidate version (development venv ONLY) | Metadata license | Embedded modules |
+|---|---|---|---:|
+| anyio | 4.16.0 | MIT | 43 |
+| certifi | 2026.10.23 | MPL-2.0 | 2 |
+| h11 | 0.16.0 | MIT | 11 |
+| httpcore | 1.0.9 | BSD-3-Clause | 31 |
+| httpx | 0.28.1 | BSD-3-Clause | 23 |
+| idna | 3.20 | BSD-3-Clause | 6 |
+| typing-extensions | 4.16.0 | PSF-2.0 | 1 |
+
+**These are build-venv metadata candidates, not exact immutable
+component versions independently reconstructed from the frozen EXE.**
+All individual binary origin/license verification flags remain FALSE.
+
+The 26 native binaries in the optimized onedir are:
+
+`_internal/_asyncio.pyd`, `_internal/_bz2.pyd`,
+`_internal/_ctypes.pyd`, `_internal/_decimal.pyd`,
+`_internal/_hashlib.pyd`, `_internal/_lzma.pyd`,
+`_internal/_multiprocessing.pyd`,
+`_internal/_overlapped.pyd`, `_internal/_queue.pyd`,
+`_internal/_socket.pyd`, `_internal/_sqlite3.pyd`,
+`_internal/_ssl.pyd`, `_internal/_tkinter.pyd`,
+`_internal/libcrypto-3.dll`, `_internal/libffi-8.dll`,
+`_internal/libssl-3.dll`, `_internal/pyexpat.pyd`,
+`_internal/python313.dll`, `_internal/select.pyd`,
+`_internal/sqlite3.dll`, `_internal/tcl86t.dll`,
+`_internal/tk86t.dll`, `_internal/unicodedata.pyd`,
+`_internal/VCRUNTIME140.dll`, `_internal/zlib1.dll`,
+`GitHubCommunityAgent.exe`.
+
+These file names suggest runtime origin categories (CPython extension
+modules, OpenSSL, SQLite, Tcl/Tk, C runtime, libffi/zlib and PyInstaller
+bootloader), **not legally verified provenance**. Actual file version
+metadata, SHA256, linked import/data source and exact applicable
+redistribution license text remain to be checked before Gate 5 PASS.
+
+The source-level list and file manifest are not yet a signed,
+version-locked final SBOM. Do not invent license obligations or claim
+that seven package metadata entries cover all compiled runtime
+libraries.
