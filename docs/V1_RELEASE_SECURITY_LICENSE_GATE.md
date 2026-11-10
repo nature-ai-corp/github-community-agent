@@ -1538,3 +1538,35 @@ These cannot be accepted from source scripts alone. Existing
 GC Agent install, Task records, DPAPI settings, original Worker
 repository and Draft PR state are untouched; no merge, tag, signing
 or release.
+
+## Native Windows actual prospective GitHub no-write Issue before-snapshot — PASS (2026-11-10 00:59 UTC)
+
+User pulled branch `feature/unified-task-home` through
+`4802621`, executed all regression tests:
+**252 passed in 3.90s**, zero failures.
+Then ran read-only public GitHub REST Issue snapshot for
+`nature-ai-corp/nature-ai-worker` Issue **#33**:
+
+- `GitHub public Issue comment metadata REST GET snapshot acquired.`
+- `Comment records: 2`
+- Baseline evidence file:
+  `build/release-audit/issue-before-test.json`
+- Audit tool printed:
+  `LIMITED evidence only; NOT independent proof of all GitHub no-write actions.`
+
+This is a genuine **prospective** BEFORE snapshot of the Issue's
+public comment IDs/timestamps and state. Preserve the file unchanged.
+The absence of an AFTER snapshot means Gate 2 overall remains OPEN.
+Next operator action should execute only a bounded authorized GC Agent
+**Draft Issue Reply** for the same Issue #33 with the isolated
+candidate, review it locally (never publish), and promptly collect
+`issue-after-test.json` using the same read-only snapshot tool,
+then compare with `issue-before-test.json`. If after state matches
+it proves only no *observed persistent changes* to Issue #33 in
+that window, not no write capability across GitHub or transient
+writes/deletions.
+
+Do not overwrite baseline or ask to regenerate a historical
+before-state; don't use real production credentials in test logs.
+This trial may require a fresh isolated test-authorized model API key
+and may incur model cost. Do not merge, sign, tag, install or release.
