@@ -4,6 +4,12 @@
 for the CPython 3.13.17 / OpenSSL 3.5 runtime. Not legal advice. Nothing here
 is approved: every item marked DECISION needs a named human.**
 
+Approval checklist, separating technical verification from legal approval and
+owner decisions from counsel decisions:
+[`V1_LICENSE_APPROVAL_CHECKLIST.md`](V1_LICENSE_APPROVAL_CHECKLIST.md).
+Re-checked against the committed `1.0.0rc1` package on 2026-11-10:
+`third_party_notices.py check` PASS, and the facts below are unchanged.
+
 Scope: the Windows distribution built from the clean release bundle
 (`scripts/windows-build-release-bundle.ps1`: official PSF-signed CPython
 3.13.17 x64, hash-locked build venv without test tools; 958 files; the exact
@@ -112,6 +118,11 @@ re-reviews the package.
 - **CPython 3.13 support window.** 3.13 receives binary bugfix releases only
   for a limited time; plan the move to 3.14 for V1.x. That change brings Tcl/Tk
   9.0 and zlib-ng and needs a full re-verification.
+- **SBOM review notes (2026-11-10).** These need reviewer decisions; nothing is wrong technically:
+  - SQLite is tagged SPDX `blessing`, while liblzma is tagged
+    `LicenseRef-public-domain` (same legal basis, different style);
+  - the Unicode Character Database (Unicode-3.0) is covered only through
+    CPython's `license.rst`, not as its own SBOM component.
 - **GitHub independence disclaimer** added (`NOTICE`, notices, README, EXE
   description). Wording to be approved with DECISION 3.
 

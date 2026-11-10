@@ -1,7 +1,11 @@
-# Gate 3 — Cross-account DPAPI test: owner instructions (NOT YET RUN)
+# Gate 3 — Cross-account DPAPI test: owner instructions
 
-**Status: PENDING.** No result exists until the steps below are run by a
-person with two real Windows accounts. Do not record PASS from same-account runs.
+**Status: PASS (owner-run on 2026-11-10; owner-reported).** Account A was
+`aiuser` (SID ending `-1006`) and account B was `GCDPAPITest` (SID ending
+`-1007`). The test account and test files were removed afterwards. The result
+and its limits are recorded in `V1_RELEASE_SECURITY_LICENSE_GATE.md`, section
+"Gate 3: cross-account DPAPI — PASS". To repeat the test, for example on a
+signed build, follow the steps below. Do not record PASS from same-account runs.
 
 Goal: show that a credential protected by GC Agent for Windows account A
 cannot be decrypted by a different Windows account B on the same PC. Only

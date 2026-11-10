@@ -2,6 +2,19 @@
 
 **Status: public release BLOCKED.** This checklist is not a certification, signed package, malware scan, or complete software bill of materials (SBOM).
 
+> **Current status (2026-11-10, `1.0.0rc1`, PR #11 Draft).** This file is an
+> append-only log, and older sections below describe earlier states. The latest
+> results are summarized here.
+>
+> | Gate | State | Where |
+> |---|---|---|
+> | CI (Ubuntu and Windows, Python 3.11–3.13, plus Windows wheel smoke) | **7/7 PASS** (run 42839465707, `56ce103`) | GitHub Actions |
+> | Clean bundle, installer payload, upgrade, frozen-EXE security, TLS | **PASS** (technical) | "`1.0.0rc1` committed for RC preparation" |
+> | Gate 3: cross-account DPAPI | **PASS** (owner-run, owner-reported) | "Gate 3: cross-account DPAPI — PASS" at the end |
+> | Third-party license package | Technically consistent; **legal approval NOT given** | [`V1_LICENSE_APPROVAL_CHECKLIST.md`](V1_LICENSE_APPROVAL_CHECKLIST.md) |
+> | Code signing, Defender and SmartScreen on the signed build, real-AppId upgrade | **Not done** (needs the owner) | — |
+> | Merge, tag, release | **Not authorized** | — |
+
 ## Evidence already confirmed on Windows
 
 - All five V1 read-only Community Management Work Types have real application-run evidence.
@@ -2153,7 +2166,7 @@ including certifi source-offer method, Microsoft Distributable Code terms and
 **"GitHub" (a Microsoft subsidiary trademark) in the product name**.
 New non-license finding: **OpenSSL 3.0 is past upstream support**.
 
-### Gate 3: DPAPI cross-account — still NOT RUN
+### Gate 3: DPAPI cross-account — still NOT RUN (superseded: see "Gate 3: cross-account DPAPI — PASS" below)
 
 Owner procedure: `docs/DPAPI_CROSS_ACCOUNT_TEST.md`. New built-in PowerShell
 verifier `scripts/windows-dpapi-verify-throwaway.ps1`, because account B
@@ -2361,3 +2374,41 @@ SBOM. All upstream texts are byte-identical.
   - 3.13.17: 324 passed, 1 skipped (the opt-in installer test, covered by
     the payload run);
   - 3.13.14 dev venv: 322 passed, 3 skipped.
+
+### Gate 3: cross-account DPAPI — PASS (owner-run, owner-reported)
+
+The owner ran the procedure in `docs/DPAPI_CROSS_ACCOUNT_TEST.md` on this PC
+with two real local Windows accounts. Only 32 random throwaway bytes were
+used; no real GC Agent settings were read or copied. The owner reported the
+results on 2026-11-10:
+
+| Step | Account | Reported result |
+|---|---|---|
+| A: decrypt before the cross-account step (A3/A5) | A = `aiuser`, SID ending `-1006` | Decrypted (PASS) |
+| B: DPAPI SelfCheck | B = `GCDPAPITest`, SID ending `-1007` | `DPAPI SELF-CHECK PASS`: DPAPI works for B |
+| B: verify A's blob | B | File **readable**, decryption **denied** (PASS). A denial at the DPAPI layer, not a file-permission failure |
+| A: decrypt after the cross-account step (A7) | A | Decrypted (PASS): the blob was unchanged and still valid for A |
+| Cleanup | owner | Temporary test files and the `GCDPAPITest` account removed |
+
+**Result: Gate 3 PASS.** On this PC, a secret protected with Windows DPAPI
+for account A cannot be decrypted by another local account B, even when B can
+read the file. B's working SelfCheck shows the denial is not a broken profile.
+
+Scope and limits:
+- **Not observed by the agent.** Claude did not see the console output; this
+  record relies on the owner's report. The procedure asks for the console output
+  of A3, A5, B1, B2, SelfCheck, B verify and A7. If that output was kept, file
+  it with the release record.
+- **Independently confirmed afterwards (read-only, 2026-11-10):**
+  - no local user `GCDPAPITest` exists;
+  - `C:\Users\GCDPAPITest` does not exist;
+  - no user profile with a SID ending `-1007` remains;
+  - `C:\Users\Public\Documents\GC-Agent-DPAPI-Test` does not exist;
+  - `aiuser`'s SID ends `-1006`.
+
+  B's SID could not be re-checked, because the account is deleted.
+- **What it does not prove:** DPAPI does not protect against malware running
+  as the **same** user. Administrators, and domain or roaming setups, were not
+  tested.
+- **Data safety:** this was a technical security check only. It used no real
+  user data and changed no application code.
