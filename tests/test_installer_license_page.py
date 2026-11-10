@@ -57,6 +57,35 @@ def test_microsoft_conditions_are_reproduced_verbatim_from_cpython():
         assert invented not in terms
 
 
+def test_terms_preserve_every_apache_section_2_right_including_modification():
+    terms = _norm(TERMS.read_text(encoding="ascii"))
+    for right in ("reproduce", "prepare derivative works of", "(modify)", "publicly display",
+                  "publicly perform", "sublicense", "distribute"):
+        assert right in terms, right
+    assert "Nothing in these terms limits the rights that the Apache License grants" in terms
+
+
+def test_terms_identify_vcruntime_as_microsoft_distributable_code():
+    terms = _norm(TERMS.read_text(encoding="ascii"))
+    assert "VCRUNTIME140.dll is itself Microsoft Distributable Code" in terms
+    assert "including VCRUNTIME140.dll" not in terms
+
+
+def test_pending_review_markers_stay_until_owner_approves_final_wording():
+    # Removing these is a release decision (legal review + owner wording), not automation.
+    assert "DRAFT FOR LEGAL REVIEW" in TERMS.read_text(encoding="ascii")
+    notice = _norm((ROOT / "NOTICE").read_text(encoding="utf-8"))
+    assert "This independent repository is not yet released." in notice
+
+
+def test_notice_reproduces_upstream_nature_ai_worker_attribution():
+    notice = (ROOT / "NOTICE").read_text(encoding="utf-8")
+    assert "  Nature AI Worker\n  Copyright 2026 The Nature AI Worker Authors\n" in notice.replace("\r\n", "\n")
+    adapted = [p for p in (ROOT / "src" / "github_community_agent").glob("*.py")
+               if "SPDX-FileCopyrightText: 2026 The Nature AI Worker Authors" in p.read_text(encoding="utf-8")]
+    assert adapted, "attribution is only required while adapted files exist"
+
+
 def test_independence_disclaimer_matches_notice():
     notice = _norm((ROOT / "NOTICE").read_text(encoding="utf-8"))
     terms = _norm(TERMS.read_text(encoding="ascii"))

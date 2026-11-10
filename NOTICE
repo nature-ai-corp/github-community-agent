@@ -4,7 +4,11 @@ Copyright 2026 NATURE AI CORP and contributors.
 Portions of the initial GitHub read-only community tools were adapted from
 Nature AI Worker (Apache License, Version 2.0), as developed in
 nature-ai-corp/nature-ai-worker, branch feature/github-community-agent-profile.
-Original per-file SPDX copyright and license notices are retained.
+Original per-file SPDX copyright and license notices are retained. The
+attribution notice from the Nature AI Worker NOTICE file is reproduced here:
+
+  Nature AI Worker
+  Copyright 2026 The Nature AI Worker Authors
 
 The Windows installer distribution additionally contains third-party
 software (the CPython runtime and incorporated libraries, Tcl/Tk, the

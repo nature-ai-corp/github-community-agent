@@ -7,7 +7,7 @@
 
 **Proposed tag:** `v1.0.0-rc1` (not created) · **Mark as pre-release:** yes
 **Asset:** `GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe`
-**SHA256:** `f4262e5301a11e47b0c8bb247b6c9e4ec223b76ccc99fcb01756a085622e09ea`
+**SHA256:** `cafeaf6c8ba9322500e5ddb1397d08aedcf230d12fe0741e3a0ca139a18a8e16`
 (also in `SHA256SUMS.txt`)
 
 ---
@@ -65,7 +65,7 @@ Get-FileHash .\GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe -Algorithm 
 ```
 
 The hash must be exactly:
-`F4262E5301A11E47B0C8BB247B6C9E4EC223B76CCC99FCB01756A085622E09EA`.
+`CAFEAF6C8BA9322500E5DDB1397D08AEDCF230D12FE0741E3A0CA139A18A8E16`.
 If it differs, **do not run the file**. Delete it and download it again from
 the official GitHub Release page.
 

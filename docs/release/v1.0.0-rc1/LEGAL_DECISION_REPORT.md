@@ -45,6 +45,22 @@ No upstream license investigation was reopened.
 | 14 | Binary redistributions keep Inno's copyright notice and website "currently in place (for example, in the About boxes)"; acknowledgment optional | Inno Setup License, conditions 2–3 | Unmodified Inno runtime inside the setup EXE (its About box intact) | Yes | — | None (optional credit line in `NOTICE`) | No |
 | 15 | Accurate release statements (avoid misleading recipients) | Not a license clause; consumer-accuracy hygiene | Installed `NOTICE` says "not yet released … awaits human legal review before public distribution"; the terms header says "DRAFT FOR LEGAL REVIEW" | — | Text is wrong for a public release | After decisions 5, 7 and 8, update both lines (and item 2) in one packaging commit; rebuild and re-verify | No (owner wording) |
 
+**Status update (2026-11-10).** Corrected in packaging text; the installer
+was rebuilt and re-verified (SHA256 `CAFEAF6C…8A8E16`):
+- **#2:** `NOTICE` now reproduces the Nature AI Worker attribution verbatim
+  ("Nature AI Worker / Copyright 2026 The Nature AI Worker Authors").
+- **Terms §1:** now lists every Apache §2 right, including "prepare
+  derivative works of (modify)".
+- **Terms §3:** now says "the included VCRUNTIME140.dll is itself Microsoft
+  Distributable Code".
+
+Still pending by design:
+- the terms stay **DRAFT** and the `NOTICE` "not yet released" paragraph stays
+  until final wording is approved (#15);
+- #5, #7 and #8 (counsel) and #6 (owner) are unchanged.
+
+See [`FINAL_APPROVAL_CHECKLIST.md`](FINAL_APPROVAL_CHECKLIST.md).
+
 **Summary.**
 - **Counsel decisions needed:** only #5, #7 and #8, plus confirmations of #3
   and #9.

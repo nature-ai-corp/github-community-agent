@@ -12,9 +12,11 @@ cancel the installation.
 GitHub Community Agent is Copyright 2026 NATURE AI CORP and contributors. It is
 licensed under the Apache License, Version 2.0 (the "Apache License"). The
 Apache License is installed as LICENSE and the attribution notices as NOTICE in
-the installation folder. You may use, reproduce and distribute GitHub Community
-Agent in accordance with the Apache License. Nothing in these terms limits the
-rights that the Apache License grants for GitHub Community Agent's own code.
+the installation folder. You may use, reproduce, prepare derivative works of
+(modify), publicly display, publicly perform, sublicense and distribute GitHub
+Community Agent in accordance with the Apache License. Nothing in these terms
+limits the rights that the Apache License grants for GitHub Community Agent's
+own code.
 
 Unless required by applicable law or agreed to in writing, the software is
 distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
@@ -34,8 +36,9 @@ folder. Start with third-party-licenses\THIRD_PARTY_NOTICES.txt.
 3. Microsoft Distributable Code in the Python runtime
 
 The PSF Windows build of CPython included here is linked with and uses
-Microsoft Distributable Code, copyrighted by Microsoft Corporation. It is
-embedded in that build's .exe, .dll and .pyd files, including VCRUNTIME140.dll.
+Microsoft Distributable Code, copyrighted by Microsoft Corporation. That code
+is embedded in the build's .exe, .dll and .pyd files, and the included
+VCRUNTIME140.dll is itself Microsoft Distributable Code.
 NATURE AI CORP redistributes that runtime unmodified, under the PSF license for
 that build, which sets the following conditions. If you further distribute
 programs that include the Microsoft Distributable Code, you must comply with

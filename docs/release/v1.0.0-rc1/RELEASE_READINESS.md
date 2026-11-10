@@ -30,7 +30,9 @@ legal approval.
 | Check | Result | Evidence |
 |---|---|---|
 | Functionality frozen | Working tree clean; no app change since the RC verification | `git status` |
-| Installer rebuilt from HEAD | **Byte-identical** to the verified RC1 installer: SHA256 `F4262E53…22E09EA`, ProductVersion `1.0.0-rc1`, NotSigned | `build/release-staging-rc1/` |
+| Installer rebuilt from HEAD | **Byte-identical** to the verified RC1 installer: SHA256 `F4262E53…22E09EA`, ProductVersion `1.0.0-rc1`, NotSigned. **Superseded** by the text-correction build below | `build/release-staging-rc1/` |
+| Text-correction build (NOTICE Worker attribution; terms §1 Apache rights incl. modification; terms §3 VCRUNTIME wording; DRAFT and "not yet released" kept) | Installer SHA256 `CAFEAF6C8BA9322500E5DDB1397D08AEDCF230D12FE0741E3A0CA139A18A8E16`, NotSigned. Install, byte-verify and uninstall PASS (979 files, `run-20261110T191948Z`); upgrade trial PASS (`run-20261110T192013Z`); Defender: no threats (1.463.226.0). `SHA256SUMS.txt` and `RELEASE_NOTES.md` updated | `build/release-staging-rc1-v2/` |
+| **Interactive wizard probe: unreliable, withdrawn** | On this build, the license page again showed **Next disabled** until "I accept" and disabled again on "I do not accept", with the corrected text and the DRAFT marker. **But** about 13 s after the probe stopped acting (decline selected, then a window-close request), the wizard proceeded to install into the probe's **isolated scratch folder** (931 files, until force-stopped). Cause not determined; it is the second unexplained advance with this message-based technique. The isolation held: no registry entry; real installation and data unchanged; scratch install removed. The automated probe is no longer used. Acceptance and rejection must be confirmed **manually** in the owner's clean-VM test (§4) | `license-page-probe/probe-v2-*.json` |
 | Clean install, byte-verify, uninstall (isolated AppId and folder) | PASS, 979 files (958 bundle + 16 third-party + LICENSE, NOTICE, END_USER_TERMS) | `license-payload-verification/run-20261110T183400Z` |
 | Terms page acceptance and rejection (isolated wizard; Next never pressed) | First page = terms; default "I do not accept" with **Next disabled**; "I accept" enables Next; declining disables it again; page text shows the DRAFT marker and the Microsoft section; nothing installed | `license-page-probe/probe-final-*.json` |
 | Upgrade from the previous build (OLD `a2bc626`, CPython 3.13.14 / OpenSSL 3.0.21 → RC1) | PASS: settings identical; DPAPI key decryptable; `settings.dpapi` bytes unchanged; Tasks identical; schema migrated; data kept through uninstall; reinstall read 3 Tasks; trial registry entry removed | `upgrade-continuity/run-20261110T183426Z` |
@@ -99,7 +101,9 @@ state: #6–#9 green (3-job legacy workflow), #11 green (7 jobs).
    - verify the SHA256;
    - record the SmartScreen prompt (expected for an unsigned file: "Unknown
      publisher", then More info → Run anyway);
-   - read and accept the terms; confirm that declining blocks the install;
+   - read the terms. **First select "I do not accept" and confirm that Next
+     stays disabled and Cancel exits without installing**; then rerun, accept
+     and continue. This manual check replaces the withdrawn automated probe;
    - start the app, save a dummy or real key, run Review Issues on a public repo;
    - uninstall and confirm `%LOCALAPPDATA%\GitHubCommunityAgent` remains.
 2. **Optional:** upgrade your real installed internal build (real AppId) and
