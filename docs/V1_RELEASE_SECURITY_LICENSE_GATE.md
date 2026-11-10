@@ -1570,3 +1570,43 @@ Do not overwrite baseline or ask to regenerate a historical
 before-state; don't use real production credentials in test logs.
 This trial may require a fresh isolated test-authorized model API key
 and may incur model cost. Do not merge, sign, tag, install or release.
+
+## Prospective Issue #33 bounded no-write evidence — snapshots MATCH (2026-11-10)
+
+User supplied actual GC Agent Work Center and PowerShell screenshots
+showing a NEW real `Draft Issue Reply` Task #1 against
+`nature-ai-corp/nature-ai-worker` Issue **#33**. The app displayed
+`needs_attention` (not finished), `Draft Reply — Not Published`,
+and an explicit notice that no GitHub reply had been posted. The
+user did not report publishing.
+
+The previously preserved genuine BEFORE snapshot
+`build/release-audit/issue-before-test.json` contained **2**
+Issue comments. User captured a prospective AFTER snapshot in
+`build/release-audit/issue-after-test.json` with **2** Issue
+comments, then ran a compare to
+`build/release-audit/issue-comparison-test.json`:
+
+- `Observed change categories: []`
+- `Matching snapshots: True`
+- The tool explicitly stated:
+  `LIMITED evidence only; NOT independent proof of all GitHub no-write actions.`
+
+**Accepted:** during this observed trial, no persistent differences
+were detected in the bounded Issue #33 state/update metadata and its
+two accessible comment IDs/timestamps, while GC Agent produced an
+unposted reply draft awaiting human attention. This is useful
+independent corroboration of the application read-only contract.
+
+**Not accepted as an absolute guarantee:** a before/after match for
+one public Issue cannot rule out transient changes later reverted,
+other Issue/Discussion writes, unobserved GitHub activity, or
+provide full GitHub audit-log coverage. The on-screen screenshot
+alone does not supply a matching candidate launch attestation hash,
+though earlier independent optimized process identity and isolated
+trial evidence exist. Overall Gate 2 is **partially satisfied**,
+with bounded runtime no-change evidence; retain explicit limits
+instead of claiming global zero-write proof.
+
+No write requests were deliberately issued. Do not overwrite the
+before/after/compare evidence and do not merge, sign, tag or publish.
