@@ -185,8 +185,8 @@ def test_validate_package_detects_tampering(tmp_path):
 def _install(app: Path, bundle: Path, pkg: Path, repo: Path) -> None:
     shutil.copytree(bundle, app)
     shutil.copytree(pkg, app / "third-party-licenses")
-    for name in ("LICENSE", "NOTICE"):
-        shutil.copy(repo / name, app / name)
+    for name, source in tp.INSTALLED_REPO_FILES.items():
+        shutil.copy(repo / source, app / name)
     (app / "unins000.exe").write_bytes(b"uninstaller")
 
 
@@ -199,6 +199,8 @@ def test_verify_installed_passes_only_for_exact_payload(tmp_path):
     repo.mkdir()
     (repo / "LICENSE").write_bytes(b"Apache\n")
     (repo / "NOTICE").write_bytes(b"Notice\n")
+    (repo / "packaging" / "windows").mkdir(parents=True)
+    (repo / "packaging" / "windows" / "END_USER_TERMS.txt").write_bytes(b"Terms\n")
     pkg = _fake_package(tmp_path, b"exe")
 
     app = tmp_path / "app-ok"
@@ -222,6 +224,12 @@ def test_verify_installed_passes_only_for_exact_payload(tmp_path):
     assert "installed copy differs: third-party-licenses/python-packages/x-1/LICENSE" in errors
     assert "NOTICE missing or different after install" in errors
     assert "unexpected installed file: stray.txt" in errors
+
+    app = tmp_path / "app-missing-terms"
+    _install(app, bundle, pkg, repo)
+    (app / "END_USER_TERMS.txt").unlink()
+    assert "END_USER_TERMS.txt missing or different after install" in \
+        tp.verify_installed(app, pkg, bundle, repo)["errors"]
 
     app = tmp_path / "app-wrong-exe"
     _install(app, bundle, pkg, repo)

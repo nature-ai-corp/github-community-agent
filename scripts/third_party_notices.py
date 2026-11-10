@@ -569,6 +569,12 @@ def check(bundle: Path, package: Path) -> list[str]:
 
 
 INSTALLER_OWN = {"unins000.exe", "unins000.dat"}
+# First-party files the installer copies from the repository: installed name -> repo path.
+INSTALLED_REPO_FILES = {
+    "LICENSE": "LICENSE",
+    "NOTICE": "NOTICE",
+    "END_USER_TERMS.txt": "packaging/windows/END_USER_TERMS.txt",
+}
 
 
 def verify_installed(app_dir: Path, package: Path, bundle: Path, repo: Path = ROOT) -> dict:
@@ -586,10 +592,10 @@ def verify_installed(app_dir: Path, package: Path, bundle: Path, repo: Path = RO
     for rel, data in bun.items():
         if installed.get(rel) != data:
             errors.append(f"bundle file missing or different after install: {rel}")
-    for name in ("LICENSE", "NOTICE"):
-        if installed.get(name) != (repo / name).read_bytes():
+    for name, source in INSTALLED_REPO_FILES.items():
+        if installed.get(name) != (repo / source).read_bytes():
             errors.append(f"{name} missing or different after install")
-    expected = set(bun) | {"LICENSE", "NOTICE"} | {f"third-party-licenses/{r}" for r in pkg}
+    expected = set(bun) | set(INSTALLED_REPO_FILES) | {f"third-party-licenses/{r}" for r in pkg}
     for extra in sorted(set(installed) - expected - INSTALLER_OWN):
         errors.append(f"unexpected installed file: {extra}")
     errors += [f"installed package: {e}" for e in validate_package(app_dir / "third-party-licenses")]

@@ -56,7 +56,7 @@ The page gives no explicit rule for naming ("GitHub X" versus "X for GitHub"). A
 - [ ] **Counsel:** Is "GitHub" in the product name acceptable under GitHub's trademark and logo policy? Recommend A, B or C.
 - [ ] **Counsel:** Does it conflict with the CPython/Microsoft condition "do not use Microsoft's trademarks in your programs' names or in a way that suggests … endorsed by Microsoft"? (GitHub is a Microsoft subsidiary.)
 - [ ] **Counsel:** Approve the disclaimer wording as written, or supply replacement text.
-- [ ] **Owner:** Keep the name, or rename (for example "Community Agent for GitHub" or a neutral name) if counsel advises. A rename is a packaging change and requires re-running the installer and upgrade checks.
+- [x] **Owner decision (2026-11-10):** KEEP the product name "GitHub Community Agent"; publisher NATURE AI CORP; keep the existing independence disclaimer. This is a business decision only. It is **not** legal or trademark approval, and the counsel items above remain open.
 
 ### 2. Microsoft `VCRUNTIME140.dll` redistribution (DECISION 3)
 Technical facts:
@@ -78,7 +78,8 @@ Narrowed on 2026-11-10 (`VCRUNTIME_REDISTRIBUTION_BASIS.md` §5a):
 
 - [ ] **Counsel:** Confirm that redistribution under the PSF's conditional grant is sufficient (no separate Microsoft license).
 - [ ] **Counsel:** Draft or approve the end-user terms clause that protects the Microsoft Distributable Code "at least as much as Microsoft's own requirements".
-- [ ] **Owner, on counsel's advice:** Authorize adding those terms as an installer license page that users accept (Inno `LicenseFile`). This is a small packaging change, followed by re-running the installer, payload and upgrade checks.
+- [x] **Packaging (technical, done 2026-11-10 at the owner's request):** a DRAFT installer license page (`packaging/windows/END_USER_TERMS.txt`, Inno `LicenseFile`) is shown before installation and requires "I accept the agreement". It is also installed as `END_USER_TERMS.txt`. The Microsoft conditions are reproduced verbatim from CPython `LICENSE.txt`.
+- [ ] **Counsel:** Review and approve or replace the DRAFT wording. Confirm whether reproducing CPython's conditions is enough to meet "at least as much as Microsoft's own requirements", or whether specific Microsoft terms must be added. (The draft deliberately adds no Microsoft terms of its own.)
 - [ ] **Owner:** Attest that the program is not malicious, deceptive or unlawful (V1 is read-only toward GitHub).
 
 ### 3. certifi MPL-2.0 source distribution (DECISION 2)

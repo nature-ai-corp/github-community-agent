@@ -54,11 +54,14 @@ CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
 ChangesEnvironment=no
+; Same end-user terms page as gc-agent.iss (DRAFT pending legal review).
+LicenseFile=END_USER_TERMS.txt
 
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "END_USER_TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReviewedLegalDir}\*"; DestDir: "{app}\third-party-licenses"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]

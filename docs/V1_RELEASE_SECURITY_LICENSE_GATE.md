@@ -2546,3 +2546,68 @@ of them as decided.
 | 4 | Approve the license package for the exact MANIFEST hash set | **Counsel/owner** | `V1_LICENSE_APPROVAL_CHECKLIST.md` items 3–5; previously verified upstream items are not reopened | Must be redone after signing and any repackaging, because the EXE hash changes |
 | 5 | Set up Azure Artifact Signing and authorize the signing run | **Owner** | `WINDOWS_CODE_SIGNING_READINESS.md` §7 | Enables the signed build |
 | 6 | Authorize merge, tag and release | **Owner** | After items 1–5, plus the signed-build Defender and SmartScreen checks and the real-AppId upgrade | — |
+
+### Owner decisions and draft installer license page (2026-11-10)
+
+**Owner decisions recorded:**
+- KEEP the product name "GitHub Community Agent";
+- publisher NATURE AI CORP;
+- keep the independence disclaimer;
+- the official PSF Windows runtime is used, and no Visual Studio license is
+  assumed.
+
+The name decision is **not** legal or trademark approval, and counsel review
+remains open.
+
+**Installer license page:**
+- `packaging/windows/END_USER_TERMS.txt` (ASCII, **DRAFT FOR LEGAL REVIEW**) is
+  `LicenseFile` in `gc-agent.iss` and `gc-agent-release-candidate.iss`, and is
+  also installed as `{app}\END_USER_TERMS.txt`.
+- Contents: the Apache-2.0 grant and disclaimer (pointing to `LICENSE`/`NOTICE`);
+  the third-party components (pointing to `THIRD_PARTY_NOTICES.txt`); the
+  CPython "Additional Conditions" for Microsoft Distributable Code, **verbatim**
+  (a test checks every clause against the shipped `LICENSE.txt`, and that no
+  Microsoft permission or extra restriction is invented); and the existing
+  independence disclaimer, verbatim from `NOTICE`.
+- `scripts/third_party_notices.py verify-installed` now also byte-checks the
+  installed `END_USER_TERMS.txt`, so the installed payload is 979 files.
+
+**Isolation defect found and fixed:**
+- **What happened.** An interactive license-page probe used an isolated-AppId
+  build, which still defaulted to the real install folder
+  `%LOCALAPPDATA%\Programs\GitHub Community Agent`. The wizard reached a
+  "Folder Exists" prompt for that folder; the agent stopped it before the
+  install step. Nothing was installed, and the real EXE, `work.sqlite3` and
+  `settings.dpapi` hashes are unchanged. The scripted checks were never
+  affected, because they always pass `/DIR`.
+- **Fix: compile time.** An isolated build (`PayloadVerificationAppId`) now
+  fails to compile without `/DIsolatedInstallDir`. It uses that folder as
+  `DefaultDirName`, with `UsePreviousAppDir=no` and `DisableDirPage=yes`.
+- **Fix: install time.** A `PrepareToInstall` guard refuses, before any file is
+  copied, to install into the real installation folder or the real data folder
+  `%LOCALAPPDATA%\GitHubCommunityAgent`, even when `/DIR` overrides the default.
+- **Scripts updated:** both the payload verifier and the upgrade trial pass
+  their own run folder.
+- **Real installer unchanged:** the real (non-isolated) installer is
+  byte-identical before and after this fix.
+
+**Evidence** (all isolated; real installation and data hashes unchanged after every step):
+
+| Check | Result |
+|---|---|
+| Isolated compile without `IsolatedInstallDir` | Compile error, no setup produced |
+| Guard: silent install with `/DIR` inside a protected test root (`/DGuardTestRoot`, scratch folder) | Exit 7, "PrepareToInstall failed: Isolated trial build refuses …"; no files, no registry entry |
+| Same build with its isolated default folder, then uninstall | Installed (including `END_USER_TERMS.txt`); uninstall removed the files and the registry entry |
+| Interactive wizard probe (isolated AppId and folder; UI Automation; Next never pressed) | First page = license; default "I do not accept", **Next disabled**; after "I accept", Next enabled; after "I do not accept", Next disabled again. The page text, read from the wizard, contains the DRAFT marker and the Microsoft section. No install folder or registry entry was created. Automated Cancel was not achieved (UI Automation never saw the confirmation dialog), so the probe force-stopped the wizard on the license page; nothing was copied (`build/license-page-probe/`) |
+| Unsigned RC1 installer rebuild | PASS; SHA256 `F4262E5301A11E47B0C8BB247B6C9E4EC223B76CCC99FCB01756A085622E09EA`, ProductVersion `1.0.0-rc1`, NotSigned; Defender: no threats (intelligence `1.463.226.0`) |
+| Installer install, byte-verify and uninstall | PASS, 979 files (`run-20261110T174206Z`) |
+| Upgrade trial (OLD `a2bc626` → RC1 with terms page) | PASS: every check true; data kept through uninstall and reinstall; real install and data unchanged (`run-20261110T174231Z`) |
+| Frozen-EXE security and TLS probes | 13/13 PASS; TLS OK |
+| Version and SBOM | Package check PASS; EXE `1.0.0rc1`; SBOM `github-community-agent 1.0.0rc1`; `legal_review_approved: false` |
+
+**Still open:**
+- counsel review of the DRAFT terms wording and of the name/trademark question;
+- the owner attestation (not malicious, deceptive or unlawful);
+- package approval, signing, signed-build Defender and SmartScreen checks, and
+  the real-AppId upgrade;
+- merge, tag and release.

@@ -8,6 +8,11 @@
     #define IsolatedAppName "GitHub Community Agent License Payload Verification"
   #endif
   #define AppName IsolatedAppName
+  ; An isolated build must also have its OWN unique temporary install folder;
+  ; it never defaults to the real installation folder.
+  #ifndef IsolatedInstallDir
+    #error Isolated builds require /DIsolatedInstallDir=<unique temporary folder>; refusing to default to the real installation folder.
+  #endif
 #else
   #define AppName "GitHub Community Agent"
 #endif
@@ -42,10 +47,16 @@ AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=NATURE AI CORP
+#ifdef PayloadVerificationAppId
+DefaultDirName={#IsolatedInstallDir}
+UsePreviousAppDir=no
+DisableDirPage=yes
+#else
 DefaultDirName={localappdata}\Programs\GitHub Community Agent
+UsePreviousAppDir=yes
+#endif
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
-UsePreviousAppDir=yes
 UninstallDisplayIcon={app}\GitHubCommunityAgent.exe
 DisableProgramGroupPage=yes
 OutputDir=..\..\dist\installer
@@ -57,6 +68,9 @@ CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
 ChangesEnvironment=no
+; End-user terms (DRAFT pending legal review): shown before installation; the
+; wizard's Next button stays disabled until "I accept the agreement" is chosen.
+LicenseFile=END_USER_TERMS.txt
 #ifdef SignToolName
 ; Owner-authorized signed build only (scripts/windows-build-installer.ps1
 ; -SignMetadata). The command itself is passed with ISCC /S, never stored here.
@@ -69,6 +83,7 @@ SignedUninstaller=yes
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "END_USER_TERMS.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ThirdPartyDir}\*"; DestDir: "{app}\third-party-licenses"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 #ifndef PayloadVerificationAppId
@@ -83,3 +98,29 @@ Name: "desktopicon"; Description: "Create desktop shortcut"; GroupDescription: "
 ; No [UninstallDelete] and no cleanup scripts: user work.sqlite3,
 ; settings.dpapi and activity logs are independent of installation files.
 ; No automatic startup or GitHub write actions.
+
+#ifdef PayloadVerificationAppId
+[Code]
+{ Isolated builds: refuse, before any file is copied, to install into the real
+  GitHub Community Agent installation folder or the real user-data folder,
+  even if /DIR= overrides the isolated default (silent or interactive). }
+function GcIsUnder(const Path, Root: String): Boolean;
+begin
+  Result := Pos(Lowercase(AddBackslash(Root)), Lowercase(AddBackslash(Path))) = 1;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  App: String;
+begin
+  Result := '';
+  App := ExpandConstant('{app}');
+  if GcIsUnder(App, ExpandConstant('{localappdata}\Programs\GitHub Community Agent')) or
+     GcIsUnder(App, ExpandConstant('{localappdata}\GitHubCommunityAgent'))
+  #ifdef GuardTestRoot
+     or GcIsUnder(App, '{#GuardTestRoot}')
+  #endif
+  then
+    Result := 'Isolated trial build refuses to install into a protected GitHub Community Agent folder: ' + App;
+end;
+#endif

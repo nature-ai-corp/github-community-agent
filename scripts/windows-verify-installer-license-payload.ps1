@@ -62,7 +62,7 @@ $before = @(Get-Fingerprints)
 # 4. Compile the real installer recipe with an isolated identity.
 $log = Join-Path $run 'iscc.log'
 $ErrorActionPreference = 'Continue'   # ISCC may write progress to stderr
-& $compiler "/DPayloadVerificationAppId={{$guid}" "/DBundleDir=$BundleDir" `
+& $compiler "/DPayloadVerificationAppId={{$guid}" "/DIsolatedInstallDir=$installDir" "/DBundleDir=$BundleDir" `
     '/DOutputName=GitHubCommunityAgent-LicensePayloadVerification' "/O$run" $iss 2>&1 |
     ForEach-Object { "$_" } | Set-Content -LiteralPath $log -Encoding UTF8
 $isccExit = $LASTEXITCODE

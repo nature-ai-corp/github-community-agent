@@ -127,6 +127,7 @@ def compile_installer(run: Path, guid: str, bundle: Path, version: str, name: st
     out = run / "installers"
     args = [str(iscc), f"/DPayloadVerificationAppId={{{{{guid}}}",
             "/DIsolatedAppName=GitHub Community Agent Upgrade Trial",
+            f"/DIsolatedInstallDir={run / 'install'}",
             f"/DBundleDir={bundle}", f"/DAppVersion={version}", f"/DOutputName={name}",
             f"/O{out}", str(ISS)]
     with (run / f"iscc-{name}.log").open("w", encoding="utf-8") as fh:
