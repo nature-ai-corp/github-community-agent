@@ -1962,3 +1962,32 @@ The next safe change is to gather REVIEW-ONLY exact text bytes from
 candidate LICENSE files into a separate create-only audit staging
 folder; this must NOT automatically include them in the release
 installer or represent that legal review has passed.
+
+## Review-only verbatim license candidates staging prepared (native Windows run pending)
+
+New script `scripts/stage_venv_license_candidates_for_review.py`
+selects only license/copyright/notice candidate files inside
+the **current build virtual environment's .dist-info metadata**
+for the seven named packages (anyio, certifi, h11, httpcore, httpx,
+idna, typing-extensions); writes the exact bytes and individual
+SHA256 values into a NEW, create-only, operator-selected audit folder,
+with `REVIEW_MANIFEST.json` marking frozen provenance, license
+compliance and installer inclusion FALSE. It does NOT invoke
+PyInstaller, Inno Setup, GitHub/network or an installed application,
+and does NOT change the original frozen bundle.
+
+Native Windows command (after `git pull --ff-only`; preserve
+any existing output folder instead of deleting/overwriting):
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\stage_venv_license_candidates_for_review.py --output-dir .\build\release-audit\optimized-candidate-sbom-review\venv-license-candidates-for-review
+```
+
+These candidate texts are for **human examination only**, not yet
+`THIRD_PARTY_NOTICES` and must NOT be inserted automatically into
+a distributable installer. Still to review: actual frozen versions,
+applicable source availability (notably certifi/MPL-2.0), complete
+CPython incorporated-software attribution, OpenSSL notice,
+Tcl/Tk `license.terms` and all Tcl data, libffi, zlib,
+SQLite provenance, and Microsoft Visual C++ runtime rights.
+`Gate 5` remains OPEN until these are fully checked.
