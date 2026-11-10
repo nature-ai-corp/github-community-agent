@@ -93,7 +93,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-manual-lic
    agreement"** selected.
 2. Confirm that **Next is greyed out**. Read the page:
    - title "GitHub Community Agent - End-User Terms and Third-Party Notice";
-   - "DRAFT FOR LEGAL REVIEW";
+   - "Version 1.0.0rc1 - Publisher: NATURE AI CORP";
+   - **no** "DRAFT" line (final wording);
    - §1 lists "prepare derivative works of (modify)";
    - §3 states that VCRUNTIME140.dll is Microsoft Distributable Code.
 3. Do **not** select "I accept". Click **Cancel**, then **Yes** in "Exit

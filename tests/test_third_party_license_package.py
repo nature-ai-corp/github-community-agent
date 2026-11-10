@@ -132,9 +132,10 @@ def test_runtime_pins_use_supported_openssl_line():
 
 def test_package_never_claims_legal_approval_or_release():
     manifest = _manifest()
-    assert manifest["legal_review_approved"] is False
+    # No internal approval flag (release procedure 2026-11-10); provenance evidence stays.
+    assert "legal_review_approved" not in manifest and "legal_review_note" not in manifest
     assert manifest["provenance_verified"] is True
-    assert "Not legal advice" in manifest["legal_review_note"]
+    assert "Not legal advice" in manifest["evidence_note"]
     generated = (PACKAGE / "THIRD_PARTY_NOTICES.txt").read_text(encoding="utf-8").split("Full license texts")[0]
     for claim in ("compliance complete", "fully compliant", "legally approved", "release approved"):
         assert claim not in generated.lower()
@@ -160,8 +161,7 @@ def _fake_package(tmp_path: Path, exe: bytes) -> Path:
         (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
         (pkg / rel).write_bytes(data)
     manifest = {"files": {k: hashlib.sha256(v).hexdigest() for k, v in files.items()},
-                "bundle": {"exe_sha256": hashlib.sha256(exe).hexdigest()},
-                "legal_review_approved": False}
+                "bundle": {"exe_sha256": hashlib.sha256(exe).hexdigest()}}
     (pkg / "MANIFEST.json").write_text(json.dumps(manifest))
     return pkg
 
@@ -177,9 +177,9 @@ def test_validate_package_detects_tampering(tmp_path):
     assert "unlisted file: extra.txt" in errors
     assert "missing file: THIRD_PARTY_NOTICES.txt" in errors
     manifest = json.loads((pkg / "MANIFEST.json").read_text())
-    manifest["legal_review_approved"] = True
+    manifest["legal_review_approved"] = False   # obsolete internal approval flag
     (pkg / "MANIFEST.json").write_text(json.dumps(manifest))
-    assert any("legal_review_approved" in e for e in tp.validate_package(pkg))
+    assert "obsolete internal approval field present: legal_review_approved" in tp.validate_package(pkg)
 
 
 def _install(app: Path, bundle: Path, pkg: Path, repo: Path) -> None:
@@ -207,7 +207,7 @@ def test_verify_installed_passes_only_for_exact_payload(tmp_path):
     _install(app, bundle, pkg, repo)
     report = tp.verify_installed(app, pkg, bundle, repo)
     assert report["pass"] and report["errors"] == []
-    assert report["legal_review_approved"] is False
+    assert "legal_review_approved" not in report
 
     app = tmp_path / "app-missing-notice"
     _install(app, bundle, pkg, repo)
@@ -276,9 +276,9 @@ def test_payload_verifier_installs_only_an_isolated_identity_and_guards_user_dat
     assert "B728F255" not in script  # never targets the real installation
     for token in ("/CURRENTUSER", "/VERYSILENT", "/DIR=", "unins000.exe", "verify-installed",
                   "work.sqlite3", "settings.dpapi", "refusing to overwrite",
-                  "third-party-licenses\\$relative", "real_installation_and_user_data_unchanged",
-                  "legal_review_approved = $false"):
+                  "third-party-licenses\\$relative", "real_installation_and_user_data_unchanged"):
         assert token in script, token
+    assert "legal_review_approved" not in script
     for forbidden in ("Remove-Item", "Set-AuthenticodeSignature", "gh release", "git push",
                       "GitHubCommunityAgent.exe --", "Invoke-WebRequest"):
         assert forbidden not in script, forbidden

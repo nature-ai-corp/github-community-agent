@@ -13,16 +13,53 @@ The procedure is now the Worker-style checklist in
   **withdrawn** and is not release evidence;
 - counsel review is an **optional** owner choice.
 
+### Final release packaging (2026-11-10)
+
+**Final installer:** `GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe`
+(`build/release-staging-rc1-final/`):
+- **SHA256:** `018EB04617D3A60314A79D08E0C22CB2CF4D61EE2916383D03CF6708E93DB825`;
+- **Size:** 13,081,789 bytes;
+- **ProductVersion:** `1.0.0-rc1`;
+- **Signature:** NotSigned (an unsigned pre-release is allowed).
+
+It was built from the unchanged verified app build: EXE `0A4B022F…`, CPython
+3.13.17 / OpenSSL 3.5.9.
+
+**Final wording:**
+- the "DRAFT FOR LEGAL REVIEW" line was removed from `END_USER_TERMS.txt`;
+- `NOTICE` now says releases are published on GitHub Releases with SHA256
+  checksums, and that pre-releases may be unsigned;
+- the internal `legal_review_approved` / `legal_review_note` fields were removed
+  from `MANIFEST.json`. A neutral `evidence_note` replaces them, and the
+  validator now rejects the obsolete fields;
+- all license texts, notices, the SBOM and the Microsoft conditions are
+  unchanged and byte-verified.
+
+| Verification on the final installer | Result |
+|---|---|
+| Automated tests | 344 passed, 1 skipped (CPython 3.13.17); 342 passed, 3 skipped (3.13.14) |
+| License package check (`third_party_notices.py check`) | PASS; only `MANIFEST.json` changed |
+| Fresh isolated install, byte-verify of every packaged file, uninstall | PASS, 979 files (`license-payload-verification/run-20261110T203344Z`) |
+| Upgrade from the previous build, task database and DPAPI preservation | PASS: settings identical, key decryptable, `settings.dpapi` bytes unchanged, Tasks identical, schema migrated, data kept through uninstall/reinstall (`upgrade-continuity/run-20261110T203410Z`) |
+| Frozen-EXE security | 13/13 PASS (`security-probe-rc1/final-20261110T203525Z`) |
+| TLS / HTTPS | OK (`security-probe-rc1/tls-20261110T203532Z`) |
+| Microsoft Defender | No threats; platform 4.18.26100.4, engine 1.1.26100.4, intelligence 1.463.226.0 |
+| Real installation and user data | Unchanged in every run |
+| Manual license page tests on the final wording | **Prepared, not yet operated**: isolated Decline and Accept builds compiled (`build/manual-license-test/run-20261110T203328Z-decline`, `run-20261110T203342Z-accept`). The earlier person-operated PASS results (below) cover the previous wording |
+| CI | Run after push (see the commit record) |
+
 | Area | Verdict |
 |---|---|
-| Technical (build, tests, installer, upgrade, security, CI) | **GO** |
-| Manual license page tests (person-operated, isolated) | **PASS**: Decline (exit 2, nothing installed) and Accept (installed, byte-verified, clean uninstall); see below |
-| Genuine legal obligations in the shipped build | **Met**, except accurate release text (next row) |
-| Release text inside the installer | **NO-GO** until the final release-text commit: `NOTICE` "not yet released … awaits human legal review", terms "DRAFT FOR LEGAL REVIEW", `MANIFEST.json` `legal_review_approved: false` |
-| Owner risk decisions (name, terms sufficiency) | **Owner** (no document required) |
+| Technical (build, tests, installer, upgrade, security) | **GO** |
+| Release text inside the installer | **GO**: final wording, no draft or unreleased statements |
+| Genuine legal obligations in the shipped build | **Met** |
+| Manual license page tests on the **final** binary | **Pending**: run the kit (Decline, then Accept) |
+| Owner risk decisions (name kept; terms sufficiency) | Owner (no document required) |
 | Clean Windows 11 / SmartScreen check | Recommended, not legally required |
 | Owner authorization (merge, tag, publish) | **Not given** |
-| **Overall** | **NO-GO for publication today**; blocked only by the release-text commit and its re-verification, plus explicit owner authorization |
+| **Overall** | **Ready for the owner's final checks and authorization.** Not published, and not authorized to publish |
+
+### Earlier status (superseded)
 
 ### Manual license page tests (operated by a person, 2026-11-10)
 

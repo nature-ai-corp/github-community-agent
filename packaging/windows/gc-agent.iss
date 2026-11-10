@@ -68,7 +68,7 @@ CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
 ChangesEnvironment=no
-; End-user terms (DRAFT pending legal review): shown before installation; the
+; End-user terms and third-party notice: shown before installation; the
 ; wizard's Next button stays disabled until "I accept the agreement" is chosen.
 LicenseFile=END_USER_TERMS.txt
 #ifdef SignToolName

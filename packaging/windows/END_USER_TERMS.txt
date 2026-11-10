@@ -1,8 +1,6 @@
 GitHub Community Agent - End-User Terms and Third-Party Notice
 Version 1.0.0rc1 - Publisher: NATURE AI CORP
 
-DRAFT FOR LEGAL REVIEW. This text has not been approved by counsel.
-
 Please read these terms before installing. To install, select "I accept the
 agreement". If you do not agree, select "I do not accept the agreement" and
 cancel the installation.

@@ -1,4 +1,4 @@
-"""Installer end-user terms page (DRAFT pending legal review): static contract.
+"""Installer end-user terms page (final release wording): static contract.
 
 Reads files only. It checks that the terms are shown and installed, carry the
 draft marker, and reproduce the CPython Microsoft Distributable Code
@@ -26,8 +26,8 @@ def test_terms_are_ascii_draft_and_name_the_product_and_publisher():
     raw = TERMS.read_bytes()
     raw.decode("ascii")  # Inno license memo: plain ASCII renders everywhere
     text = raw.decode("ascii")
-    assert "DRAFT FOR LEGAL REVIEW" in text
-    assert "has not been approved" in text
+    assert "DRAFT" not in text
+    assert "has not been approved" not in text
     assert text.startswith("GitHub Community Agent - End-User Terms")
     assert "Publisher: NATURE AI CORP" in text
     assert "Apache License, Version 2.0" in text
@@ -70,11 +70,16 @@ def test_terms_identify_vcruntime_as_microsoft_distributable_code():
     assert "including VCRUNTIME140.dll" not in terms
 
 
-def test_pending_review_markers_stay_until_owner_approves_final_wording():
-    # Removing these is a release decision (legal review + owner wording), not automation.
-    assert "DRAFT FOR LEGAL REVIEW" in TERMS.read_text(encoding="ascii")
+def test_release_wording_is_final_and_accurate():
+    # Final release wording (owner decision 2026-11-10): no draft / unreleased /
+    # awaiting-review statements in anything the installer ships.
+    terms = TERMS.read_text(encoding="ascii")
     notice = _norm((ROOT / "NOTICE").read_text(encoding="utf-8"))
-    assert "This independent repository is not yet released." in notice
+    for stale in ("DRAFT FOR LEGAL REVIEW", "not been approved by counsel"):
+        assert stale not in terms
+    for stale in ("not yet released", "awaits human legal review"):
+        assert stale not in notice
+    assert "published on the project's GitHub Releases page with SHA256 checksums" in notice
 
 
 def test_notice_reproduces_upstream_nature_ai_worker_attribution():

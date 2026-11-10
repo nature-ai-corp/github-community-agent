@@ -15,8 +15,8 @@ bundle, never from a hand-written dependency list:
 Anything unrecognised, or any license metadata that differs from the pinned
 expectation below, FAILS the build. A human must then review and update the
 pins; nothing is guessed. Passing these checks establishes provenance and
-packaging completeness. It is NOT a legal opinion: ``legal_review_approved``
-stays False until a person records an approval outside this tool.
+packaging completeness. It is not a legal opinion, and it records no approval
+status: there is no internal approval gate (release procedure, 2026-11-10).
 
 Subcommands (all read-only towards user data; no network access):
 
@@ -361,9 +361,8 @@ def render(analysis: dict, upstream: dict[str, bytes]) -> dict[str, bytes]:
         "version_evidence": {"url": EXTERNALS_EVIDENCE[0], "sha256": EXTERNALS_EVIDENCE[1]},
         "files": {rel: sha256_bytes(data) for rel, data in sorted(out.items())},
         "provenance_verified": True,
-        "legal_review_approved": False,
-        "legal_review_note": "Automated provenance and packaging checks only. Not legal advice; "
-                             "a human license review must approve before public release.",
+        "evidence_note": "Automated provenance and packaging checks of the bundled third-party "
+                         "components. Not legal advice.",
     }
     out["MANIFEST.json"] = _json(manifest)
     return out
@@ -549,8 +548,9 @@ def validate_package(package: Path) -> list[str]:
     for rel, (_u, pinned) in UPSTREAM_TEXTS.items():
         if rel in tree and sha256_bytes(tree[rel]) != pinned:
             errors.append(f"upstream text altered: {rel}")
-    if manifest.get("legal_review_approved") is not False:
-        errors.append("legal_review_approved must remain False until a human review")
+    for obsolete in ("legal_review_approved", "legal_review_note"):
+        if obsolete in manifest:
+            errors.append(f"obsolete internal approval field present: {obsolete}")
     return errors
 
 
@@ -609,7 +609,6 @@ def verify_installed(app_dir: Path, package: Path, bundle: Path, repo: Path = RO
         "bundle_files_verified": len(bun),
         "errors": errors,
         "pass": not errors,
-        "legal_review_approved": False,
     }
 
 
@@ -641,7 +640,7 @@ def main(argv: list[str] | None = None) -> int:
             target.parent.mkdir(parents=True, exist_ok=True)
             with target.open("xb") as fh:
                 fh.write(data)
-        print(f"Wrote {len(tree)} files to {args.output_dir} (legal review still required).")
+        print(f"Wrote {len(tree)} files to {args.output_dir}.")
         return 0
     if args.command == "check":
         errors = check(args.bundle, args.package)

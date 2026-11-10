@@ -1,13 +1,11 @@
 # GitHub Community Agent 1.0.0-rc1 — Windows pre-release (unsigned)
 
-> **DRAFT release text.** Not published. Prepared 2026-11-10 for the owner's
-> review. No tag or GitHub Release exists. Items marked ⚠ must be resolved or
-> consciously accepted by the owner before publication; see
-> `RELEASE_READINESS.md` in this folder.
+> **Prepared release text — not yet published.** Final installer wording;
+> no tag or GitHub Release exists yet. Delete this note when publishing.
 
 **Proposed tag:** `v1.0.0-rc1` (not created) · **Mark as pre-release:** yes
 **Asset:** `GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe`
-**SHA256:** `84454641961af0c9c03435ff1ddc9b2d9956a2996c1265ceed8a8a973d079430`
+**SHA256:** `018eb04617d3a60314a79d08e0c22cb2cf4d61ee2916383d03cf6708e93db825`
 (also in `SHA256SUMS.txt`)
 
 ---
@@ -65,7 +63,7 @@ Get-FileHash .\GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe -Algorithm 
 ```
 
 The hash must be exactly:
-`84454641961AF0C9C03435FF1DDC9B2D9956A2996C1265CEED8A8A973D079430`.
+`018EB04617D3A60314A79D08E0C22CB2CF4D61EE2916383D03CF6708E93DB825`.
 If it differs, **do not run the file**. Delete it and download it again from
 the official GitHub Release page.
 
@@ -115,8 +113,6 @@ history and saved keys.
 - **Key protection:** API keys are protected per Windows user with DPAPI. That
   does not protect them from malware running under your own Windows account.
 - **Promotion Work Types:** these are listed as V2 plans and cannot run in V1.
-- ⚠ **Draft terms:** the End-User Terms text shown by the installer is marked
-  DRAFT pending legal review.
 
 ## Changelog — 1.0.0-rc1 (first public pre-release)
 

@@ -27,7 +27,7 @@ release approval evidence and is not reproduced here.
 | Downstream distributors and end users agree to protective terms | Same, (e) | Installer license page, which must be accepted, reproduces the conditions verbatim ✓ (sufficiency: optional legal advice, see B) |
 | Don't use Microsoft marks in program names / imply Microsoft endorsement; don't use the GitHub mark in a way that suggests origin or endorsement | Same, (b); GitHub brand rules; trademark law | Independence disclaimer everywhere, no logos ✓. The name decision rests with the owner (see B) |
 | Inno Setup notices kept in the binary | Inno Setup License, cond. 2 | Unmodified Inno runtime ✓ |
-| Accurate release statements | Avoid misleading recipients | **Open at publication:** `NOTICE` says "not yet released … awaits human legal review"; the terms page says "DRAFT FOR LEGAL REVIEW"; `MANIFEST.json` carries `legal_review_approved: false`. Update these in the final release-text commit (C3) |
+| Accurate release statements | Avoid misleading recipients | **Done** (C3, final installer `018EB046…E93DB825`): final `NOTICE` wording; DRAFT line removed; internal approval flag removed ✓ |
 
 ## B. Owner decisions (risk choices; no document or signature required)
 

@@ -9,6 +9,7 @@
     "exe_sha256": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89",
     "file_count": 958
   },
+  "evidence_note": "Automated provenance and packaging checks of the bundled third-party components. Not legal advice.",
   "files": {
     "THIRD_PARTY_NOTICES.txt": "f438d6fece2b9426952fc052cf43e532157292a454656d3acbf5f706e996dc83",
     "certifi-2026.10.23/MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
@@ -27,8 +28,6 @@
     "tcl-tk-8.6.15/license.terms": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
   },
   "generator": "scripts/third_party_notices.py",
-  "legal_review_approved": false,
-  "legal_review_note": "Automated provenance and packaging checks only. Not legal advice; a human license review must approve before public release.",
   "provenance_verified": true,
   "schema": "gc-agent-third-party-licenses/1",
   "upstream_sources": {

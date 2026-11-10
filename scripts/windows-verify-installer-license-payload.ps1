@@ -123,14 +123,13 @@ $summary = [ordered]@{
     installed_payload_pass = $payloadOk
     uninstalled_cleanly = $uninstalled
     real_installation_and_user_data_unchanged = $untouched
-    legal_review_approved = $false
     signed = $false
 }
 $summary | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'summary.json') -Encoding UTF8
 Write-Host "Evidence folder: $run"
 Write-Host "Installer SHA256: $setupHash"
 if ($payloadOk -and $uninstalled -and $untouched) {
-    Write-Host 'INSTALLER LICENSE PAYLOAD VERIFICATION PASS (unsigned; legal review still required).'
+    Write-Host 'INSTALLER LICENSE PAYLOAD VERIFICATION PASS (unsigned).'
     exit 0
 }
 Write-Host "INSTALLER LICENSE PAYLOAD VERIFICATION FAILED: payload=$payloadOk uninstall=$uninstalled userdata=$untouched"

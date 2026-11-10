@@ -22,5 +22,6 @@ Corporation. "GitHub" is a trademark of GitHub, Inc. and is used only to
 identify the service this software works with. All other trademarks are the
 property of their respective owners.
 
-This independent repository is not yet released. The third-party license
-package awaits human legal review before public distribution.
+Windows releases are published on the project's GitHub Releases page with
+SHA256 checksums. Pre-release installers may be unsigned; verify the
+checksum before installing.

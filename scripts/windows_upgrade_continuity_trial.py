@@ -262,7 +262,7 @@ def run_trial(commit: str, new_bundle: Path = NEW_BUNDLE, new_label: str | None 
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
                           capture_output=True, text=True, check=True).stdout.strip()
     ev: dict = {"run": str(run), "trial_app_id": "{" + guid + "}", "old_commit": commit,
-                "new_commit": head, "legal_review_approved": False, "signed": False}
+                "new_commit": head, "signed": False}
     new_label = new_label or vi.inno(vi.package_version())
     before = fingerprints()
     installed = False
