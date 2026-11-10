@@ -1830,3 +1830,46 @@ particularly `path`, `file_version_string`,
 until underlying authoritative source/redistribution evidence is
 checked. No modified executable, production credentials or signed
 installer involved.
+
+## Actual optimized native VERSIONINFO records reviewed (2026-11-10)
+
+The user ran the read-only Windows listing of all 26 entries in
+`native-binary-fileversion-evidence.json`. Windows self-reported
+VERSIONINFO establishes the following **version/provenance hints only**:
+
+- 17 CPython-named binary files, including `python313.dll` and
+  Python extension `.pyd` modules: file/product `3.13.14`,
+  company field `Python Software Foundation`.
+- `libcrypto-3.dll` and `libssl-3.dll`: `3.0.21`,
+  company field `The OpenSSL Project, https://www.openssl.org/`.
+- `sqlite3.dll`: `3.50.4.0`, company `SQLite3`.
+- `tcl86t.dll` and `tk86t.dll`: `8.6.15`,
+  company information blank.
+- `VCRUNTIME140.dll`: `14.42.34438.0`,
+  company `Microsoft Corporation`.
+- `zlib1.dll`: `1.3.1`, company blank.
+- `libffi-8.dll`: no version/company string in the output.
+- `GitHubCommunityAgent.exe`: no version/company string in the output.
+- The overall total remains **26 binary files** and their hashes
+  have already been checked **26/26** against the frozen manifest.
+
+This is **NOT** an independent verification of binary build origin,
+the complete CPython runtime license chain, OpenSSL/Tcl/Tk/libffi/zlib
+redistribution conditions, Microsoft runtime distribution conditions,
+PyInstaller bootloader license/attribution or installer NOTICE
+coverage. Do not infer that a missing field means the component lacks
+a license; investigate the actual upstream distribution materials.
+A component version printed by Windows is useful for source-matching,
+but does not independently prove that exact upstream binary was
+bundled.
+
+**Next gate actions:** identify authoritative redistribution
+LICENSE/NOTICE texts for the exact CPython 3.13.14 runtime and
+bundled libraries, OpenSSL 3.0.21, Tcl/Tk 8.6.15, zlib 1.3.1,
+SQLite 3.50.4, libffi and MS VC runtime. Confirm the PyInstaller
+version/bootloader origin and whether third-party notices are
+included within the installer. Keep the SBOM/NOTICE approval flag
+FALSE until each item has concrete evidence.
+
+All audit scripts remain read-only and non-overwriting; no
+installed app, Task, DPAPI data, signed installer or release touched.
