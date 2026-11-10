@@ -2268,7 +2268,8 @@ The version bump has **not been authorized**, so it is kept only in the
 working tree and as `build/PROVISIONAL-1.0.0rc1-version.patch`. That covers
 `pyproject.toml`, `__init__.__version__`, the `gc-agent.iss` default
 `1.0.0-rc1`, and the package regenerated for the rc1 EXE. On that tree, built
-with `-OutRoot build\release-bundle-1.0.0rc1`:
+with `-OutRoot build\release-bundle-1.0.0rc1` from commit `9424fad`, which
+includes the 403/413 fix (rc1 EXE SHA256 `ad830121…49feb8`):
 
 - **Versions agree:**
   - `pyproject` = `__version__` = SBOM `metadata.component.version` =
@@ -2278,9 +2279,10 @@ with `-OutRoot build\release-bundle-1.0.0rc1`:
     Explorer shows ProductName, CompanyName and the independence
     FileDescription.
 - **Package and installer:** `third_party_notices.py check` PASS; installer
-  build PASS (`build/installer-check-rc1`); native install, byte-verify and
-  uninstall PASS (978 files, `run-20261110T050206Z`).
-- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T050243Z`):
+  build PASS (`build/installer-check-rc1`, setup ProductVersion `1.0.0-rc1`);
+  native install, byte-verify and uninstall PASS (978 files,
+  `run-20261110T051646Z`).
+- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T051715Z`):
   - OLD = commit `a2bc626` on CPython 3.13.14 / OpenSSL 3.0.21; NEW = rc1 on
     CPython 3.13.17 / OpenSSL 3.5.9.
   - The NEW install went over the OLD one with an isolated AppId. Settings were
@@ -2296,8 +2298,8 @@ with `-OutRoot build\release-bundle-1.0.0rc1`:
     response, so TLS with certificate verification through the bundled
     OpenSSL 3.5.9 and certifi works.
   - Real `work.sqlite3`/`settings.dpapi` were unchanged.
-- **Regression:** 322 passed, 1 skipped on 3.13.17 (bundle-bound tests
-  pointed at the rc1 bundle via `GC_AGENT_BUNDLE`); 320 passed, 3 skipped on
+- **Regression:** 324 passed, 1 skipped on 3.13.17 (bundle-bound tests
+  pointed at the rc1 bundle via `GC_AGENT_BUNDLE`); 322 passed, 3 skipped on
   the 3.13.14 dev venv.
 - **Fixed during this step:** a relative `-OutRoot` broke `--version-file`,
   because PyInstaller resolves it against `--specpath`. The script now makes
