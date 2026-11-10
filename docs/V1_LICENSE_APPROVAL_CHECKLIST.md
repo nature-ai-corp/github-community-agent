@@ -43,7 +43,17 @@ Technical facts:
 - an independence disclaimer ("not affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft") ships in `NOTICE`, `THIRD_PARTY_NOTICES.txt`, `README.md` and the EXE `FileDescription`;
 - no GitHub logos are bundled.
 
-- [ ] **Counsel:** Is "GitHub" in the product name acceptable under GitHub's trademark and logo policy?
+GitHub's published brand rules (brand.github.com/foundations/logo, checked 2026-11-10), verbatim:
+- "Do not use the GitHub name or any GitHub logo in a way that suggests you are GitHub, your offering or project is by GitHub, or that GitHub is endorsing you or your offering or project."
+- "Do not use GitHub trademarks, logos, or artwork without GitHub's prior written permission."
+- "No adaptation or use of any kind of any of our registered trademarks or copyrights … is allowed without the express written permission of GitHub, Inc."
+
+The page gives no explicit rule for naming ("GitHub X" versus "X for GitHub"). A name that **begins** with "GitHub" is the form most likely to be read as a GitHub product. The realistic choices are:
+- (A) keep the name and seek GitHub's written permission;
+- (B) rename to a descriptive form such as "Community Agent for GitHub", with counsel judging whether that is permissible referential use;
+- (C) use a neutral name, with "works with GitHub" only in descriptive text.
+
+- [ ] **Counsel:** Is "GitHub" in the product name acceptable under GitHub's trademark and logo policy? Recommend A, B or C.
 - [ ] **Counsel:** Does it conflict with the CPython/Microsoft condition "do not use Microsoft's trademarks in your programs' names or in a way that suggests … endorsed by Microsoft"? (GitHub is a Microsoft subsidiary.)
 - [ ] **Counsel:** Approve the disclaimer wording as written, or supply replacement text.
 - [ ] **Owner:** Keep the name, or rename (for example "Community Agent for GitHub" or a neutral name) if counsel advises. A rename is a packaging change and requires re-running the installer and upgrade checks.
@@ -56,14 +66,19 @@ Technical facts:
 - obtained through the PSF runtime, not from Visual Studio;
 - the installer has no end-user terms page.
 
-- [ ] **Counsel:** Is redistributing the PSF-supplied copy permitted for NATURE AI CORP?
-- [ ] **Counsel:** Is the "require … end users to agree to terms that protect the Microsoft Distributable Code" condition met? If not, draft the clause.
-- [ ] **Owner, on counsel's advice:** Choose one option (see `VCRUNTIME_REDISTRIBUTION_BASIS.md` §5):
-  - (1) an installer terms page;
-  - (2) redistribute as the company's own Visual Studio licensee;
-  - (3) require Microsoft's VC++ Redistributable instead of bundling.
+Narrowed on 2026-11-10 (`VCRUNTIME_REDISTRIBUTION_BASIS.md` §5a):
+- **No Visual Studio purchase needed:** the permission comes through the PSF's
+  conditional grant, so NATURE AI CORP does not need its own Visual Studio
+  license.
+- **The conditions cover the whole runtime:** the CPython license says the
+  Microsoft Distributable Code is embedded in **every** CPython `.exe`, `.dll`
+  and `.pyd`, so not bundling `VCRUNTIME140.dll` would not remove the
+  conditions.
+- **Only one condition is open:** end-user terms.
 
-  Options 1 and 3 change the installer and need re-verification.
+- [ ] **Counsel:** Confirm that redistribution under the PSF's conditional grant is sufficient (no separate Microsoft license).
+- [ ] **Counsel:** Draft or approve the end-user terms clause that protects the Microsoft Distributable Code "at least as much as Microsoft's own requirements".
+- [ ] **Owner, on counsel's advice:** Authorize adding those terms as an installer license page that users accept (Inno `LicenseFile`). This is a small packaging change, followed by re-running the installer, payload and upgrade checks.
 - [ ] **Owner:** Attest that the program is not malicious, deceptive or unlawful (V1 is read-only toward GitHub).
 
 ### 3. certifi MPL-2.0 source distribution (DECISION 2)

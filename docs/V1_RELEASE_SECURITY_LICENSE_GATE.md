@@ -13,7 +13,8 @@
 > | Gate 3: cross-account DPAPI | **PASS** (owner-run, owner-reported) | "Gate 3: cross-account DPAPI — PASS" at the end |
 > | Third-party license package | Technically consistent; **legal approval NOT given** | [`V1_LICENSE_APPROVAL_CHECKLIST.md`](V1_LICENSE_APPROVAL_CHECKLIST.md) |
 > | Code signing (Azure Artifact Signing) | **Prepared, not done.** Scripts and verifier are ready; no Azure resources exist and nothing is signed | [`WINDOWS_CODE_SIGNING_READINESS.md`](WINDOWS_CODE_SIGNING_READINESS.md) |
-> | Defender and SmartScreen on the signed build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | same document, §6 |
+> | Defender scan of the **unsigned** RC1 installer, app EXE and bundle | **PASS: no threats** (2026-11-10) | "Defender scan of the verified unsigned RC1" at the end |
+> | Defender and SmartScreen on the **signed** build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | `WINDOWS_CODE_SIGNING_READINESS.md` §6 |
 > | Merge, tag, release | **Not authorized** | — |
 
 ## Evidence already confirmed on Windows
@@ -2494,3 +2495,54 @@ Technical items are verified by automation. Approvals need a named human.
 - [ ] Defender scan and clean Windows 11 SmartScreen test on the signed setup (§6); no Defender detection.
 - [ ] Real-AppId upgrade over the currently installed internal build; user data preserved.
 - [ ] **Owner:** authorize merge of the Draft PR chain (#6→#7→#8→#9→#11), tag and release; publish the signed setup with its SHA256.
+
+### Defender scan of the verified unsigned RC1 (2026-11-10)
+
+**Artifacts scanned.** These are the committed and verified RC1 build; nothing
+was rebuilt for the scan.
+
+| Artifact | SHA256 | Identity evidence |
+|---|---|---|
+| `build/installer-check-rc1-final/GitHubCommunityAgent-InternalTest-Unsigned.exe` (13,079,273 bytes, ProductVersion `1.0.0-rc1`, NotSigned) | `FD684B31B56E3DCCF288CC44C30BFDFF266E0FA0C1163F1C7A220B2FB6E6E4B4` | Built by `windows-build-installer.ps1` after `third_party_notices.py check` against the bundle below. A later rebuild from the same bundle was byte-identical. |
+| `build/release-bundle/dist/GitHubCommunityAgent/GitHubCommunityAgent.exe` (3,652,158 bytes, `1.0.0rc1`, NotSigned) | `0A4B022F94B00AC7EEAB80C6C75D16ABF8C6C771B8DBC8A792B30022B2FE3D89` | Equals `MANIFEST.json` `exe_sha256` and the SBOM hash at commit `cf1a73f`; `third_party_notices.py check` PASS |
+| The whole bundle folder (958 files) | — | Same bundle |
+
+**Scanner:**
+- Microsoft Defender Antivirus, platform/service `4.18.26100.4`, engine
+  `1.1.26100.4`, `MpCmdRun.exe` `4.18.25080.5`;
+- security intelligence (AV, AS and NIS) `1.463.226.0`, updated
+  2026-11-10 03:11 local time;
+- real-time protection on, tamper protection on, running mode Normal.
+
+**Command:** `MpCmdRun.exe -Scan -ScanType 3 -File <target> -DisableRemediation`.
+This is a custom scan with no quarantine or changes.
+
+**Result:**
+- installer: exit 0, "found no threats";
+- app EXE: exit 0, "found no threats";
+- bundle folder: exit 0, "found no threats";
+- `Get-MpThreatDetection` shows 0 detections since the scan started.
+
+Both hashes were re-checked after the scan and are unchanged. The raw output is
+in `build/defender-scan-rc1/`.
+
+**Limits:**
+- This scan covers the **unsigned** build. It must be repeated on the signed
+  files, because signing changes the bytes.
+- A local Defender scan is not SmartScreen reputation and not a multi-engine
+  scan. The clean Windows 11 SmartScreen test is still required
+  (`WINDOWS_CODE_SIGNING_READINESS.md` §6).
+
+### Final owner decisions (as of 2026-11-10; nothing approved)
+
+Only these remain before signing and release. Nothing in this repo records any
+of them as decided.
+
+| # | Decision | Who | Options and evidence | Effect |
+|---|---|---|---|---|
+| 1 | Product name | **Counsel → owner** | (A) keep "GitHub Community Agent" and obtain GitHub's written permission; (B) a descriptive form such as "Community Agent for GitHub"; (C) a neutral name. GitHub's brand rules require prior written permission for trademark use and forbid implying GitHub origin or endorsement. The same question settles the CPython/Microsoft "trademarks in program names" condition (b) | Option B or C means renaming the installer, EXE metadata and docs, then re-running the checks |
+| 2 | Microsoft Distributable Code end-user terms (condition e) | **Counsel drafts or approves; owner authorizes** | Add an installer license page that users accept. No Visual Studio license is assumed; leaving out `VCRUNTIME140.dll` would not remove the condition | Small packaging change, then re-run the installer, payload and upgrade checks |
+| 3 | Attest that the program is not malicious, deceptive or unlawful (condition d) | **Owner** | V1 is read-only toward GitHub | Record only |
+| 4 | Approve the license package for the exact MANIFEST hash set | **Counsel/owner** | `V1_LICENSE_APPROVAL_CHECKLIST.md` items 3–5; previously verified upstream items are not reopened | Must be redone after signing and any repackaging, because the EXE hash changes |
+| 5 | Set up Azure Artifact Signing and authorize the signing run | **Owner** | `WINDOWS_CODE_SIGNING_READINESS.md` §7 | Enables the signed build |
+| 6 | Authorize merge, tag and release | **Owner** | After items 1–5, plus the signed-build Defender and SmartScreen checks and the real-AppId upgrade | — |

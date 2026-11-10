@@ -80,6 +80,40 @@ read them from the Visual Studio license that applies.
    compatibility and UX impact; the installer and upgrade trials must be
    repeated.
 
+## 5a. Narrowed analysis (2026-11-10): what actually applies to NATURE AI CORP
+
+No new purchase is assumed. NATURE AI CORP is a **downstream redistributor of
+the PSF's unmodified Windows build**. Its permission is the conditional grant in
+CPython's `LICENSE.txt`, quoted in §2: redistribution "complies with this
+agreement, provided that you do not …". That route does **not** depend on
+NATURE AI CORP holding its own Visual Studio license, so **option 2 is not
+needed**. Counsel only has to confirm that the PSF route is sufficient.
+
+**Scope of the conditions** (CPython `LICENSE.txt`, lines 284–287 of the
+shipped copy): "The Microsoft Distributable Code is embedded in each .exe,
+.dll and .pyd file as a result of running the code through a linker." The
+conditions therefore cover the whole CPython runtime in the bundle, not only
+`VCRUNTIME140.dll`. **Consequence:** option 3 (not bundling `VCRUNTIME140.dll`)
+would **not** remove the end-user-terms condition; it would only add packaging
+risk. It is no longer recommended.
+
+The applicable obligations, and only these:
+
+| # | Condition | State in the shipped RC1 | Action |
+|---|---|---|---|
+| a | Do not alter Microsoft notices | DLL byte-identical and Microsoft-signed; signing scripts refuse to re-sign third-party binaries | None (verified) |
+| b | No Microsoft trademarks in program names, and no suggestion of origin or endorsement by Microsoft | Name contains "GitHub" (a GitHub, Inc. mark; GitHub is a Microsoft subsidiary); independence disclaimer shipped | **Counsel decision** (shared with the product-name issue) |
+| c | Microsoft platforms only | Windows x64 only | None |
+| d | Not malicious, deceptive or unlawful | Read-only V1 | **Owner attestation** |
+| e | "require distributors and external end users to agree to terms that protect the Microsoft Distributable Code at least as much as Microsoft's own requirements" | Installer shows **no** terms; `LICENSE`/`NOTICE` are only installed as files | **Open.** The smallest fix is option 1: an end-user license page in the installer (Inno `LicenseFile`, accepted before install), with a counsel-approved clause protecting the Microsoft Distributable Code |
+
+**Recommended path for counsel to confirm:**
+- **Condition (e):** option 1 (installer terms page). Counsel drafts or
+  approves the text; then it is a small packaging change plus re-verification.
+- **Condition (b):** decided together with the product name.
+- **Upstream licenses:** nothing else is reopened. All other upstream license
+  items stay as already verified.
+
 ## 6. Required human decisions
 
 - Whether the product name "GitHub Community Agent" is acceptable under the

@@ -96,6 +96,14 @@ Distributable Code at least as much as Microsoft's own requirements".
 - An alternative is to rely on the system's Microsoft Visual C++
   Redistributable instead of bundling the DLL. That is a packaging change with
   compatibility risk; the trial would need to be repeated.
+- **Narrowed 2026-11-10** (`VCRUNTIME_REDISTRIBUTION_BASIS.md` §5a):
+  - The PSF's conditional grant is the basis, so no Visual Studio license is
+    assumed.
+  - CPython's license states the Distributable Code is embedded in every
+    CPython `.exe`, `.dll` and `.pyd`. The system-redistributable alternative
+    therefore would not remove the conditions, and is dropped.
+  - The open items are now only the end-user terms (a recommended installer
+    terms page) and the name.
 
 **DECISION 4 — Public-domain statements (SQLite, liblzma).** The notices hold
 short project-written statements with upstream links, not upstream text.
