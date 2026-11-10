@@ -69,8 +69,9 @@ Pygments, packaging and pytest) is **rejected** by that check.
 `scripts/windows-verify-installer-license-payload.ps1` builds the real
 recipe with an isolated AppId, installs it silently into `build/`, compares
 all 977 installed files byte-for-byte, uninstalls, and confirms the real
-installation and user data hashes are unchanged. Two native runs PASSED
-(2026-11-10): `run-20261110T024602Z`, `run-20261110T024957Z`.
+installation and user data hashes are unchanged. Three native runs PASSED
+(2026-11-10): `run-20261110T024602Z`, `run-20261110T024957Z`,
+`run-20261110T025259Z` (on committed `2475b58`, including the updated NOTICE).
 
 ## Still open (human decisions, not automatable)
 

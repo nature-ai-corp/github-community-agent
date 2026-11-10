@@ -2093,12 +2093,13 @@ human legal sign-off still OPEN.** Details and per-component table:
   unless the package matches the bundle being packaged (the legacy
   `dist/` baseline with Pygments/pytest is rejected).
 - `scripts/windows-verify-installer-license-payload.ps1`: native Windows
-  **PASS twice** — compile log lists all 15 license files; isolated-AppId
+  **PASS three times** (third run on committed `2475b58`, incl. updated
+  `NOTICE`) — compile log lists all 15 license files; isolated-AppId
   silent install produced 977 files, all byte-verified; clean uninstall
   (files and HKCU entry removed); real installation EXE, `work.sqlite3`
   and `settings.dpapi` hashes unchanged. Evidence under
-  `build/license-payload-verification/run-20261110T024602Z` and
-  `run-20261110T024957Z`. Installer unsigned, never launched.
+  `build/license-payload-verification/run-20261110T024602Z`,
+  `run-20261110T024957Z` and `run-20261110T025259Z`. Installer unsigned, never launched.
 - Windows regression: **280 passed, 1 skipped** (opt-in installer test,
   which also passed when run explicitly).
 
