@@ -2022,3 +2022,50 @@ materials, then prepare a complete THIRD_PARTY_NOTICES structure and
 installer declaration with tests. Any such package changes remain
 unreleased until actual installer payload acceptance and user
 authorization; retain this staged evidence unmodified.
+
+## Isolated optimized installer source with fail-closed legal-material gate prepared (2026-11-10)
+
+In response to owner instruction to proceed with **actual packaging
+readiness rather than more file-count scripts**, added
+`packaging/windows/gc-agent-release-candidate.iss` as a
+**separate** Inno Setup source. It does not alter the existing
+`packaging/windows/gc-agent.iss`, installed GC Agent executable,
+user Task DB, DPAPI data, original Nature AI Worker or approved frozen
+candidate. No installer has been built or signed.
+
+The new RC installer source is deliberately NOT compilable
+out-of-the-box: Inno preprocessor errors are specified when the
+approved non-dev AppVersion, independently reviewed
+ReviewedLegalDir with THIRD_PARTY_NOTICES.txt and
+REVIEW_APPROVAL.json, or separately identified
+LegalReviewEvidence are absent. If and only if these independent
+materials later exist and are approved, the spec will include the
+actual optimized frozen onedir, repository LICENSE/NOTICE, and
+explicit reviewed third-party materials under an installed
+`third-party-licenses` directory. It emits to a separate
+`build/gc-agent-release-candidate-installer` area, never
+overwriting existing unsigned internal installer artifacts.
+Compile-time existence checks alone do NOT validate the truth
+or integrity of legal approval, version provenance, legal
+requirements or final installed payload.
+
+Added `tests/test_release_candidate_installer_contract.py`
+for static guardrails. Added
+`docs/THIRD_PARTY_NOTICE_REVIEW_MATRIX.md`
+as the single compact checklist of seven venv-only distribution
+candidates and all native runtime groups, source links, and
+unresolved provenance/notice obligations.
+
+**Native tests for this new source change are still pending.**
+Suggested safe next step:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+```
+
+**Do not attempt to compile this RC installer** by inventing
+REVIEW_APPROVAL.json or other gate files. It is a blocker-by-design
+until independent license review is complete. The internal
+installer source remains unchanged, and PR #11 stays Draft.
