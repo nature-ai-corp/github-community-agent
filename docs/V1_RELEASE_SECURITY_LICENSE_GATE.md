@@ -1803,3 +1803,30 @@ If the report path already exists, preserve it; this command refuses
 overwrites. Do not infer a license from a version string. Gate 5
 remains OPEN until actual version-locked component/NOTICE texts and
 native binary redistribution rights have been assessed.
+
+## Native Windows frozen 26-binary VERSIONINFO evidence created — hashes 26/26 PASS (2026-11-10)
+
+User pulled branch `feature/unified-task-home` through `6e90ac4`
+and ran the updated native Windows regression:
+
+- **256 passed in 1.89s, 0 failed**.
+- `windows-optimized-native-binary-versions.ps1` completed.
+- **All 26 native executable/DLL/PYD SHA256 values matched the previously saved actual optimized bundle file manifest**.
+- New file created (preserved): `build/release-audit/optimized-candidate-sbom-review/native-binary-fileversion-evidence.json`.
+- Tool explicitly warned: `VERSIONINFO names are self-reported; legal origins and licenses still need verification.`
+
+**Accepted:** hash integrity of 26 native binaries against the frozen
+manifest, and a local report of embedded Windows VERSIONINFO metadata.
+**Not accepted:** legally verified origin, exact upstream build
+provenance, redistribution license text, third-party NOTICE coverage
+or release-ready SBOM. The user has not yet supplied the individual
+VERSIONINFO rows, so do not infer per-file company/product metadata
+from the tool's success line.
+
+Next read-only review: examine the saved JSON's `binaries` array,
+particularly `path`, `file_version_string`,
+`product_version_string`, `company_name_unverified`, and
+`product_name_unverified`. Retain `third_party_licenses_verified=false`
+until underlying authoritative source/redistribution evidence is
+checked. No modified executable, production credentials or signed
+installer involved.
