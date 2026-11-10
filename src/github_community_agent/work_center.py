@@ -24,6 +24,7 @@ from .errors import ToolError
 from .encrypted_settings import EncryptedSettings, SettingsError
 
 MAX_REQUEST_BYTES = 12000
+MAX_DISCARD_BYTES = 64 * 1024  # largest rejected body drained before replying
 
 
 @dataclass(frozen=True)
@@ -403,8 +404,14 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 n = int(self.headers.get("Content-Length", "0"))
             except ValueError:
                 return
-            if 0 < n <= MAX_REQUEST_BYTES:
-                self.rfile.read(n)
+            # Hard cap: a huge declared length is never read; that connection
+            # is simply closed after the reply.
+            if 0 < n <= MAX_DISCARD_BYTES:
+                try:
+                    self.connection.settimeout(5)  # never wait on a stalled client
+                    self.rfile.read(n)
+                except OSError:
+                    pass
 
         def do_POST(self):
             if not self._authorized():
@@ -413,6 +420,7 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
             try:
                 n = int(self.headers.get("Content-Length", "0"))
                 if n < 2 or n > MAX_REQUEST_BYTES:
+                    self._discard_body()
                     return self._send(413, {"error": "Invalid request size."})
                 payload = json.loads(self.rfile.read(n))
                 if not isinstance(payload, dict):

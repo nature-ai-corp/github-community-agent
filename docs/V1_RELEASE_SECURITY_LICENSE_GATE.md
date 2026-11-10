@@ -2245,7 +2245,12 @@ the declarations in agreement.
 A POST rejected with 403 replied without reading its body. On Windows the
 leftover data reset the connection, so a client could see a reset instead of
 the 403. This was intermittent in `tests/test_work_center_http.py`: without
-the fix, 3 of 8 runs failed; with `_discard_body()`, 0 of 8 failed.
+the fix, 3 of 8 runs failed; with `_discard_body()`, 0 of 8 failed. The same
+race also affected oversized POSTs answered with 413, which are now drained
+too. The drain reads at most 64 KiB with a 5 s socket timeout and then closes
+the connection. New tests: a repeated rejected-POST race test (4 of 5 runs
+fail without the fix, 0 of 5 with it) and a test that a lying
+`Content-Length` cannot stall the reply.
 
 ### Results at `0.0.0.dev0`
 
@@ -2253,5 +2258,55 @@ the fix, 3 of 8 runs failed; with `_discard_body()`, 0 of 8 failed.
 - Installer build script: PASS, into `build/installer-check-dev0`.
 - Native install, byte-verify and uninstall: PASS (978 files), with real
   install and user data unchanged.
-- Regression: **321 passed, 1 skipped** on CPython 3.13.17, twice, including
-  the bundle-bound tests. **319 passed, 3 skipped** on the 3.13.14 dev venv.
+- Regression after both fixes: **324 passed, 1 skipped** on CPython 3.13.17,
+  including the bundle-bound tests; **322 passed, 3 skipped** on the 3.13.14
+  dev venv. Payload re-verified after the rebuild: `run-20261110T051322Z`.
+
+### Provisional `1.0.0rc1` validation (version change NOT committed)
+
+The version bump has **not been authorized**, so it is kept only in the
+working tree and as `build/PROVISIONAL-1.0.0rc1-version.patch`. That covers
+`pyproject.toml`, `__init__.__version__`, the `gc-agent.iss` default
+`1.0.0-rc1`, and the package regenerated for the rc1 EXE. On that tree, built
+with `-OutRoot build\release-bundle-1.0.0rc1`:
+
+- **Versions agree:**
+  - `pyproject` = `__version__` = SBOM `metadata.component.version` =
+    `1.0.0rc1`;
+  - installer AppVersion `1.0.0-rc1`;
+  - EXE FileVersion/ProductVersion `1.0.0rc1`, numeric `1.0.0.0`; Windows
+    Explorer shows ProductName, CompanyName and the independence
+    FileDescription.
+- **Package and installer:** `third_party_notices.py check` PASS; installer
+  build PASS (`build/installer-check-rc1`); native install, byte-verify and
+  uninstall PASS (978 files, `run-20261110T050206Z`).
+- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T050243Z`):
+  - OLD = commit `a2bc626` on CPython 3.13.14 / OpenSSL 3.0.21; NEW = rc1 on
+    CPython 3.13.17 / OpenSSL 3.5.9.
+  - The NEW install went over the OLD one with an isolated AppId. Settings were
+    identical and the DPAPI key still decrypted; Tasks were identical; the
+    schema was migrated and soft-delete worked on a migrated Task.
+  - Uninstall kept the data, and the reinstall read 3 Tasks.
+  - The real installation and data were unchanged, and the trial registry
+    entry was removed.
+- **Security, frozen rc1 EXE with isolated data:**
+  - negative HTTP probe 8/8 PASS;
+  - one unauthenticated GitHub read of a nonexistent repository returned
+    HTTP 404 ("GitHub issues not found."). That message requires an HTTP
+    response, so TLS with certificate verification through the bundled
+    OpenSSL 3.5.9 and certifi works.
+  - Real `work.sqlite3`/`settings.dpapi` were unchanged.
+- **Regression:** 322 passed, 1 skipped on 3.13.17 (bundle-bound tests
+  pointed at the rc1 bundle via `GC_AGENT_BUNDLE`); 320 passed, 3 skipped on
+  the 3.13.14 dev venv.
+- **Fixed during this step:** a relative `-OutRoot` broke `--version-file`,
+  because PyInstaller resolves it against `--specpath`. The script now makes
+  `OutRoot` absolute.
+
+Not done (requires the owner):
+- signing;
+- Defender/SmartScreen checks on a signed build;
+- a real-AppId upgrade from the currently installed internal build;
+- the DPAPI cross-account test;
+- legal approval;
+- CI (Actions billing).

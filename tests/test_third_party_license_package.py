@@ -23,7 +23,9 @@ PACKAGE = ROOT / "packaging" / "third-party-licenses"
 ISS = ROOT / "packaging" / "windows" / "gc-agent.iss"
 BUILD = ROOT / "scripts" / "windows-build-installer.ps1"
 VERIFY = ROOT / "scripts" / "windows-verify-installer-license-payload.ps1"
-BUNDLE = ROOT / "build" / "release-bundle" / "dist" / "GitHubCommunityAgent"
+# Override to check another clean build (e.g. a provisional release-candidate output).
+BUNDLE = Path(os.environ.get("GC_AGENT_BUNDLE") or
+              ROOT / "build" / "release-bundle" / "dist" / "GitHubCommunityAgent")
 
 SPEC = importlib.util.spec_from_file_location("gc_third_party", ROOT / "scripts" / "third_party_notices.py")
 tp = importlib.util.module_from_spec(SPEC)

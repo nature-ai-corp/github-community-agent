@@ -183,3 +183,26 @@ def test_real_dpapi_settings_never_leave_plaintext_on_disk_or_in_api(tmp_path):
     assert SECRET.encode() not in raw and SECRET.encode("utf-16-le") not in raw
     assert SECRET not in json.dumps(settings.public())
     assert settings.load()["model_key"] == SECRET
+
+
+def test_rejected_posts_reliably_return_their_status(server):
+    # Rejected requests used to be answered without reading the body; Windows
+    # then reset the connection (unread data -> RST), intermittently hiding
+    # the 403/413 from the client. Repeat to make that race visible.
+    request, _, settings = server
+    body = {"repository": "x" * 9000}
+    for _ in range(25):
+        assert request("POST", "/api/settings", body, nonce="wrong")[0] == 403
+        assert request("POST", "/api/settings", raw=b"{" + b" " * w.MAX_REQUEST_BYTES + b"}")[0] == 413
+    assert settings.saves == 0
+
+
+def test_lying_content_length_cannot_stall_a_rejected_request(server):
+    import socket
+    request, _, _ = server
+    with socket.create_connection(("127.0.0.1", request.port), timeout=15) as s:
+        host = f"127.0.0.1:{request.port}"
+        s.sendall((f"POST /api/settings HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\n"
+                   "X-App-Nonce: wrong\r\nContent-Length: 5000\r\n\r\n{}").encode())
+        reply = s.recv(4096)
+    assert reply.startswith(b"HTTP/1.0 403") or reply.startswith(b"HTTP/1.1 403")

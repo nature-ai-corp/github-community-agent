@@ -17,6 +17,8 @@ Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if (-not $Runtime) { $Runtime = Join-Path $root 'build\runtime-3.13.17\python' }
 if (-not $OutRoot) { $OutRoot = Join-Path $root 'build\release-bundle' }
+# Absolute: PyInstaller resolves --version-file relative to --specpath.
+$OutRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutRoot)
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path
 $expectedPython = '3.13.17'
 $expectedOpenSsl = '^OpenSSL 3\.5\.\d+ '
