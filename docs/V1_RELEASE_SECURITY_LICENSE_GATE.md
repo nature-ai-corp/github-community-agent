@@ -1873,3 +1873,60 @@ FALSE until each item has concrete evidence.
 
 All audit scripts remain read-only and non-overwriting; no
 installed app, Task, DPAPI data, signed installer or release touched.
+
+## Authoritative third-party license references and installer NOTICE gap (research + source check; 2026-11-10)
+
+Reviewed the actual GC Agent Inno Setup source
+`packaging/windows/gc-agent.iss`: it includes the project's
+root `LICENSE` and `NOTICE` as installed files, plus the frozen
+onedir tree. The root `NOTICE` currently documents Nature AI Worker
+adaptation and explicitly says third-party license inventory remains
+unfinished. **There is no explicit installer rule or prepared
+THIRD_PARTY_NOTICES file currently identified** that covers the
+seven candidate Python packages and native libraries. This is an
+OPEN redistribution gate, not a reason to invent or prematurely copy
+license texts.
+
+Authoritative material reviewed:
+
+| Component | Official source / review implication |
+|---|---|
+| CPython 3.13.14 | https://www.python.org/downloads/release/python-31314/ and https://docs.python.org/3.13/license.html — PSF license plus incorporated-software notices; upstream Windows release offers SBOM/provenance references |
+| OpenSSL 3.0.21 | https://openssl-library.org/source/license/index.html — OpenSSL 3.0+ Apache-2.0; verify bundled version and license/NOTICE |
+| Tcl/Tk 8.6.15 | https://www.tcl-lang.org/software/tcltk/license.html — copyright/license terms should be retained in redistributed Tcl/Tk binaries/data; frozen `_internal/_tk_data/license.terms` previously observed, but coverage of Tcl data/binaries must be checked |
+| SQLite 3.50.4 | https://www.sqlite.org/copyright.html — SQLite core public domain; still validate this packaged DLL's origin |
+| zlib 1.3.1 | https://zlib.net/zlib_license.html — zlib license, version-specific source/legal attribution still to confirm |
+| libffi | https://github.com/libffi/libffi/blob/master/LICENSE — upstream permissive license text with notice condition; exact packaged binary source/version unknown |
+| PyInstaller | https://www.pyinstaller.org/en/stable/license.html — bundled programs can be redistributed under app license via stated GPL exception, subject to dependency licenses; verify PyInstaller version/bootloader if modified |
+| VCRUNTIME140.dll | https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files — Microsoft imposes licensing conditions on redistributing Visual C++ runtime files; Windows VERSIONINFO is not proof of rights |
+| certifi MPL-2.0 | https://www.mozilla.org/en-US/MPL/2.0/FAQ/ and https://www.mozilla.org/en-US/MPL/2.0/ — executable distribution can require notice of how recipients obtain covered source; review exact package/certificate-bundle content |
+| other Python packages | Inspect exact files and licenses in corresponding distributions; venv metadata is candidate evidence, not a signed immutable artifact |
+
+These references support **review criteria**, not a conclusion that
+GC Agent fulfills them. No third-party license text has been
+manufactured or represented as already included.
+
+A new script `scripts/frozen_license_material_presence.py` inventories
+existing license/NOTICE-like paths, hashes and sizes in the **CURRENT
+build virtual environment** and actual optimized frozen onedir, plus
+the Inno source file-declaration contract. It copies no license
+material and will create only a NEW JSON report. It records all
+final installer, origin, version and redistribution approval fields
+as FALSE. It never reads user AppData/DPAPI, tasks, tokens or network.
+
+Native Windows instructions:
+
+```powershell
+cd C:\Users\aiuser\projects\github-community-agent
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regression.ps1
+.\.venv\Scripts\python.exe .\scripts\frozen_license_material_presence.py --bundle .\build\gc-agent-exclusion-candidate\dist\GitHubCommunityAgent --installer-script .\packaging\windows\gc-agent.iss --output .\build\release-audit\optimized-candidate-sbom-review\license-material-presence.json
+```
+
+If the output file exists, preserve it and use a different audit
+filename; do not overwrite prior evidence. Native execution pending.
+Next identify which exact third-party texts are available, which
+should be distributed, which need separate source-availability
+notices (particularly MPL), then create reviewed THIRD_PARTY_NOTICES
+and installer changes ONLY after verifying authoritative materials.
+No installation/sign/merge/tag/release authorized.
