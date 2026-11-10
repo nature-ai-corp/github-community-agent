@@ -16,6 +16,7 @@
 > | Defender scan of the **unsigned** RC1 installer, app EXE and bundle | **PASS: no threats** (2026-11-10) | "Defender scan of the verified unsigned RC1" at the end |
 > | Defender and SmartScreen on the **signed** build, clean Windows 11 test, real-AppId upgrade | **Not done** (needs the owner and a signed build) | `WINDOWS_CODE_SIGNING_READINESS.md` §6 |
 > | Merge, tag, release | **Not authorized** | — |
+> | **Final GO / NO-GO (2026-11-10)** | Technical **GO**; overall **NO-GO** pending release text, legal decisions, owner VM/SmartScreen check and authorization | [`release/v1.0.0-rc1/RELEASE_READINESS.md`](release/v1.0.0-rc1/RELEASE_READINESS.md) |
 
 ## Evidence already confirmed on Windows
 
