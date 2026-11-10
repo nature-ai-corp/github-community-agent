@@ -1,6 +1,6 @@
 """Cross-Windows-user DPAPI verification using ONLY a disposable random blob.
 
-Never read or copy saved GC Agent settings.dpapi. An authorized operator must
+Never read or copy any saved GC Agent production settings file. An authorized operator must
 run 'create' as Windows account A, then 'verify --expect denied' as a REAL
 different Windows account B against a mutually readable disposable file.
 No automatic account creation, privilege elevation or cleanup.
