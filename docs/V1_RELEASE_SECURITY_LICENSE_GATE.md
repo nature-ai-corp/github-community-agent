@@ -2262,9 +2262,9 @@ fail without the fix, 0 of 5 with it) and a test that a lying
   including the bundle-bound tests; **322 passed, 3 skipped** on the 3.13.14
   dev venv. Payload re-verified after the rebuild: `run-20261110T051322Z`.
 
-### Provisional `1.0.0rc1` validation (version change NOT committed)
+### Provisional `1.0.0rc1` validation (superseded by the committed RC version below)
 
-The version bump has **not been authorized**, so it is kept only in the
+At that point the version bump had **not been authorized**, so it was kept only in the
 working tree and as `build/PROVISIONAL-1.0.0rc1-version.patch`. That covers
 `pyproject.toml`, `__init__.__version__`, the `gc-agent.iss` default
 `1.0.0-rc1`, and the package regenerated for the rc1 EXE. On that tree, built
@@ -2312,3 +2312,52 @@ Not done (requires the owner):
 - the DPAPI cross-account test;
 - legal approval;
 - CI (Actions billing).
+
+### `1.0.0rc1` committed for RC preparation (2026-11-10)
+
+The owner authorized version `1.0.0rc1` **for release-candidate preparation
+only**. That authorization does not cover publishing, signing, tagging, merging
+or releasing. The working-tree version change was reviewed and committed.
+
+The default release bundle `build/release-bundle` was rebuilt from that tree.
+The previous dev0 bundle was moved to `build/release-bundle-0.0.0dev0-superseded`.
+PyInstaller output is not byte-reproducible, so the EXE hash changed:
+
+- before: `ad830121…49feb8`
+- after: `0a4b022f…fe3d89`
+
+The license package was regenerated against the rebuilt bundle. Only the EXE
+hash (and the SBOM serial derived from it) changed in MANIFEST, notices and
+SBOM. All upstream texts are byte-identical.
+
+- **Versions agree:**
+  - `pyproject` = `__version__` = SBOM component = `1.0.0rc1`;
+  - `gc-agent.iss` AppVersion and setup ProductVersion are `1.0.0-rc1`;
+  - `windows_version_info.py check` on the EXE: MATCHES `1.0.0rc1`.
+- **Package:** `third_party_notices.py check` PASS (958 bundle files).
+- **Installer build:** PASS into `build/installer-check-rc1-final`, SHA256
+  `FD684B31…E6E4B4`. `dist\installer` was not touched.
+- **Native install, byte-verify and uninstall:** PASS, 978 files
+  (`build/license-payload-verification/run-20261110T130527Z`).
+- **Upgrade trial PASS** (`build/upgrade-continuity/run-20261110T130602Z`):
+  - OLD = `a2bc626` on CPython 3.13.14 / OpenSSL 3.0.21; NEW = this bundle.
+  - Every check is true: settings, DPAPI key, Tasks, schema migration,
+    soft-delete, and data kept through uninstall and reinstall.
+  - The real installation and data were unchanged.
+- **Frozen-EXE security probe:** 13/13 PASS
+  (`build/security-probe-rc1/final-20261110T130822Z`). Each check is repeated
+  10 times.
+  - **403 cases:** foreign Host, Origin and nonce.
+  - **413 cases:** empty body, a body just over the 12000-byte limit, and a
+    60 KB body.
+  - **Huge bodies:** a 2 MB body is rejected by closing the connection,
+    because bodies over 64 KB are deliberately never read.
+  - **Stall check:** a lying Content-Length gets a 403 within the 5 s timeout.
+  - The server stays healthy afterwards.
+- **TLS probe:** an unauthenticated read of a nonexistent repository returned
+  "GitHub issues not found." (`tls-20261110T130836Z`). TLS and certificate
+  verification work through OpenSSL 3.5.9 and certifi.
+- **Regression:**
+  - 3.13.17: 324 passed, 1 skipped (the opt-in installer test, covered by
+    the payload run);
+  - 3.13.14 dev venv: 322 passed, 3 skipped.

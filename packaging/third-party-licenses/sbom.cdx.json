@@ -754,7 +754,7 @@
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "448bb70a350840f1dfb7906b36da21bea74229bba5e0a66ecf00e1a0b71a2fc4"
+              "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
             }
           ],
           "name": "GitHubCommunityAgent.exe",
@@ -823,7 +823,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "448bb70a350840f1dfb7906b36da21bea74229bba5e0a66ecf00e1a0b71a2fc4"
+          "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
         }
       ],
       "licenses": [
@@ -833,7 +833,7 @@
       ],
       "name": "github-community-agent",
       "type": "application",
-      "version": "0.0.0.dev0"
+      "version": "1.0.0rc1"
     },
     "tools": {
       "components": [
@@ -844,7 +844,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:307d0f32-bfa4-58da-a911-5430f4ef4f42",
+  "serialNumber": "urn:uuid:06e4f763-b593-53fb-8ba5-25bc86838269",
   "specVersion": "1.5",
   "version": 1
 }

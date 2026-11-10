@@ -8,7 +8,7 @@ under its own license. The full license texts follow this list and are
 also provided as separate files in this third-party-licenses directory.
 
 Frozen application: GitHubCommunityAgent.exe
-SHA256: 448bb70a350840f1dfb7906b36da21bea74229bba5e0a66ecf00e1a0b71a2fc4
+SHA256: 0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89
 Bundle files: 958. Machine-readable SBOM: sbom.cdx.json
 
 Components

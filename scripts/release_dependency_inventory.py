@@ -80,7 +80,7 @@ def build_inventory() -> dict:
             "Inventory includes dev/build packages, not exact PyInstaller bundled set",
             "Manually review included binary/runtime third-party notices and redistribution licenses",
             "Validate frozen EXE manifest, hashes, dependency lock and source attribution",
-            "Product version 0.0.0.dev0 and unsigned installer are not public release candidates",
+            "Pre-release product version and unsigned installer are not public releases",
         ],
     }
 
