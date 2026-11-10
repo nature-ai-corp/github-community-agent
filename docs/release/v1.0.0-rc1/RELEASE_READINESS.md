@@ -56,7 +56,10 @@ legal approval.
 | Public-domain notices (SQLite, liblzma) | Project-written statements | Approve the wording (DECISION 4) |
 
 No requirement was removed, and nothing was marked approved. These are the
-human items still open, and they block public distribution.
+human items still open, and they block public distribution. The consolidated
+decision table is in [`LEGAL_DECISION_REPORT.md`](LEGAL_DECISION_REPORT.md).
+It adds one owner item: the Nature AI Worker attribution line required in
+`NOTICE` by Apache §4(d).
 
 ## 3. PR dependency audit (#6 → #7 → #8 → #9 → #11)
 
