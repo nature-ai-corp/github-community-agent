@@ -1,0 +1,47 @@
+{
+  "bundle": {
+    "embedded_module_counts": {
+      "first_party": 12,
+      "pyinstaller_loader": 5,
+      "pyinstaller_rthooks": 4,
+      "stdlib": 228
+    },
+    "exe_sha256": "620268de3186ca97f7809001fa5eaff4cf2d38eddad0632aa8e4664d59d3da4e",
+    "file_count": 958
+  },
+  "files": {
+    "THIRD_PARTY_NOTICES.txt": "55aa05c555c6fcc39e31cdde740cffa0830147893a945ccff5a8fa82347abd58",
+    "certifi-2026.10.23/MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+    "cpython-3.13.14/LICENSE.txt": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
+    "cpython-3.13.14/license.rst": "62f2c9c2c75d511170eb464ad5f83b78cc1f37eb2eb49c2846c9aa6c4557ee99",
+    "pyinstaller-6.22.3/COPYING.txt": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64",
+    "python-packages/anyio-4.16.0/LICENSE": "5361ac9dc58f2ef5fd2e9b09c68297c17f04950909bbc8023bdb82eacf22c2b0",
+    "python-packages/certifi-2026.10.23/LICENSE": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7",
+    "python-packages/h11-0.16.0/LICENSE.txt": "37db5bb85926db28a427a25867f10b1232003aea1be69ccb851138adb8e6f361",
+    "python-packages/httpcore-1.0.9/LICENSE.md": "fdcb59154c74cbaba16a11242f7740bea9f23d6feb5547917d8c5f94a80392a5",
+    "python-packages/httpx-0.28.1/LICENSE.md": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
+    "python-packages/idna-3.20/LICENSE.md": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04",
+    "python-packages/typing-extensions-4.16.0/LICENSE": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
+    "sbom.cdx.json": "05df5fe08ddf5412fb8b6811c6172053d05719176b1f9f4468a0db806b5fd13a",
+    "tcl-tk-8.6.15/license.terms": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
+  },
+  "generator": "scripts/third_party_notices.py",
+  "legal_review_approved": false,
+  "legal_review_note": "Automated provenance and packaging checks only. Not legal advice; a human license review must approve before public release.",
+  "provenance_verified": true,
+  "schema": "gc-agent-third-party-licenses/1",
+  "upstream_sources": {
+    "certifi-2026.10.23/MPL-2.0.txt": {
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+      "url": "https://www.mozilla.org/media/MPL/2.0/index.txt"
+    },
+    "cpython-3.13.14/license.rst": {
+      "sha256": "62f2c9c2c75d511170eb464ad5f83b78cc1f37eb2eb49c2846c9aa6c4557ee99",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.13.14/Doc/license.rst"
+    }
+  },
+  "version_evidence": {
+    "sha256": "7f4ef6af9e941f1d933f5cdee708cc5bd88dafc929058b1b6975575c30c35fb5",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.14/PCbuild/get_externals.bat"
+  }
+}

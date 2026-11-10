@@ -2069,3 +2069,42 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-test-regre
 REVIEW_APPROVAL.json or other gate files. It is a blocker-by-design
 until independent license review is complete. The internal
 installer source remains unchanged, and PR #11 stays Draft.
+
+## Third-party license package built and verified inside an actual installed payload (2026-11-10)
+
+Gate 5 moves from "inventory only" to **provenance + packaging VERIFIED;
+human legal sign-off still OPEN.** Details and per-component table:
+`docs/THIRD_PARTY_NOTICE_REVIEW_MATRIX.md`.
+
+- New `scripts/third_party_notices.py` derives the package from the actual
+  optimized onedir (EXE SHA256 `620268DE…3DA4E`, 958 files) and fails
+  closed on any unclassified file, non-identical module/binary, or license
+  metadata differing from the pinned table. Evidence: 355/355 PYZ + 11/11
+  CArchive code objects identical to known sources; 25/25 native binaries
+  and 926/926 Tcl/Tk data files byte-identical to the CPython 3.13.14
+  runtime; bootloader code sections identical to PyInstaller 6.22.3.
+- Committed `packaging/third-party-licenses/` (15 files): notices with full
+  texts, CycloneDX 1.5 SBOM (26 hashed binaries), SHA256 `MANIFEST.json`
+  with `legal_review_approved: false`. Upstream texts not present locally
+  (CPython `Doc/license.rst` @ v3.13.14, MPL-2.0) are pinned by SHA256.
+  `.gitattributes` marks the tree `-text` so bytes never change on checkout.
+- `packaging/windows/gc-agent.iss` installs it to `{app}\third-party-licenses`
+  with `#error` guards; `windows-build-installer.ps1` refuses to compile
+  unless the package matches the bundle being packaged (the legacy
+  `dist/` baseline with Pygments/pytest is rejected).
+- `scripts/windows-verify-installer-license-payload.ps1`: native Windows
+  **PASS twice** — compile log lists all 15 license files; isolated-AppId
+  silent install produced 977 files, all byte-verified; clean uninstall
+  (files and HKCU entry removed); real installation EXE, `work.sqlite3`
+  and `settings.dpapi` hashes unchanged. Evidence under
+  `build/license-payload-verification/run-20261110T024602Z` and
+  `run-20261110T024957Z`. Installer unsigned, never launched.
+- Windows regression: **280 passed, 1 skipped** (opt-in installer test,
+  which also passed when run explicitly).
+
+**Not done / still required:** human license review and approval record;
+decision on MPL-2.0 source-offer method for certifi; acceptance of the
+Microsoft Distributable Code conditions; Gate 3 two-account DPAPI test
+(still not executed: no result or test file exists); Gate 4 changed-code
+upgrade; Gate 6 version/signing. The RC installer spec remains blocked by
+design. No signing, tag, merge or release.

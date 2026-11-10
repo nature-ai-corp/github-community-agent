@@ -1,16 +1,39 @@
 ; GitHub Community Agent - internal unsigned test installer
 ; This is a separate per-user installation. Never remove user work records or
 ; encrypted settings in %LOCALAPPDATA%\GitHubCommunityAgent on uninstall.
-#define AppName "GitHub Community Agent"
+#ifdef PayloadVerificationAppId
+  ; Isolated license-payload verification build ONLY (distinct AppId and name,
+  ; no shortcuts), so it can never upgrade or replace a real installation.
+  #define AppName "GitHub Community Agent License Payload Verification"
+#else
+  #define AppName "GitHub Community Agent"
+#endif
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev0"
 #endif
 #ifndef OutputName
   #define OutputName "GitHubCommunityAgent-InternalTest-Unsigned"
 #endif
+#ifndef BundleDir
+  #define BundleDir "..\..\dist\GitHubCommunityAgent"
+#endif
+; Third-party LICENSE/NOTICE/SBOM package generated from the frozen bundle by
+; scripts/third_party_notices.py. scripts/windows-build-installer.ps1 refuses
+; to compile unless that package matches BundleDir exactly.
+#define ThirdPartyDir AddBackslash(SourcePath) + "..\third-party-licenses"
+#if !FileExists(ThirdPartyDir + "\THIRD_PARTY_NOTICES.txt")
+  #error Missing third-party-licenses\THIRD_PARTY_NOTICES.txt; installer blocked.
+#endif
+#if !FileExists(ThirdPartyDir + "\MANIFEST.json")
+  #error Missing third-party-licenses\MANIFEST.json; installer blocked.
+#endif
 
 [Setup]
+#ifdef PayloadVerificationAppId
+AppId={#PayloadVerificationAppId}
+#else
 AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}
+#endif
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=NATURE AI CORP
@@ -31,16 +54,19 @@ ChangesAssociations=no
 ChangesEnvironment=no
 
 [Files]
-Source: "..\..\dist\GitHubCommunityAgent\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ThirdPartyDir}\*"; DestDir: "{app}\third-party-licenses"; Flags: recursesubdirs createallsubdirs ignoreversion
 
+#ifndef PayloadVerificationAppId
 [Icons]
 Name: "{group}\GitHub Community Agent"; Filename: "{app}\GitHubCommunityAgent.exe"
 Name: "{userdesktop}\GitHub Community Agent"; Filename: "{app}\GitHubCommunityAgent.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+#endif
 
 ; No [UninstallDelete] and no cleanup scripts: user work.sqlite3,
 ; settings.dpapi and activity logs are independent of installation files.

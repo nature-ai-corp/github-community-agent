@@ -1,0 +1,3 @@
+# Third-party license texts are distributed verbatim and verified by SHA256.
+# Never let Git rewrite their line endings.
+packaging/third-party-licenses/** -text

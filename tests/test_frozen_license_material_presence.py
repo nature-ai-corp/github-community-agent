@@ -10,14 +10,18 @@ mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
 
 
-def test_installer_source_contains_first_party_notice_but_no_third_party_licenses():
+def test_installer_source_contains_first_party_notice_and_third_party_package():
     script = (ROOT / "packaging/windows/gc-agent.iss").read_text(encoding="utf-8")
-    # This is a SOURCE contract; it is not a built optimized installer.
+    # SOURCE contract only. The built-installer payload is verified separately by
+    # scripts/windows-verify-installer-license-payload.ps1 (see
+    # tests/test_third_party_license_package.py).
     import re
     assert re.search(r'(?im)^Source:\s*"[^"]*\\LICENSE";', script)
     assert re.search(r'(?im)^Source:\s*"[^"]*\\NOTICE";', script)
     assert "recursesubdirs" in script
-    assert "THIRD_PARTY_NOTICES.txt" not in script
+    assert "THIRD_PARTY_NOTICES.txt" in script
+    # The same pattern the presence audit uses now detects the directory.
+    assert re.search(r'(?im)^Source:.*(?:THIRD_PARTY|third.party)', script)
 
 
 def test_report_never_auto_claims_license_approval():

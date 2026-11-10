@@ -145,7 +145,8 @@ def test_upgrade_trial_version_is_distinct_and_reuses_gc_app_id():
     assert "#ifndef OutputName" in original
     assert "OutputBaseFilename={#OutputName}" in original
     assert "AppId={{B728F255-29F8-438B-B2F7-E495DF0120E1}" in original
-    assert "param([switch]$UpgradeTrial)" in builder
+    assert "[switch]$UpgradeTrial," in builder
+    assert "[string]$BundleDir = ''" in builder
     assert "same bundled application" in builder
     assert "not an application feature/code upgrade" in builder
     assert "Existing test installer must not be overwritten" in builder

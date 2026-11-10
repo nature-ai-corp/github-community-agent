@@ -40,7 +40,10 @@ def test_legacy_internal_installer_remains_unchanged_separate():
     source = EXISTING.read_text(encoding="utf-8")
     assert 'OutputBaseFilename={#OutputName}' in source
     assert "GitHubCommunityAgent-InternalTest-Unsigned" in source
-    assert "dist\\GitHubCommunityAgent\\*" in source
+    # Default bundle unchanged; overridable so the build script can package a
+    # bundle that the third-party license package has been checked against.
+    assert '#define BundleDir "..\\..\\dist\\GitHubCommunityAgent"' in source
+    assert 'Source: "{#BundleDir}\\*"' in source
 
 
 def test_rc_never_forces_install_or_touches_work_data():

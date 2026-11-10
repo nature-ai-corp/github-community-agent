@@ -2,16 +2,28 @@
 # validated onedir bundle. No network download, signing, release or installation.
 # -UpgradeTrial creates a distinct installer for installer-mechanics testing only.
 [CmdletBinding()]
-param([switch]$UpgradeTrial)
+param(
+    [switch]$UpgradeTrial,
+    # Onedir to package. The committed third-party license package must match it.
+    [string]$BundleDir = ''
+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$exe = Join-Path $root 'dist\GitHubCommunityAgent\GitHubCommunityAgent.exe'
+if (-not $BundleDir) { $BundleDir = Join-Path $root 'dist\GitHubCommunityAgent' }
+$BundleDir = (Resolve-Path -LiteralPath $BundleDir).Path
+$exe = Join-Path $BundleDir 'GitHubCommunityAgent.exe'
 if (-not (Test-Path -LiteralPath $exe)) {
     throw "No GC Agent ONEDIR EXE found. First run scripts/windows-build-exe.ps1."
 }
 & $exe --self-check
 if ($LASTEXITCODE -ne 0) { throw 'Frozen application self-check failed; installer not built.' }
+# Fail closed: third-party LICENSE/NOTICE/SBOM must describe THIS exact bundle.
+$python = Join-Path $root '.venv\Scripts\python.exe'
+& $python (Join-Path $root 'scripts\third_party_notices.py') check --bundle $BundleDir
+if ($LASTEXITCODE -ne 0) {
+    throw 'Third-party license package does not match this bundle; installer not built.'
+}
 $potential = @(
     (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
     (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
@@ -39,7 +51,7 @@ if ($UpgradeTrial) {
 if (Test-Path -LiteralPath $out) {
     throw "Existing test installer must not be overwritten: $out. Move or rename it first."
 }
-& $compiler $iss
+& $compiler "/DBundleDir=$BundleDir" $iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $out)) {
     throw "Inno Setup reported success but output not found: $out"

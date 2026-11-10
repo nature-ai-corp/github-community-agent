@@ -1,75 +1,93 @@
-# GC Agent V1 — Third-party legal materials review matrix (NOT CLEARED)
+# GC Agent V1 — Third-party legal materials review matrix
 
-**Status: blocked for public distribution.** This is an internal traceability
-record, not legal advice or a completed software bill of materials.
+**Status: provenance and installer payload VERIFIED by automation; human
+license review NOT yet recorded; public distribution still BLOCKED.**
+This is an internal traceability record, not legal advice.
 
-Evidence: Optimized frozen bundle `GitHubCommunityAgent.exe` SHA256
-`620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`;
-958 files, 366 embedded modules; 26 native binaries hashes match.
-Windows regression most recently **261 PASS**.
-These results verify file integrity, not license compliance.
+Distribution package: `packaging/third-party-licenses/` (15 files:
+`THIRD_PARTY_NOTICES.txt`, `sbom.cdx.json` CycloneDX 1.5, `MANIFEST.json`
+SHA256 list, 12 verbatim license texts). Generated and verified by
+`scripts/third_party_notices.py` from the optimized frozen bundle
+`GitHubCommunityAgent.exe` SHA256
+`620268DE3186CA97F7809001FA5EAFF4CF2D38EDDAD0632AA8E4664D59D3DA4E`
+(958 files). `MANIFEST.json` keeps `legal_review_approved: false`.
 
-## Current Python distribution candidates
+## How provenance was established (2026-11-10, native Windows)
 
-| Distribution | Venv version candidate | Venv license metadata | Text staged | Frozen exact version verified | Installer inclusion verified |
-|---|---|---|---|---|---|
-| anyio | 4.16.0 | MIT | Yes, review only | No | No |
-| certifi | 2026.10.23 | MPL-2.0 | Yes, review only | No | No |
-| h11 | 0.16.0 | MIT | Yes, review only | No | No |
-| httpcore | 1.0.9 | BSD-3-Clause | Yes, review only | No | No |
-| httpx | 0.28.1 | BSD-3-Clause | Yes, review only | No | No |
-| idna | 3.20 | BSD-3-Clause | Yes, review only | No | No |
-| typing-extensions | 4.16.0 | PSF-2.0 | Yes, review only | No | No |
+- **Python code:** all 355 PYZ modules and 11 CArchive entries are
+  code-object-identical to the build-venv distribution, the CPython 3.13.14
+  stdlib, PyInstaller 6.22.3 loader/run-time hooks, or first-party `src`.
+  This upgrades the earlier "venv-only candidate" versions to verified
+  frozen versions.
+- **Native files:** 25/25 DLL/PYD files and 926/926 Tcl/Tk data files are
+  byte-identical to the PSF CPython 3.13.14 Windows runtime used for the build.
+- **Bootloader:** EXE `.text`, `.data`, `.pdata` sections identical to
+  PyInstaller 6.22.3 stock `run.exe` (resources differ by design).
+- **Other files:** `base_library.zip` is 154/154 stdlib entries; certifi
+  `cacert.pem` matches certifi's own RECORD hash (unmodified); UI assets
+  match `src`.
+- **Library versions:** runtime-reported and pinned to CPython v3.13.14
+  `PCbuild/get_externals.bat` (SHA256 `7f4ef6af…35fb5`).
 
-**Important:** The above are CURRENT development-venv candidate versions and
-self-declared license metadata; they have NOT been established independently
-as immutable versions originating from the actual optimized EXE. A staged
-license text file is not automatically an installed NOTICE.
+## Python distributions (frozen, verified)
 
-## Native-binary review groups
+| Distribution | Version | License | Text in package | Installed verified |
+|---|---|---|---|---|
+| anyio | 4.16.0 | MIT | Yes (dist-info, verbatim) | Yes |
+| certifi | 2026.10.23 | MPL-2.0 | Yes + full MPL-2.0 + source location | Yes |
+| h11 | 0.16.0 | MIT | Yes | Yes |
+| httpcore | 1.0.9 | BSD-3-Clause | Yes | Yes |
+| httpx | 0.28.1 | BSD-3-Clause | Yes | Yes |
+| idna | 3.20 | BSD-3-Clause | Yes | Yes |
+| typing-extensions | 4.16.0 | PSF-2.0 | Yes | Yes |
 
-| Component | Observed Windows VERSIONINFO | Provenance/license text status | Official reference |
+## Runtime and native components
+
+| Component | Version | License | Text in package |
 |---|---|---|---|
-| CPython .pyd + python313.dll | 3.13.14, PSF | Open: Python license plus incorporated materials | https://docs.python.org/3.13/license.html |
-| OpenSSL libcrypto/libssl | 3.0.21 | Open: Apache-2.0, upstream notices and exact DLL provenance | https://openssl-library.org/source/license/index.html |
-| Tcl/Tk tcl86t/tk86t | 8.6.15 | Open: Tcl/Tk license.terms and packaged data | https://www.tcl-lang.org/software/tcltk/license.html |
-| SQLite sqlite3.dll | 3.50.4.0 | Open: verify exact binary source; SQLite core public domain | https://www.sqlite.org/copyright.html |
-| zlib zlib1.dll | 1.3.1 | Open: exact upstream zlib attribution/material | https://zlib.net/zlib_license.html |
-| libffi libffi-8.dll | Blank | Open: exact origin/version/license | https://github.com/libffi/libffi/blob/master/LICENSE |
-| VCRUNTIME140.dll | 14.42.34438.0 | Open: redistribution eligibility and provenance | https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files |
-| PyInstaller bootloader EXE | Blank | Open: exact bootloader provenance and GPL exception obligations | https://www.pyinstaller.org/en/stable/license.html |
+| CPython runtime | 3.13.14 | PSF-2.0 | Windows-build `LICENSE.txt` + `Doc/license.rst` @ v3.13.14 |
+| OpenSSL | 3.0.21 | Apache-2.0 | both CPython files |
+| SQLite | 3.50.4 | Public domain | statement in notices |
+| zlib | 1.3.1 | Zlib | `license.rst` |
+| libffi | 3.4.4 | MIT | both CPython files |
+| Tcl/Tk | 8.6.15 | TCL | `license.terms` + `LICENSE.txt` |
+| expat / libmpdec / bzip2 (static) | 2.8.1 / 4.0.0 / 1.0.8 | MIT / BSD-2 / bzip2 | CPython files |
+| liblzma (XZ Utils, static) | 5.2.5 | Public domain | statement in notices |
+| VCRUNTIME140.dll | 14.42.34438.0 | Microsoft Distributable Code | CPython `LICENSE.txt` "Additional Conditions" |
+| PyInstaller bootloader / rthooks | 6.22.3 | GPL-2.0+ w/ Bootloader exception / Apache-2.0 | `COPYING.txt` |
 
-## Independent legal-review package and blocking conditions
+## Installer payload
 
-The current `packaging/windows/gc-agent.iss` is a separate
-**unsigned internal test** installer source. It includes root LICENSE
-and NOTICE but does not explicitly package third-party license files.
-The candidate staging folder at
-`build/release-audit/optimized-candidate-sbom-review/venv-license-candidates-for-review`
-contains seven files and `REVIEW_MANIFEST.json`, **for review only**.
+`packaging/windows/gc-agent.iss` now installs the package to
+`{app}\third-party-licenses` and has compile-time `#error` guards if
+`THIRD_PARTY_NOTICES.txt` or `MANIFEST.json` is missing.
+`scripts/windows-build-installer.ps1` refuses to compile unless
+`third_party_notices.py check` proves the package matches the bundle being
+packaged. The older `dist/GitHubCommunityAgent` baseline (which bundles
+Pygments, packaging and pytest) is **rejected** by that check.
 
-A **separate**, currently non-buildable
-`packaging/windows/gc-agent-release-candidate.iss` requires:
-a non-dev `AppVersion`; an independently reviewed `ReviewedLegalDir`
-containing `THIRD_PARTY_NOTICES.txt` and `REVIEW_APPROVAL.json`;
-and explicit `LegalReviewEvidence`. The source also packages all files
-under that reviewed legal directory into `{app}/third-party-licenses`
-and references only the already-built optimized candidate.
-**No approved legal directory or approval file has been created.**
+`scripts/windows-verify-installer-license-payload.ps1` builds the real
+recipe with an isolated AppId, installs it silently into `build/`, compares
+all 977 installed files byte-for-byte, uninstalls, and confirms the real
+installation and user data hashes are unchanged. Two native runs PASSED
+(2026-11-10): `run-20261110T024602Z`, `run-20261110T024957Z`.
 
-The preprocessor checks merely prevent accidental builds with omitted
-files; they cannot authenticate an approval, guarantee the written
-text is correct, or substitute for human legal/provenance review.
+## Still open (human decisions, not automatable)
 
-Before approval, a reviewer must establish the actual source and
-complete notices for all embedded components, certify any MPL-2.0
-covered-source availability and redistribution statements, and inspect
-the final built installer files. The frozen EXE must also be rebuilt
-from the approved source if the application changes; a different
-source commit and old EXE do not constitute a validated new version.
-Never label the package release-ready solely because automated gates pass.
-
-**Other open gates:** true changed-build optimized install/upgrade
-and user-data continuity, two-account Windows DPAPI separation,
-official version authorization, trusted Authenticode signing, final
-owner approval. Do not merge PR #11 or publish unsigned artifacts.
+1. **Human license review** of the package and sign-off recorded outside
+   automation (the RC spec's `REVIEW_APPROVAL.json` / `LegalReviewEvidence`
+   remain deliberately absent).
+2. **MPL-2.0 source availability**: the notices point to the exact PyPI
+   sdist (with SHA256) and upstream repository. A reviewer should confirm
+   that a third-party URL is an acceptable means for this distribution, or
+   decide to host or ship the certifi source.
+3. **Microsoft Distributable Code**: VCRUNTIME140.dll is redistributed under
+   the conditions in CPython's `LICENSE.txt`. Confirm these conditions are
+   acceptable to the publisher (EULA terms that are at least as protective).
+4. **Public-domain statements** for SQLite and liblzma are project-written
+   summaries with upstream links, not upstream-authored texts.
+5. **Rebuilds**: any change in dependencies, Python or PyInstaller version
+   fails the check until a person updates the pins in
+   `scripts/third_party_notices.py`, regenerates and reviews the package.
+6. Unrelated release gates remain: signing, approved version, two-account
+   DPAPI test, changed-code upgrade test, owner approval.
