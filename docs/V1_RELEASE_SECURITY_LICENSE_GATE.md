@@ -1930,3 +1930,35 @@ should be distributed, which need separate source-availability
 notices (particularly MPL), then create reviewed THIRD_PARTY_NOTICES
 and installer changes ONLY after verifying authoritative materials.
 No installation/sign/merge/tag/release authorized.
+
+## Native Windows license-material presence audit — 258 tests PASS; packaging gap confirmed (2026-11-10)
+
+User pulled the previous implementation and executed on native Windows:
+**258 pytest tests passed in 2.91s**, zero failures.
+`scripts/frozen_license_material_presence.py` completed with:
+
+- Inno source `includes_first_party_LICENSE=True` and
+  `includes_first_party_NOTICE=True`.
+- `copies_frozen_bundle_recursive=True`.
+- `explicit_third_party_license_directory=False`.
+- Exactly **one VENV LICENSE/NOTICE file candidate each** for
+  `anyio`, `certifi`, `h11`, `httpcore`, `httpx`,
+  `idna`, `typing-extensions` — seven candidate license files.
+- Exactly **one existing frozen onedir license material file** was
+  found by the script's bounded known-path checks. This is not a
+  complete recursive search or proof that no other licenses exist.
+- Report preserved:
+  `build/release-audit/optimized-candidate-sbom-review/license-material-presence.json`
+- Explicit output:
+  `RELEASE BLOCKED: not verified versioned frozen licenses, source availability or actual installer.`
+
+**Accepted:** source script/installer license declaration gap and
+candidate availability in the current build venv. **Not accepted:**
+a complete third-party NOTICE inventory, actual installer inclusion,
+exact immutable frozen distribution versions or compliance signoff.
+
+No installation, data mutation, signing, packaging or release occurred.
+The next safe change is to gather REVIEW-ONLY exact text bytes from
+candidate LICENSE files into a separate create-only audit staging
+folder; this must NOT automatically include them in the release
+installer or represent that legal review has passed.
