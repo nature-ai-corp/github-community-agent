@@ -188,3 +188,95 @@ def test_release_build_promotion_dropdown_lists_only_verified_work_types():
     r = _route("domain", development=False)
     assert [label for _, label in r["options"]] == ["GitHub Discussions"]
     assert r["first"] == "promote_repository"
+
+
+# --- Repository Optimization: Apply feedback in the change card ---------------------
+# Regression: "Apply approved change" looked unresponsive. Its result went to one
+# status line at the bottom of the panel (off-screen), a Cancel in the confirmation
+# dialog showed nothing, and a refusal before writing changed nothing visible.
+CHANGE_JS = (HTML[HTML.index("const CHANGE_LABEL="):HTML.index("function changeValue(")]
+             + _function("function changeValue(")
+             + HTML[HTML.index("const changeFeedback="):HTML.index("function renderChanges(")]
+             + _function("function renderChanges("))
+CHANGE = ('{id:2,kind:"topics",status:"approved",action:"Replace the repository topics.",before_value:"[]",'
+          'proposed_value:"[\\"a\\"]",approved_sha256:"abc",change_sha256:"abc",result:null,error:null}')
+
+
+def _apply_flow(call_js: str, confirm: str = "true", extra: str = "") -> dict:
+    return _run(PRELUDE + CHANGE_JS + f"""
+(async()=>{{
+  const t={{id:20,repository:"o/r"}}, c={CHANGE};
+  const shown=[], calls=[]; let reopened=0;
+  const deps={{confirm:()=>{confirm}, show:(s,l,x)=>shown.push([s,l,x]), reopen:async()=>{{reopened++}},
+              call:async(verb,data)=>{{calls.push([verb,data]); return ({call_js})()}}}};
+  const out={{}};
+  {extra or 'out.result=await applyChangeFlow("20:2",c,t,deps);'}
+  out.shown=shown; out.calls=calls; out.reopened=reopened; out.inFlight=changesInFlight.size;
+  console.log(JSON.stringify(out));
+}})();
+""")
+
+
+def test_apply_shows_applying_then_verified_in_the_card():
+    r = _apply_flow('async()=>({status:"applied",verification:{verified_utc:"2026-11-11T13:59:39+00:00"}})')
+    assert r["result"] == "applied" and r["calls"] == [["apply", {"sha256": "abc"}]]
+    assert [s for s, _, _ in r["shown"]] == ["applying", "verified"]
+    assert r["shown"][1][1] == "Verified" and "2026-11-11T13:59:39" in r["shown"][1][2]
+    assert r["reopened"] == 1 and r["inFlight"] == 0
+
+
+def test_cancel_in_the_confirmation_shows_cancelled_and_sends_nothing():
+    r = _apply_flow('async()=>({status:"applied"})', confirm="false")
+    assert r["result"] == "cancelled" and r["calls"] == []
+    assert r["shown"] == [["cancelled", "Cancelled", "Nothing was sent to GitHub."]]
+    assert r["inFlight"] == 0
+
+
+def test_refused_apply_shows_failed_with_the_reason():
+    r = _apply_flow('async()=>{throw Error("Refused: The token\'s user has WRITE permission; ADMIN is required.")}')
+    assert r["result"] == "failed"
+    assert r["shown"][-1][0] == "failed" and "ADMIN is required" in r["shown"][-1][2]
+    assert r["reopened"] == 1 and r["inFlight"] == 0
+
+
+def test_failed_and_uncertain_results_are_shown():
+    r = _apply_flow('async()=>({status:"failed",error:"GitHub changed since this proposal; nothing was applied."})')
+    assert r["shown"][-1][:2] == ["failed", "Failed"] and "changed since" in r["shown"][-1][2]
+    r = _apply_flow('async()=>({status:"uncertain"})')
+    assert r["shown"][-1][0] == "uncertain" and "Verify on GitHub" in r["shown"][-1][2]
+
+
+def test_second_click_while_applying_sends_no_second_request():
+    r = _apply_flow("async()=>null", extra="""
+  let finish; const pending=new Promise(res=>{finish=res});
+  deps.call=async(verb,data)=>{calls.push([verb,data]); return pending};
+  const first=applyChangeFlow("20:2",c,t,deps);
+  await new Promise(r=>setTimeout(r,0));
+  out.busyHTML=renderChanges(t,{changes:[c]});
+  out.second=await applyChangeFlow("20:2",c,t,deps);
+  finish({status:"applied"}); out.result=await first;""")
+    assert r["second"] == "duplicate" and len(r["calls"]) == 1 and r["result"] == "applied"
+    assert "Applying…" in r["busyHTML"] and 'class="primary change-apply" disabled' in r["busyHTML"]
+    assert r["inFlight"] == 0
+
+
+def test_change_status_is_rendered_inside_its_own_card():
+    r = _run(PRELUDE + CHANGE_JS + f"""
+const t={{id:20,repository:"o/r"}}, c={CHANGE};
+changeFeedback[changeKey(t,c)]={{state:"failed",label:"Failed",text:"Refused: ADMIN is required."}};
+const html=renderChanges(t,{{changes:[c,{{...c,id:3,status:"proposed"}}]}});
+const card2=html.slice(html.indexOf('data-change="2"'), html.indexOf('data-change="3"'));
+console.log(JSON.stringify({{card2, all:html}}));
+""")
+    assert 'class="change-status change-status-failed"' in r["card2"] and "ADMIN is required" in r["card2"]
+    assert r["all"].count("ADMIN is required") == 1  # only in change #2's card
+    assert r["card2"].index("change-apply") < r["card2"].index("change-status")  # right below the button
+
+
+def test_activity_history_labels_change_events():
+    r = _run(PRELUDE + HTML[HTML.index("const CHANGE_EVENTS="):HTML.index("function renderActivity(")] + """
+console.log(JSON.stringify([changeEventLabel("change#2:apply_refused:permission"),
+  changeEventLabel("change#3:applied_verified"), changeEventLabel("created"), changeEventLabel("change#1:bogus")]));
+""")
+    assert r == ["Change #2: apply refused — nothing was changed (insufficient permission)",
+                 "Change #3: applied and verified on GitHub", "", ""]

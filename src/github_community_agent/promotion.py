@@ -574,6 +574,14 @@ def enabled_work_types() -> frozenset:
     return frozenset(WORK_TYPES) if development_mode() else RELEASE_VERIFIED_WORK_TYPES
 
 
+class ChangeRefused(ToolError):
+    """A Repository Optimization action refused BEFORE anything was sent to GitHub."""
+
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.code = code
+
+
 def _require_enabled(definition_id: str) -> None:
     if definition_id not in enabled_work_types():
         raise ToolError("This Promotion Work Type is not available in this release: it has not been "
@@ -1023,6 +1031,10 @@ class PromotionStore:
                                              (task_id,))]
         return [self.get_change(i) for i in ids]
 
+    def add_event(self, task_id: int, event: str) -> None:
+        with self._connect() as con:
+            self._event(con, task_id, None, event)
+
     def change_transition(self, change_id, task_id, allowed: tuple, event: str, **fields) -> bool:
         if "result" in fields:
             fields["result_json"] = json.dumps(fields.pop("result"), ensure_ascii=False)
@@ -1140,6 +1152,8 @@ class PromotionService:
         self.journal = journal
         self.store = store
         self.credentials = credentials
+        self._applying: set[int] = set()
+        self._applying_lock = threading.RLock()
 
     # Task creation binds the repository; the AI model comes from the shared app settings.
     def start(self, model, definition_id: str = DEFINITION_ID) -> int:
@@ -1316,6 +1330,15 @@ class PromotionService:
         change["branch"] = f"gca/readme-t{task_id}-c{change_id}" if change["kind"] == "readme" else None
         return change
 
+    def _activity(self, task_id: int, change_id: int, event: str, *, store: bool = False) -> None:
+        """Task Activity History entry (fixed codes only), optionally also in the promotion event log."""
+        name = f"change#{change_id}:{event}"
+        if store:
+            self.store.add_event(task_id, name)
+        record = getattr(self.journal, "record_event", None)
+        if record:
+            record(task_id, name)
+
     def _public_change(self, change: dict) -> dict:
         out = {k: change[k] for k in ("id", "kind", "status", "base_branch", "before_value", "proposed_value",
                                       "approved_sha256", "result", "error", "branch")}
@@ -1342,12 +1365,14 @@ class PromotionService:
                                             approved_sha256=None,
                                             error=("Not ready: " + " ".join(issues))[:300] if issues else None):
             raise ToolError("This change can no longer be edited.")
+        self._activity(task_id, change_id, "edited")
 
     def skip_change(self, task_id, change_id) -> None:
         self._change(task_id, change_id)
         if not self.store.change_transition(change_id, task_id, ("proposed", "incomplete", "approved", "failed"),
                                             "skipped", status="skipped", approved_sha256=None):
             raise ToolError("This change cannot be skipped in its current state.")
+        self._activity(task_id, change_id, "skipped")
 
     def approve_change(self, task_id, change_id, sha) -> str:
         """Approve ONE exact change: repository, target, before state, new value and action."""
@@ -1364,21 +1389,60 @@ class PromotionService:
         if not self.store.change_transition(change_id, task_id, ("proposed",), "approved",
                                             status="approved", approved_sha256=expected, error=None):
             raise ToolError("This change cannot be approved in its current state.")
+        self._activity(task_id, change_id, "approved")
         return expected
 
     def apply_change(self, task_id, change_id, sha) -> dict:
-        """Apply exactly the approved change once, then verify it from GitHub. Never merges."""
+        """Apply exactly the approved change once, then verify it from GitHub. Never merges.
+
+        Every request, refusal and outcome is recorded in the Task's Activity History.
+        A second request for the same change while one is running is refused."""
         change = self._change(task_id, change_id)
+        with self._applying_lock:
+            duplicate = change_id in self._applying
+            if not duplicate:
+                self._applying.add(change_id)
+        if duplicate:
+            self._activity(task_id, change_id, "apply_refused:duplicate", store=True)
+            raise ToolError("This change is already being applied; wait for the result.")
+        try:
+            self._activity(task_id, change_id, "apply_requested")
+            try:
+                out = self._apply_change(change, task_id, change_id, sha)
+            except ChangeRefused as exc:
+                self._activity(task_id, change_id, f"apply_refused:{exc.code}", store=True)
+                raise
+            except ToolError:
+                self._activity(task_id, change_id, "apply_refused:github_check_failed", store=True)
+                raise
+            except Exception:
+                self._activity(task_id, change_id, "apply_refused:error", store=True)
+                raise
+            self._activity(task_id, change_id, {
+                "applied": "applied_verified", "uncertain": "apply_uncertain", "unverified": "written_unverified",
+                "stale": "apply_failed_stale"}.get(out.get("status"), "apply_failed"))
+            if out.get("status") == "stale":
+                out = {**out, "status": "failed"}
+            return out
+        finally:
+            with self._applying_lock:
+                self._applying.discard(change_id)
+
+    def _apply_change(self, change, task_id, change_id, sha) -> dict:
         repo, kind = change["repository"], change["kind"]
         if change["status"] != "approved":
-            raise ToolError("Only an approved change can be applied.")
+            code = {"applying": "duplicate", "applied": "already_applied"}.get(change["status"], "not_approved")
+            raise ChangeRefused("Only an approved change can be applied.", code)
         expected = change_sha256(change)
         if sha != expected or change["approved_sha256"] != expected:
-            raise ToolError("Refused: this is not the approved change.")
-        token = self._token(repo)
+            raise ChangeRefused("Refused: this is not the approved change.", "approval_mismatch")
+        try:
+            token = self._token(repo)
+        except ToolError as exc:
+            raise ChangeRefused(str(exc), "no_token") from None
         perm = check_change_permission(repo, token, kind)
         if not perm["can_apply"]:
-            raise ToolError("Refused: " + " ".join(perm["reasons"]))
+            raise ChangeRefused("Refused: " + " ".join(perm["reasons"]), "permission")
         state = current_repository_state(repo, token)
         current = {"description": state["description"], "topics": json.dumps(state["topics"]),
                    "readme": state["readme"]}[kind]
@@ -1387,11 +1451,11 @@ class PromotionService:
             self.store.change_transition(change_id, task_id, ("approved",), "stale", status="failed",
                                          error="GitHub changed since this proposal; nothing was applied. "
                                                "Edit or run a new Task.")
-            return {"status": "failed", "error": "GitHub changed since this proposal; nothing was applied."}
+            return {"status": "stale", "error": "GitHub changed since this proposal; nothing was applied."}
         key = uuid.uuid4().hex
         if not self.store.change_transition(change_id, task_id, ("approved",), "applying",
                                             status="applying", idempotency_key=key):
-            raise ToolError("This change is already being applied.")
+            raise ChangeRefused("This change is already being applied.", "duplicate")
         try:
             result = self._write_change(change, token, key)
         except PublishUncertain:
@@ -1403,7 +1467,12 @@ class PromotionService:
                                          error=str(exc)[:300])
             return {"status": "failed", "error": str(exc)[:300]}
         self.store.change_transition(change_id, task_id, ("applying",), "written", result=result)
-        return self.verify_change(task_id, change_id)
+        try:
+            return self._verify_change(change_id, task_id)
+        except ToolError as exc:
+            # The write succeeded; only the read-back failed. Never report it as not applied.
+            return {"status": "unverified", "error": "Written to GitHub, but verification could not read it: "
+                                                     + str(exc)[:200] + " Use Verify on GitHub."}
 
     def _write_change(self, change: dict, token: str, key: str) -> dict:
         repo, kind = change["repository"], change["kind"]
@@ -1446,6 +1515,16 @@ class PromotionService:
 
     def verify_change(self, task_id, change_id) -> dict:
         """Read the actual GitHub state and record whether it matches the approved change."""
+        self._change(task_id, change_id)
+        try:
+            out = self._verify_change(change_id, task_id)
+        except ToolError:
+            self._activity(task_id, change_id, "verify_refused", store=True)
+            raise
+        self._activity(task_id, change_id, "verified" if out["status"] == "applied" else "verification_failed")
+        return out
+
+    def _verify_change(self, change_id, task_id) -> dict:
         change = self._change(task_id, change_id)
         if change["status"] not in ("applying", "uncertain", "applied"):
             raise ToolError("Only an applied or uncertain change can be verified.")

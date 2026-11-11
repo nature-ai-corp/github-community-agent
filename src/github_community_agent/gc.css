@@ -109,5 +109,11 @@
 
 /* V2 Repository Optimization: before/after and README diff */
 .promo-change{border-top:1px solid var(--border,#d0d7de);padding-top:8px;margin-top:8px}
+.change-status:empty{display:none}
+.change-status{margin:6px 0 0;padding:6px 9px;border-radius:6px;border-left:3px solid var(--border,#d0d7de);background:var(--surface)}
+.change-status-applying{border-left-color:var(--accent)}
+.change-status-verified{border-left-color:var(--ok)}
+.change-status-failed{border-left-color:var(--error-border)}
+.change-status-uncertain{border-left-color:#a05f15}
 .promo-diff{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;font-size:12px;
   background:var(--code-bg,rgba(127,127,127,.08));padding:8px;border-radius:6px}

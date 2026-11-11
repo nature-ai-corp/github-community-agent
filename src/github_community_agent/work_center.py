@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -221,6 +222,9 @@ def _utc() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+_SAFE_EVENT = re.compile(r"[a-z0-9_#:.-]{1,80}")
+
+
 class Journal:
     def __init__(self, db: Path):
         self.db = db
@@ -287,6 +291,19 @@ class Journal:
                 "UPDATE work SET result_json=?, updated_utc=? WHERE id=? AND status!='running' AND deleted_utc IS NULL",
                 (json.dumps(result, ensure_ascii=False), _utc(), task_id))
             return row.rowcount == 1
+
+    def record_event(self, task_id: int, event: str) -> bool:
+        """Add one Activity History entry for an existing, non-archived Task.
+
+        Only fixed internal event codes (e.g. "change#3:apply_refused:permission");
+        never error text, tokens or other untrusted content."""
+        if not isinstance(event, str) or not _SAFE_EVENT.fullmatch(event):
+            raise ValueError("Invalid activity event name.")
+        with self._connect() as con:
+            if not con.execute("SELECT 1 FROM work WHERE id=? AND deleted_utc IS NULL", (task_id,)).fetchone():
+                return False
+            self._event(con, task_id, event, _utc())
+            return True
 
     def review(self, task_id: int) -> bool:
         with self._connect() as con:

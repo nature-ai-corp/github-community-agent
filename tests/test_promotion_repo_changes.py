@@ -347,3 +347,106 @@ def test_change_routes_over_http(repo_env):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+# --- Apply feedback, Activity History and duplicate prevention -------------------------
+
+def _activity(journal, task_id):
+    return [e["event"] for e in next(t for t in journal.list() if t["id"] == task_id)["activity"]]
+
+
+def test_apply_refusals_and_failures_are_recorded_in_activity_history(repo_env):
+    fake, journal, creds, service, _ = repo_env
+    task_id, ch = _task(service, creds, repo=REPO_B)  # REPO_B token has WRITE only: metadata is refused
+    creds.update(REPO_B, TOKEN_B)
+    d = ch["description"]
+    with pytest.raises(ToolError, match="Only an approved change"):
+        service.apply_change(task_id, d["id"], d["change_sha256"])  # not approved yet
+    approved = service.approve_change(task_id, d["id"], d["change_sha256"])
+    with pytest.raises(ToolError, match="not the approved change"):
+        service.apply_change(task_id, d["id"], "0" * 64)
+    with pytest.raises(ToolError, match="ADMIN is required"):
+        service.apply_change(task_id, d["id"], approved)
+    r = ch["readme"]  # WRITE is enough for README, but main changed after the proposal
+    approved_r = service.approve_change(task_id, r["id"], r["change_sha256"])
+    fake.state[REPO_B]["files"]["main"] = OLD_README + "Edited elsewhere."
+    assert service.apply_change(task_id, r["id"], approved_r)["status"] == "failed"  # stale: nothing written
+    assert fake.writes == []
+    events = _activity(journal, task_id)
+    i = d["id"]
+    assert [e for e in events if e.startswith(f"change#{i}:")] == [
+        f"change#{i}:apply_requested", f"change#{i}:apply_refused:not_approved", f"change#{i}:approved",
+        f"change#{i}:apply_requested", f"change#{i}:apply_refused:approval_mismatch",
+        f"change#{i}:apply_requested", f"change#{i}:apply_refused:permission"]
+    assert f"change#{r['id']}:apply_failed_stale" in events
+    # Fixed codes only: no error text, tokens or repository content in Activity History.
+    assert all(w._SAFE_EVENT.fullmatch(e) for e in events)
+    assert not any(TOKEN_B in e or "ADMIN" in e for e in events)
+    # Refusals are also in the promotion event log shown with the change.
+    detail_events = [e["event"] for e in service.detail(task_id)["events"]]
+    assert f"change#{i}:apply_refused:permission" in detail_events
+    assert {c["kind"]: c for c in service.detail(task_id)["changes"]}["description"]["status"] == "approved"
+
+
+def test_missing_token_refusal_is_recorded(repo_env):
+    fake, journal, creds, service, _ = repo_env
+    task_id, ch = _task(service, creds)  # no token saved for REPO_A
+    d = ch["description"]
+    approved = service.approve_change(task_id, d["id"], d["change_sha256"])
+    with pytest.raises(ToolError, match="No GitHub token"):
+        service.apply_change(task_id, d["id"], approved)
+    assert f"change#{d['id']}:apply_refused:no_token" in _activity(journal, task_id) and fake.writes == []
+
+
+def test_successful_apply_and_verify_are_recorded(repo_env):
+    fake, journal, creds, service, _ = repo_env
+    task_id, ch = _task(service, creds)
+    creds.update(REPO_A, TOKEN_A)
+    d = ch["description"]
+    assert service.apply_change(task_id, d["id"], service.approve_change(
+        task_id, d["id"], d["change_sha256"]))["status"] == "applied"
+    assert service.verify_change(task_id, d["id"])["status"] == "applied"
+    i = d["id"]
+    assert [e for e in _activity(journal, task_id) if e.startswith(f"change#{i}:")] == [
+        f"change#{i}:approved", f"change#{i}:apply_requested", f"change#{i}:applied_verified", f"change#{i}:verified"]
+
+
+def test_duplicate_apply_is_refused_and_github_is_written_once(repo_env):
+    fake, journal, creds, service, _ = repo_env
+    task_id, ch = _task(service, creds)
+    creds.update(REPO_A, TOKEN_A)
+    d = ch["description"]
+    approved = service.approve_change(task_id, d["id"], d["change_sha256"])
+    entered, release = threading.Event(), threading.Event()
+
+    def slow(request):  # hold the first request inside its GitHub write
+        if request.method == "PATCH":
+            entered.set()
+            assert release.wait(10)
+        return fake.handler(request)
+    pr.gh._transport = httpx.MockTransport(slow)  # restored by monkeypatch at teardown
+    results = {}
+    first = threading.Thread(target=lambda: results.setdefault("first", service.apply_change(task_id, d["id"], approved)))
+    first.start()
+    assert entered.wait(10)
+    with pytest.raises(ToolError, match="already being applied"):
+        service.apply_change(task_id, d["id"], approved)  # second click while the first is running
+    release.set()
+    first.join(10)
+    assert results["first"]["status"] == "applied"
+    with pytest.raises(ToolError, match="Only an approved change"):
+        service.apply_change(task_id, d["id"], approved)  # and never again after it was applied
+    assert fake.writes == [("PATCH", "")]
+    events = _activity(journal, task_id)
+    assert f"change#{d['id']}:apply_refused:duplicate" in events
+    assert f"change#{d['id']}:apply_refused:already_applied" in events
+
+
+def test_journal_activity_accepts_only_fixed_event_codes(env):
+    _, journal, _, _, _ = env
+    task_id = journal.create("review_issues", REPO_A)
+    assert journal.record_event(task_id, "change#1:apply_refused:permission") is True
+    for bad in ("Refused: ADMIN is required", "x" * 81, "change#1:<script>", ""):
+        with pytest.raises(ValueError):
+            journal.record_event(task_id, bad)
+    assert journal.record_event(999999, "change#1:approved") is False
