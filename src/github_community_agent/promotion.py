@@ -562,6 +562,9 @@ WORK_TYPES = {wt.definition_id: wt for wt in (
 # GCA_PROMOTION_DEV_WORK_TYPES=1; a frozen (packaged) build ignores that variable.
 RELEASE_VERIFIED_WORK_TYPES = frozenset({
     DEFINITION_ID,  # GitHub Discussions: owner-approved Discussion #13, monitored (2026-11-11)
+    # Repository Optimization: Task #20 (2026-11-11) applied and verified the owner-approved
+    # Description and Topics, and README PR #15 (Agent-created, owner-merged).
+    "promote_repository_optimization",
 })
 DEV_WORK_TYPES_ENV = "GCA_PROMOTION_DEV_WORK_TYPES"
 

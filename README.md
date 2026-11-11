@@ -36,11 +36,13 @@ settings are the target repository (default
 `nature-ai-corp/github-community-agent`) and the GitHub token for that
 repository. Nothing is published without your explicit approval.
 
-**Release rule: no real-world verification, no released Work Type.** The only
-Promotion Work Type that has passed real-world acceptance, and the only one a
-V2 build will offer, is **GitHub Discussions**: an announcement Discussion in
+**Release rule: no real-world verification, no released Work Type.** The
+Promotion Work Types that have passed real-world acceptance, and the only ones a
+V2 build will offer, are **GitHub Discussions** (an announcement Discussion in
 that repository, published after your approval and a fresh permission check,
-then monitored. Repository Optimization, Reddit Promotion, Developer Forums,
+then monitored) and **Repository Optimization** (exact Description, Topics and
+README changes, each applied only after your approval; README only through a
+pull request that you merge). Reddit Promotion, Developer Forums,
 Technical Articles and Social Media are **development work, not released
 capabilities**: they are not offered in the release configuration until each
 passes its own real-world acceptance. See

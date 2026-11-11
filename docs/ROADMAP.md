@@ -27,8 +27,9 @@ and audit behavior. The workflow is: research → plan → draft → review and
 approve the exact text → publish (permission re-checked) → monitor → improve.
 
 Release rule: no real-world verification, no released Work Type. The release
-configuration offers only **GitHub Discussions** (verified with Discussion #13).
-Repository Optimization, Reddit Promotion, Developer Forums, Technical Articles
+configuration offers only **GitHub Discussions** (verified with Discussion #13)
+and **Repository Optimization** (verified with Task #20 and the merged README PR #15).
+Reddit Promotion, Developer Forums, Technical Articles
 and Social Media exist as development code on the same engine and are excluded
 from release builds until each passes real-world acceptance
 ([release gate](testing/V2_PROMOTION_RELEASE_GATE.md)).

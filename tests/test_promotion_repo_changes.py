@@ -303,13 +303,16 @@ def test_only_allowlisted_requests_and_no_merge_endpoint():
         pr._rest("DELETE", "repo", REPO_A, TOKEN_A)
 
 
-def test_changes_are_excluded_from_the_release_build(repo_env, monkeypatch):
-    _, _, creds, service, _ = repo_env
-    task_id, ch = _task(service, creds)
+def test_repository_optimization_is_available_in_the_release_build(repo_env, monkeypatch):
+    # Release-verified (Task #20, PR #15): the full workflow runs WITHOUT the development switch.
+    fake, _, creds, service, _ = repo_env
     monkeypatch.delenv(pr.DEV_WORK_TYPES_ENV)
+    monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build
+    task_id, ch = _task(service, creds)
+    creds.update(REPO_A, TOKEN_A)
     d = ch["description"]
-    with pytest.raises(ToolError, match="not available in this release"):
-        service.approve_change(task_id, d["id"], d["change_sha256"])
+    out = service.apply_change(task_id, d["id"], service.approve_change(task_id, d["id"], d["change_sha256"]))
+    assert out["status"] == "applied" and fake.writes == [("PATCH", "")]
 
 
 def test_change_routes_over_http(repo_env):

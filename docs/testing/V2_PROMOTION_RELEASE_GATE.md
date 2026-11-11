@@ -2,29 +2,34 @@
 
 **Release rule (owner decision): no real-world verification, no released Work Type.** Only Work Types with real evidence are offered by a release build; the rest stay development code.
 
-**Date:** 2026-11-11 · **Branch:** `feature/v2-promotion` (PR #12, Draft) · **Repository:** `nature-ai-corp/github-community-agent` · **AI provider:** `openai` / `gpt-4.1-mini` · Windows 11, isolated V2 test environment. Nothing was published by this work; no repository change was made.
+**Date:** 2026-11-11 · **Branch:** `feature/v2-promotion` (PR #12, Draft) · **Repository:** `nature-ai-corp/github-community-agent` · **AI provider:** `openai` / `gpt-4.1-mini` · Windows 11, isolated V2 test environment. Repository changes were made only by Repository Optimization Task #20, after the owner approved each exact change (see below).
 
 ## Acceptance matrix
 
 | Work Type | Status | Real evidence | Operation | Released? |
 |---|---|---|---|---|
-| GitHub Discussions | **VERIFIED** | Owner-approved [Discussion #13](https://github.com/nature-ai-corp/github-community-agent/discussions/13) (category Announcements, created 2026-11-11T01:05:41Z), confirmed on GitHub today; monitoring re-run today: 1 upvote(s), 0 comments, 0 reactions | API-driven publication after approval | **Yes** (only one) |
-| Repository Optimization | **NOT VERIFIED** | Draft only (Task #14); no owner approval, no real publication or change | Manual application by the owner (never performed) | **No** — excluded |
+| GitHub Discussions | **VERIFIED** | Owner-approved [Discussion #13](https://github.com/nature-ai-corp/github-community-agent/discussions/13) (category Announcements, created 2026-11-11T01:05:41Z), confirmed on GitHub today; monitoring re-run today: 1 upvote(s), 0 comments, 0 reactions | API-driven publication after approval | **Yes** |
+| Repository Optimization | **VERIFIED** | Task #20 (2026-11-11), each change owner-selected and approved by exact action, applied by the Agent and read back from GitHub: **Description** (PATCH, verified 03:40:11Z; an earlier attempt failed with HTTP 403 before the owner added the Administration permission), **Topics** (PUT, 7 topics, verified 13:59:39Z), **README** via Agent-created branch `gca/readme-t20-c3` and [PR #15](https://github.com/nature-ai-corp/github-community-agent/pull/15) (verified open, branch README = approved text, main unchanged); PR #15 **merged by the owner** at 2026-11-11T15:39:40Z (merge commit `25d5568`), after which `main`'s README is byte-identical to the approved file | Owner-approved apply per change; README only by branch + pull request (the app never merges) | **Yes** |
 | Reddit Promotion | **NOT VERIFIED** | Draft only (Task #15); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Developer Forums | **NOT VERIFIED** | Draft only (Task #16); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Technical Articles | **NOT VERIFIED** | Draft only (Task #17); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Social Media | **NOT VERIFIED** | Draft only (Task #18); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 
-No Work Type is FAILED: the five were not attempted in the real world, because that needs the owner's approval of exact content and destination and the owner's own accounts, which this work must not invent.
+No Work Type is FAILED: the remaining four were not attempted in the real world, because that needs the owner's approval of exact content and destination and the owner's own accounts, which this work must not invent.
 
 ## How exclusion is enforced
 
-- `RELEASE_VERIFIED_WORK_TYPES = {"promote_repository"}` in `promotion.py` — one engine, no duplicate.
-- New Work lists only available definitions (`available_definitions()`); `/api/definitions` returns V1 + GitHub Discussions only.
-- `POST /api/tasks` refuses the five (400); `PromotionService.start` and every action (edit, approve, regenerate, preflight, publish, reconcile, monitor, improve) refuse them with "not available in this release". Existing Tasks stay viewable, read-only.
+- `RELEASE_VERIFIED_WORK_TYPES = {"promote_repository", "promote_repository_optimization"}` in `promotion.py` — one engine, no duplicate.
+- New Work lists only available definitions (`available_definitions()`); `/api/definitions` returns V1 + GitHub Discussions + Repository Optimization only.
+- `POST /api/tasks` refuses the four unverified Work Types (400); `PromotionService.start` and every action (edit, approve, regenerate, preflight, publish, reconcile, monitor, improve) refuse them with "not available in this release". Existing Tasks stay viewable, read-only.
 - Development use only from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`; a frozen build ignores the variable.
-- Tests: `tests/test_promotion_release_gate.py` (UI definitions, API, service, frozen-build switch, V1 unchanged, GitHub Discussions end to end).
-- **Packaged build check:** a frozen V2 bundle built with the release script (`build/release-bundle-v2-gate2`, unsigned, still labelled 1.0.0rc1, for gate validation only) was run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` deliberately set: 10/10 PASS — UI served; `/api/definitions` = V1 + GitHub Discussions only; development switch ignored; `POST /api/tasks` refused for all five unverified Work Types; no Task created.
+- Tests: `tests/test_promotion_release_gate.py` (UI definitions, API, service, frozen-build switch, V1 unchanged, GitHub Discussions end to end); `tests/test_promotion_repo_changes.py` (Repository Optimization apply in the packaged configuration).
+- **Packaged build check (two verified Work Types):** see *Packaged build check* below.
+- Earlier check (GitHub Discussions only): a frozen bundle (`build/release-bundle-v2-gate2`) run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` set: 10/10 PASS.
+
+### Packaged build check (two verified Work Types)
+
+A frozen V2 bundle built with `scripts/windows-build-release-bundle.ps1` from this branch (unsigned, still labelled 1.0.0rc1, for gate validation only; frozen self-check PASS) was run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` deliberately set: **10/10 PASS**. UI served; `/api/definitions` = the five V1 Work Types + GitHub Discussions + Repository Optimization only; the development switch is ignored; `POST /api/tasks` is refused for Reddit Promotion, Developer Forums, Technical Articles and Social Media; no Task created; Promotion settings available.
 
 ## Acceptance contracts
 
@@ -39,11 +44,11 @@ No Work Type is FAILED: the five were not attempted in the real world, because t
 ### Repository Optimization
 
 - **Promise:** Propose concrete improvements to the repository's own presentation.
-- **Operation:** Research → plan → proposals with `Current (verified)` / `Proposed` / `Why`. The app never writes to the repository.
-- **User receives:** A reviewable list of exact proposed changes.
+- **Operation:** Research → Propose Changes (Description, Topics, README with live before/after) → Review (edit or skip) → Approve one exact action → Apply (fresh permission check, unchanged-state check, fixed REST allowlist; README only via a new branch + pull request, never merged by the app) → Verify (GitHub read back).
+- **User receives:** Exact proposed changes; after approval, the applied change or the README pull request URL, with verification facts and Activity History.
 - **Real-world evidence required:** An owner-approved exact change actually applied to the authorized repository (settings or merged PR), and the resulting GitHub state read back.
-- **Security and approval:** Owner approval of each exact change and its destination; applied by the owner (or an approved PR); no app write path.
-- **Needed to verify:** Owner picks the exact change(s) (e.g. new description and topics, or merging the README correction), approves exact values; owner applies them in repository settings or merges an approved PR; then the GitHub state is read back.
+- **Security and approval:** Separate exact-action approval per change (fingerprint); repository-bound DPAPI token; ADMIN for Description/Topics, WRITE for README; no merge or delete endpoint; duplicate applies refused; refusals and failures recorded in Activity History.
+- **Verified (2026-11-11, Task #20):** Description and Topics applied by the Agent and read back as exactly the approved values; README [PR #15](https://github.com/nature-ai-corp/github-community-agent/pull/15) created by the Agent from `gca/readme-t20-c3` into `main` and verified; the owner reviewed and merged it (merge commit `25d5568`, 15:39:40Z); `main`'s README now equals the approved file byte for byte. Corrections entered through Claude Code: the owner-selected values were typed into each change with Save (Description re-entered after the 403); approve, apply and verify were the Agent's own workflow.
 
 ### Reddit Promotion
 

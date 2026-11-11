@@ -1,8 +1,8 @@
 """Release gate: "No real verification = no released Work Type."
 
 Only Work Types with real-world acceptance evidence are listed, startable or
-actionable in a release build. The five unverified Promotion Work Types remain
-development code: enabled only from source with GCA_PROMOTION_DEV_WORK_TYPES=1,
+actionable in a release build: GitHub Discussions and Repository Optimization.
+The four unverified Promotion Work Types remain development code: enabled only from source with GCA_PROMOTION_DEV_WORK_TYPES=1,
 and never in a frozen (packaged) build. V1 Work Types are unaffected.
 """
 from __future__ import annotations
@@ -20,7 +20,8 @@ from github_community_agent.errors import ToolError
 
 from test_promotion import NONCE, REPO_A, FakeModel, MemorySettings, env  # noqa: F401
 
-UNVERIFIED = ["promote_repository_optimization", "promote_reddit", "promote_developer_forums",
+VERIFIED = ["promote_repository", "promote_repository_optimization"]
+UNVERIFIED = ["promote_reddit", "promote_developer_forums",
               "promote_technical_articles", "promote_social_media"]
 V1 = ["review_issues", "review_discussions", "draft_issue", "draft_discussion", "community_report"]
 
@@ -30,15 +31,15 @@ def _release_configuration(monkeypatch):
     monkeypatch.delenv(pr.DEV_WORK_TYPES_ENV, raising=False)
 
 
-def test_only_github_discussions_is_release_verified():
-    assert pr.RELEASE_VERIFIED_WORK_TYPES == {"promote_repository"}
-    assert pr.enabled_work_types() == {"promote_repository"}
+def test_only_verified_work_types_are_released():
+    assert pr.RELEASE_VERIFIED_WORK_TYPES == set(VERIFIED)
+    assert pr.enabled_work_types() == set(VERIFIED)
 
 
 def test_release_definitions_expose_v1_and_verified_promotion_only(tmp_path):
     ids = [d["id"] for d in w.WorkService(w.Journal(tmp_path / "w.sqlite3")).definitions()]
-    assert ids == V1 + ["promote_repository"]
-    assert [d.id for d in w.task_choices("domain", "Promotion")] == ["promote_repository"]
+    assert ids == V1 + VERIFIED
+    assert [d.id for d in w.task_choices("domain", "Promotion")] == VERIFIED
     for v1 in V1:  # V1 Community Management unchanged
         assert w.task_choices("work_type", w.BY_ID[v1].work_type) == [w.BY_ID[v1]]
 
@@ -48,8 +49,8 @@ def test_frozen_build_ignores_the_development_switch(monkeypatch):
     assert pr.enabled_work_types() == frozenset(pr.WORK_TYPES)       # from source: development
     monkeypatch.setattr(pr.sys, "frozen", True, raising=False)
     assert pr.development_mode() is False
-    assert pr.enabled_work_types() == {"promote_repository"}           # packaged: release only
-    assert [d.id for d in w.available_definitions() if d.workflow == "promotion"] == ["promote_repository"]
+    assert pr.enabled_work_types() == set(VERIFIED)                    # packaged: release only
+    assert [d.id for d in w.available_definitions() if d.workflow == "promotion"] == VERIFIED
 
 
 @pytest.mark.parametrize("definition_id", UNVERIFIED)
@@ -101,7 +102,7 @@ def test_release_http_api_refuses_unverified_work_types(env):
     try:
         status, text = call("GET", "/api/definitions")
         listed = [d["id"] for d in json.loads(text)["definitions"]]
-        assert status == 200 and listed == V1 + ["promote_repository"]
+        assert status == 200 and listed == V1 + VERIFIED
         for definition_id in UNVERIFIED:
             status, _ = call("POST", "/api/tasks", {"route": "domain", "selection": "Promotion",
                                                     "definition_id": definition_id})

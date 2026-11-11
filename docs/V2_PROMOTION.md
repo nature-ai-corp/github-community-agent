@@ -27,7 +27,7 @@ publishing, monitoring and improvement.
 **Release gate.** Only Work Types with real-world acceptance evidence are offered in a
 release build (`RELEASE_VERIFIED_WORK_TYPES` in `promotion.py`; evidence in
 [V2_PROMOTION_RELEASE_GATE.md](testing/V2_PROMOTION_RELEASE_GATE.md)). Today that is
-**GitHub Discussions only**. The other five are development code: they are hidden from
+**GitHub Discussions and Repository Optimization**. The other four are development code: they are hidden from
 New Work, refused by the backend API and service (create and every action), and can be
 enabled only when running from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`. A packaged
 (frozen) build ignores that variable. Existing Tasks of an excluded Work Type stay
@@ -36,7 +36,7 @@ viewable, read-only.
 | Work Type | Task definition | Expected result | Publishing |
 |---|---|---|---|
 | GitHub Discussions (**released: VERIFIED**) | `promote_repository` | Announcement Discussion in the target repository, then engagement metrics | **Automated**, after exact approval and a fresh permission check |
-| Repository Optimization (development: NOT VERIFIED) | `promote_repository_optimization` | Exact proposed changes with live before/after: Description, Topics, README (diff) | **Owner-approved apply, per change**: README only via a new branch + pull request into the default branch (never merged, never pushed to it); Description and Topics each by separate exact-action approval (ADMIN); every result read back from GitHub |
+| Repository Optimization (**released: VERIFIED**) | `promote_repository_optimization` | Exact proposed changes with live before/after: Description, Topics, README (diff) | **Owner-approved apply, per change**: README only via a new branch + pull request into the default branch (never merged, never pushed to it); Description and Topics each by separate exact-action approval (ADMIN); every result read back from GitHub |
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
@@ -160,7 +160,7 @@ the rules are not stored.
   `https://github.com/nature-ai-corp/github-community-agent/discussions/13`
   on 2026-11-11, and monitoring and improvement ran on it.
 
-## Repository Optimization workflow (development, NOT VERIFIED)
+## Repository Optimization workflow (released: VERIFIED with Task #20 and PR #15)
 
 Research → Propose Changes → Review → Approve → Apply → Verify, in the same engine:
 

@@ -186,7 +186,7 @@ def test_community_management_work_types_are_unchanged():
 
 def test_release_build_promotion_dropdown_lists_only_verified_work_types():
     r = _route("domain", development=False)
-    assert [label for _, label in r["options"]] == ["GitHub Discussions"]
+    assert [label for _, label in r["options"]] == ["GitHub Discussions", "Repository Optimization"]
     assert r["first"] == "promote_repository"
 
 
