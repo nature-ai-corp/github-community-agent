@@ -13,12 +13,13 @@ def test_new_task_alternative_routes_use_product_defined_taxonomies():
     promotion = w.task_choices("domain", "Promotion")
     assert w.BY_ID["review_issues"] in by_type
     assert w.BY_ID["review_issues"] not in promotion
-    # ONE universal Promotion Task; no separate self/product promotion modes.
-    assert promotion == [w.BY_ID["promote_repository"]]
+    # SIX Promotion Work Types (one Task each), one shared engine.
+    assert [d.id for d in promotion] == ["promote_repository", "promote_repository_optimization", "promote_reddit",
+                "promote_developer_forums", "promote_technical_articles", "promote_social_media"]
     domains = {d.domain for d in w.DEFINITIONS if d.domain}
     assert domains == {"Promotion"}
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
-    assert len(v2) == 1 and v2[0].enabled and v2[0].workflow == "promotion"
+    assert len(v2) == 6 and all(d.enabled and d.workflow == "promotion" for d in v2)
     for retired in ("promote_self", "promote_worker", "promote_other"):
         assert retired not in w.BY_ID
     assert not w.task_choices("domain", "Issues")
@@ -156,9 +157,11 @@ def test_actual_worker_v011_css_is_packaged_separately_from_product_ui():
 def test_ui_routes_select_five_concrete_work_types_and_promotion_domains():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     assert 'state.route==="work_type"&&items.length===1' in html
-    assert 'if(state.route==="work_type"){' in html
-    assert '$("selection").value=vals[0]||"";' in html
     assert 'choose(items[0].id)' in html
+    # Promotion uses the same pattern: the Work Type dropdown selects its own Task.
+    assert 'state.definitions.filter(d=>d.domain==="Promotion").map(d=>[d.id,d.title])' in html
+    assert 'choose($("selection").value||null)' in html
+    assert 'selection:d[state.route]' in html
     assert "Self-Promotion" not in html and "Product Promotion" not in html
     assert {d.domain for d in w.DEFINITIONS if d.domain} == {"Promotion"}
 
@@ -177,7 +180,7 @@ def test_concrete_work_types_and_separate_promotion_domains(tmp_path):
     assert len(w.task_choices("work_type", "Review Issues")) == 1
     assert len(w.task_choices("work_type", "Community Management")) == 0
     assert len(w.task_choices("work_type", "Promotion")) == 0
-    assert len(w.task_choices("domain", "Promotion")) == 1
+    assert len(w.task_choices("domain", "Promotion")) == 6
 
 
 def test_task_details_available_for_every_definition(tmp_path):
@@ -202,11 +205,12 @@ def test_new_task_entry_labels_are_community_management_and_promotion():
     html = (Path(w.__file__).parent / "home.html").read_text(encoding="utf-8")
     assert 'value="work_type" checked>Community Management</label>' in html
     assert 'value="domain">Promotion</label>' in html
-    assert '"Community Management — Work Type":"Promotion — Domain"' in html
+    assert '"Community Management — Work Type":"Promotion — Work Type"' in html
     assert 'Select Community Management or Promotion to choose a Task.' in html
     # UI label changes must not mutate the mutually exclusive backend routes.
     assert w.task_choices("work_type", "Review Issues") == [w.BY_ID["review_issues"]]
-    assert w.task_choices("domain", "Promotion") == [w.BY_ID["promote_repository"]]
+    assert [d.id for d in w.task_choices("domain", "Promotion")] == ["promote_repository", "promote_repository_optimization", "promote_reddit",
+                "promote_developer_forums", "promote_technical_articles", "promote_social_media"]
 
 
 def test_my_work_result_copy_and_json_export_controls():

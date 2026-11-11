@@ -19,14 +19,17 @@ The app uses the general UI baseline of Nature AI Worker v0.1.1, with independen
 
 ## V2 — Promotion (in development, not released)
 
-**One** Promotion Agent and **one** Promotion Workflow serve any product
-repository you are authorized to promote. The only settings are the target
-repository (default `nature-ai-corp/github-community-agent`) and the GitHub
-token for that repository. The steps are: research the repository's real
-README and releases → plan → draft an announcement → you approve the exact
-text → publish it as a GitHub Discussion in that repository → monitor
-engagement → get improvement suggestions. Nothing is published without your
-explicit approval, and nothing is posted to other repositories or sites. See
+**One** Promotion Agent with one shared engine serves any product repository
+you are authorized to promote, through six independently selectable Work
+Types: **GitHub Discussions**, **Repository Optimization**, **Reddit
+Promotion**, **Developer Forums**, **Technical Articles** and **Social
+Media**. The only settings are the target repository (default
+`nature-ai-corp/github-community-agent`) and the GitHub token for that
+repository. Each Work Type researches the repository's real README and
+releases, plans, drafts, and waits for you to approve the exact text. Only
+GitHub Discussions publishes automatically (in that repository, after a fresh
+permission check); the other five are drafts you publish or apply yourself.
+Nothing is published without your explicit approval. See
 [V2 Promotion design](docs/V2_PROMOTION.md). The released V1 (`v1.0.0-rc1`)
 does not include V2.
 

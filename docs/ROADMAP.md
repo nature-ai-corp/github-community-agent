@@ -12,7 +12,7 @@ Complete and verify four existing partially implemented workflows:
 
 V1 priority is integration, isolation, reliable behavior, independent install and real GitHub end-to-end testing — not rewriting the existing capabilities.
 
-## V2 — Repository-based promotion (one universal Promotion Agent)
+## V2 — Repository-based promotion (one Promotion Agent, six Work Types)
 
 There is **one** Promotion Agent and **one** Promotion Workflow. There are no
 separate self-promotion and product-promotion modes. The only configuration is:
@@ -25,6 +25,11 @@ Every repository uses the same Work Center, engine, research, planning, content
 generation, approval and publishing controls, monitoring, improvement, security
 and audit behavior. The workflow is: research → plan → draft → review and
 approve the exact text → publish (permission re-checked) → monitor → improve.
+
+New Work → Promotion offers six independently selectable Work Types on that
+one engine: GitHub Discussions (automated publishing), and Repository
+Optimization, Reddit Promotion, Developer Forums, Technical Articles and Social
+Media (draft / manual publication only).
 
 The selected repository is the promotion base, **not** permission to post
 elsewhere. V2 publishes only an approved GitHub Discussion in that repository

@@ -47,9 +47,15 @@ DEFINITIONS = (
     TaskDefinition("draft_issue", "Draft Issue Reply", "Draft Issue Reply", "", "draft_replies", "V1", True),
     TaskDefinition("draft_discussion", "Draft Discussion Reply", "Draft Discussion Reply", "", "draft_replies", "V1", True),
     TaskDefinition("community_report", "Community Report", "Community Report", "", "community_report", "V1", True),
-    # V2: ONE universal Promotion Task for any authorized product repository.
-    # The target repository and its token are configuration, not separate Tasks.
-    TaskDefinition("promote_repository", "Promote Product Repository", "", "Promotion", "promotion", "V2", True),
+    # V2: ONE Promotion Agent / engine with SIX independently selectable Promotion
+    # Work Types (one Task definition each). The target repository and its token
+    # are configuration. promote_repository keeps its id (existing Tasks/evidence).
+    TaskDefinition("promote_repository", "GitHub Discussions", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_repository_optimization", "Repository Optimization", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_reddit", "Reddit Promotion", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_developer_forums", "Developer Forums", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_technical_articles", "Technical Articles", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_social_media", "Social Media", "", "Promotion", "promotion", "V2", True),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
@@ -107,7 +113,7 @@ TASK_DETAILS = {
         "limitations": "A missing Discussions token or limited fetched data makes coverage incomplete."
     },
     "promote_repository": {
-        "goal": "Promote the selected product repository (default: GitHub Community Agent) to its community.",
+        "goal": "Announce the selected product repository (default: GitHub Community Agent) in its own GitHub Discussions.",
         "steps": ["Research the repository's real README, releases and public facts, with source links.",
                   "Plan audience, value proposition, channels, schedule and measurable objectives.",
                   "Draft one factual announcement for a GitHub Discussion in that repository.",
@@ -118,8 +124,73 @@ TASK_DETAILS = {
         "requires": "Public repository selected in Settings → Promotion, AI model and API key; publishing "
                     "needs that repository's own GitHub token (WRITE access, Discussions enabled).",
         "review": "Explicit approval of the exact repository, category, title and body before publication.",
-        "limitations": "Publishes only a Discussion in the selected repository itself, never to other "
-                       "repositories or third-party sites."
+        "limitations": "Automated publishing: only a Discussion in the selected repository itself, never "
+                       "to other repositories or third-party sites."
+    },
+    "promote_repository_optimization": {
+        "goal": "Propose improvements to how the product repository presents itself (description, topics, README, releases, templates).",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft concrete proposals, each with the exact proposed text, its evidence and rationale.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "Reviewable list of proposed repository changes; nothing is changed in the repository.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Proposals only. This application never writes to the repository; you apply approved changes yourself."
+    },
+    "promote_reddit": {
+        "goal": "Prepare one honest, disclosed Reddit post about the product for a subreddit that allows project posts.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one post with an affiliation disclosure.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable Reddit post draft and a community-rules checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: no Reddit integration; nothing is posted to Reddit."
+    },
+    "promote_developer_forums": {
+        "goal": "Prepare one disclosed project announcement for a developer forum section that allows it.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one technical announcement with an affiliation disclosure.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable forum post draft and a community-rules checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: no forum integration; nothing is posted to any forum."
+    },
+    "promote_technical_articles": {
+        "goal": "Prepare a technical article (tutorial or deep dive) about the product.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one article grounded in the documented steps, with source links.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable article draft and a publication checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: nothing is published to any blog or publication."
+    },
+    "promote_social_media": {
+        "goal": "Prepare short, factual social media posts about the product for accounts you own.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft a short post (max 280 characters) and a longer post.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "Editable social media post drafts and a posting checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: no social network integration; nothing is posted."
     },
 }
 
@@ -296,7 +367,7 @@ class WorkService:
             if not isinstance(model_key, str) or not model_key:
                 raise ToolError("Model API key must be provided for this run.")
             settings = ModelSettings(payload.get("provider"), payload.get("model_name"))
-            return self.promotion.start(ChatCompletionsModel(settings, api_key=lambda: model_key))
+            return self.promotion.start(ChatCompletionsModel(settings, api_key=lambda: model_key), definition.id)
         repository = payload.get("repository", "")
         provider = payload.get("provider")
         model_name = payload.get("model_name")

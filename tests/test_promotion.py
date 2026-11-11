@@ -123,7 +123,7 @@ class FakeModel:
         for t in self.tokens:
             assert t not in instruction and t not in evidence, "a GitHub token reached the AI model"
         self.inputs.append(instruction + "\n" + evidence)
-        if instruction == pr.DRAFT_INSTRUCTION:
+        if instruction in {wt.draft_instruction for wt in pr.WORK_TYPES.values()}:
             repo = json.loads(evidence)["evidence"]["repository"]
             return f"TITLE: {repo} 1.0.0-rc1 is available\nBODY:\nThe first pre-release of {repo} is out."
         if instruction == pr.PLAN_INSTRUCTION:
@@ -161,9 +161,18 @@ def _start(service, creds, repo, model):
 # -- architecture -------------------------------------------------------------------------
 
 
-def test_exactly_one_promotion_definition_and_one_agent():
+def test_six_promotion_work_types_share_one_agent():
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
-    assert [d.id for d in v2] == [pr.DEFINITION_ID] and v2[0].workflow == "promotion" and v2[0].enabled
+    assert [d.id for d in v2] == list(pr.WORK_TYPES)
+    assert [d.title for d in v2] == ["GitHub Discussions", "Repository Optimization", "Reddit Promotion",
+                                     "Developer Forums", "Technical Articles", "Social Media"]
+    assert all(d.workflow == "promotion" and d.enabled and d.domain == "Promotion" for d in v2)
+    assert all(w.BY_ID[k].title == wt.label for k, wt in pr.WORK_TYPES.items())
+    # GitHub Discussions keeps the original id and channel (existing Tasks and evidence).
+    assert pr.WORK_TYPES[pr.DEFINITION_ID].channel == pr.CHANNEL == "github_discussion"
+    # Only GitHub Discussions has an automated publisher; every other type is manual.
+    assert [k for k, wt in pr.WORK_TYPES.items() if wt.automated_publishing] == [pr.DEFINITION_ID]
+    assert len({wt.channel for wt in pr.WORK_TYPES.values()}) == 6
     import inspect
     source = inspect.getsource(pr)
     for forbidden in ("self_promotion", "product_promotion", "SelfPromotion", "ProductPromotion"):
@@ -468,9 +477,11 @@ def test_create_promotion_task_over_http_starts_service(env):
     class RecordingPromotion:
         def __init__(self):
             self.models = []
+            self.definitions = []
 
-        def start(self, model):
+        def start(self, model, definition_id):
             self.models.append(model)
+            self.definitions.append(definition_id)
             return 42
 
     promo = RecordingPromotion()
@@ -488,7 +499,7 @@ def test_create_promotion_task_over_http_starts_service(env):
         body = json.loads(r.read().decode())
         conn.close()
         assert r.status == 202 and body == {"id": 42, "status": "running"}
-        assert len(promo.models) == 1
+        assert len(promo.models) == 1 and promo.definitions == ["promote_repository"]
         assert promo.models[0].settings.provider == "openai"
         assert promo.models[0].settings.model == "gpt-4.1-mini"
     finally:

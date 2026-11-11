@@ -130,3 +130,45 @@ def test_main_save_reports_a_failed_promotion_save_and_keeps_dialog_open():
 def test_main_save_wires_pending_promotion_before_closing():
     body = _function("async function saveSettings(")
     assert body.index("savePendingPromotion()") < body.index("closeSettings()")
+
+
+def _route(route: str, select: str | None = None) -> dict:
+    definitions = w.WorkService(w.Journal.__new__(w.Journal)).definitions()
+    return _run(PRELUDE + "function unique(values){return [...new Set(values)].sort()}\n"
+                + _function("function renderRoute(") + _function("function renderChoices(")
+                + _function("function choose(") + f"""
+const els={{}};
+const elem=()=>{{const e=mk();e.classList={{toggle(){{}}}};return e}};
+const $=id=>els[id]||(els[id]=elem());
+globalThis.document={{querySelectorAll:()=>[]}};
+const state={{route:{json.dumps(route)},definitions:{json.dumps(definitions)},settings:{{repository:"o/r"}},
+             promotion:{{selected:"o/a"}}}};
+renderRoute();
+const options=[...$("selection").innerHTML.matchAll(/<option value="([^"]+)">([^<]+)</g)].map(m=>[m[1],m[2]]);
+const first=state.definition&&state.definition.id;
+{"" if select is None else f'$("selection").value={json.dumps(select)};renderChoices();'}
+console.log(JSON.stringify({{label:$("selection-label").textContent,options,first,
+  selected:state.definition&&state.definition.id,title:$("selected-title").textContent,
+  start_disabled:$("start").disabled,note:$("planned-note").textContent}}));
+""")
+
+
+def test_promotion_work_type_dropdown_lists_six_and_selects_only_the_chosen_task():
+    r = _route("domain")
+    assert r["label"] == "Promotion — Work Type"
+    assert [label for _, label in r["options"]] == [
+        "GitHub Discussions", "Repository Optimization", "Reddit Promotion",
+        "Developer Forums", "Technical Articles", "Social Media"]
+    assert r["first"] == "promote_repository" and "automated publishing" in r["note"]
+    r = _route("domain", "promote_reddit")
+    assert r["selected"] == "promote_reddit" and r["title"] == "Reddit Promotion"
+    assert r["start_disabled"] is False and "manual publication only" in r["note"]
+
+
+def test_community_management_work_types_are_unchanged():
+    r = _route("work_type")
+    assert r["label"] == "Community Management — Work Type"
+    # V1 Work Types keep their defined task order (as before Promotion Work Types).
+    assert [v for v, _ in r["options"]] == ["Review Issues", "Review Discussions", "Draft Issue Reply",
+                                            "Draft Discussion Reply", "Community Report"]
+    assert r["first"] is not None and not r["first"].startswith("promote_")

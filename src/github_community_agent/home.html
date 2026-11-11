@@ -208,28 +208,27 @@ finally{$("test-connection").disabled=false}
 function renderRoute(){
 state.definition=null;
 document.querySelectorAll(".route label").forEach(label=>label.classList.toggle("selected",label.querySelector("input").value===state.route));
-$("selection-label").textContent=state.route==="work_type"?"Community Management — Work Type":"Promotion — Domain";
-const vals=unique(state.definitions.map(d=>d[state.route]).filter(Boolean));
-// Concrete V1 Work Types appear in their defined task order. Promotion is ONE
-// Domain with ONE universal Task; the target repository is a Setting.
-if(state.route==="work_type"){
-  vals.sort((a,b)=>state.definitions.findIndex(d=>d.work_type===a)-state.definitions.findIndex(d=>d.work_type===b));
-}
-$("selection").innerHTML=vals.map(v=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(v)+'</option>').join("");
-$("selection").value=vals[0]||"";
+$("selection-label").textContent=state.route==="work_type"?"Community Management — Work Type":"Promotion — Work Type";
+// Same pattern for both routes: pick a Work Type and its own Task is selected.
+// Community Management Work Types are the V1 Tasks; the Promotion Domain offers
+// its own Promotion Work Types (one Task each, one shared Promotion engine).
+const opts=state.route==="work_type"
+  ?[...new Set(state.definitions.map(d=>d.work_type).filter(Boolean))].map(v=>[v,v]) // V1 defined task order
+  :state.definitions.filter(d=>d.domain==="Promotion").map(d=>[d.id,d.title]);
+$("selection").innerHTML=opts.map(([v,label])=>'<option value="'+escapeHTML(v)+'">'+escapeHTML(label)+'</option>').join("");
+$("selection").value=opts.length?opts[0][0]:"";
 renderChoices();
 }
 function renderChoices(){
+if(state.route==="domain"){
+  $("choices").innerHTML="";
+  choose($("selection").value||null);
+  return;
+}
 const items=state.definitions.filter(d=>d[state.route]===$("selection").value);
 // When the Work Type uniquely defines a Task, selecting the Work Type is
 // selecting the Task. Don't render a redundant row of five Task cards.
 if(state.route==="work_type"&&items.length===1){
-  $("choices").innerHTML="";
-  choose(items[0].id);
-  return;
-}
-// The Promotion Domain has exactly one universal Task: select it directly.
-if(items.length===1){
   $("choices").innerHTML="";
   choose(items[0].id);
   return;
@@ -247,7 +246,7 @@ const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
 $("start").disabled=!d||!d.enabled;
 const promo=d?.workflow==="promotion";
-$("planned-note").textContent=promo?"V2 Promotion: research, plan and draft run automatically for the repository below. Nothing is published until you approve the exact text and confirm publication.":"V1: real GitHub and AI analysis; no GitHub posting.";
+$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
 $("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
@@ -268,7 +267,7 @@ if(!state.definition)return;
 const d=state.definition;
 const n=Number($("number").value);
 const st=state.settings;
-const data={route:state.route,selection:$("selection").value,definition_id:d.id,number:d.workflow==="draft_replies"?n:null};
+const data={route:state.route,selection:d[state.route],definition_id:d.id,number:d.workflow==="draft_replies"?n:null};
 $("start").disabled=true;
 try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res.id;await refresh();page("all")}
 catch(e){error(e.message)}
@@ -615,6 +614,8 @@ function promotionReport(t){
   const r=t.result||{}, ev=r.evidence||{}, f=ev.facts||{};
   const out=['<section class="user-report" aria-label="Promotion"><div class="user-report-title"><strong>Promotion</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>',
     '<div class="report-subtitle">'+escapeHTML(t.repository)+' · repository bound to this Task</div>'];
+  if(t.result&&r.work_type)out.push('<p class="report-meta">Work Type: <strong>'+escapeHTML(r.work_type)+'</strong> · '+escapeHTML(r.publication==="manual"?"Draft / manual publication only — this application does not post it":"Automated publishing after your approval")+'</p>');
+  if(t.result&&Array.isArray(r.checklist)&&r.checklist.length)out.push('<section class="report-section"><h4>Before publishing</h4><ul>'+r.checklist.map(c=>'<li>'+escapeHTML(c)+'</li>').join("")+'</ul></section>');
   if(t.result){
     const facts=[f.description,f.license?"License "+f.license:null,typeof f.stars==="number"?f.stars+" stars":null,
       Array.isArray(ev.releases)?ev.releases.length+" recent releases read":null].filter(Boolean).join(" · ");
@@ -650,7 +651,17 @@ function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
   for(const a of d.actions){
-    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>Announcement #'+a.id+' — '+escapeHTML(a.status)+'</h4><p class="report-meta">Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):'')+'</p>');
+    const manual=a.channel!=="github_discussion";
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(a.status==="ready_manual"?"approved for manual publication":a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    if(manual){
+      parts.push('<label class="field-label">Title<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
+        '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
+        '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="ready_manual"?' (cancels approval)':'')+'</button>'+
+        (a.status==="draft"?'<button type="button" class="primary promo-approve-manual">Approve this exact text for manual publication</button>':'')+
+        '<button type="button" class="promo-copy">Copy text</button></div>'+
+        '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p></section>');
+      continue;
+    }
     if(["draft","approved","failed"].includes(a.status)){
       parts.push('<label class="field-label">Title<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
         '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
@@ -685,6 +696,15 @@ function renderPromotionPanel(t,d){
     on(".promo-save",async()=>{await call("edit",{title:el.querySelector(".promo-title").value,body:el.querySelector(".promo-body").value});msg("Draft saved. Review it, then approve.");await loadPromotionPanel(t)});
     on(".promo-preflight",()=>runPreflight(a.repository,el.querySelector(".promo-check"),
       el.querySelector(".promo-category"),el.querySelector(".promo-approve"),()=>call("preflight",undefined,PREFLIGHT_TIMEOUT_MS)));
+    on(".promo-approve-manual",async()=>{
+      if(edited()){msg("Save your edits before approving.");return}
+      if(!window.confirm("Approve this exact text for manual publication?\n\nWork Type: "+(d.work_type||a.channel)+"\nTitle: "+a.title+"\n\nThis application does not post it; you publish it yourself."))return;
+      await call("approve",{category:"",sha256:a.draft_sha256});msg("Approved for manual publication. Copy it and follow the checklist.");await loadPromotionPanel(t);
+    });
+    on(".promo-copy",async()=>{
+      const text=el.querySelector(".promo-title").value+"\n\n"+el.querySelector(".promo-body").value;
+      try{await navigator.clipboard.writeText(text);msg("Copied to the clipboard.")}catch(e){msg("Copy failed; select the text and copy it manually.")}
+    });
     on(".promo-approve",async()=>{
       if(edited()){msg("Save your edits before approving.");return}
       const category=el.querySelector(".promo-category").value;
@@ -707,7 +727,7 @@ function showDetail(t){
 const c=$("work-detail");c.classList.remove("hid");
 const source=taskSource(t);
 const hasResult=t.result!==null&&t.result!==undefined;
-const isPromotion=t.definition_id==="promote_repository";
+const isPromotion=(state.definitions.find(x=>x.id===t.definition_id)||{}).workflow==="promotion";
 const resultActions=isPromotion?promotionReport(t):hasResult?taskReport(t)+'<details class="technical-details"><summary>Technical Details</summary><div class="result-toolbar"><span class="smallhead">Original application result</span><div class="result-action-buttons"><button type="button" id="copy-result">Copy JSON</button><button type="button" id="export-result">Export JSON</button></div></div><div class="result-action-status" id="result-action-status" role="status" aria-live="polite"></div><pre id="task-result-json">'+escapeHTML(resultText(t))+'</pre></details>':'<p class="note">No result yet.</p>';
 c.innerHTML='<h3>Task #'+t.id+' — '+escapeHTML(t.title)+'</h3><p class="note">Classification: '+escapeHTML([t.classifications.work_type,t.classifications.domain].filter(Boolean).join(' · '))+' · Status: '+escapeHTML(t.status)+'</p>'+(source?'<p class="source">Source: <a target="_blank" rel="noopener noreferrer" href="'+escapeHTML(source)+'">'+escapeHTML(source)+'</a></p>':'')+(t.error?'<p>'+escapeHTML(t.error)+'</p>':'')+resultActions+(t.status==="needs_attention"?'<button type="button" class="btn secondary" id="mark-reviewed">'+(isPromotion?'Mark promotion work complete (does NOT post)':'Mark draft reviewed (does NOT post)')+'</button>':'')+(t.archived?'<div class="task-management"><span class="note">Archived record — view only. Original result and activity history are retained.</span></div>':(['finished','failed'].includes(t.status)?'<div class="task-management"><button type="button" id="delete-task" class="task-delete">Archive Task</button><span class="note">Moves this Task to Archived Work; evidence remains available.</span></div>':''))+renderActivity(t);
 const copy=$("copy-result");if(copy)copy.addEventListener("click",()=>copyTaskResult(t));
