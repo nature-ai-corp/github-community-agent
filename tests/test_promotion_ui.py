@@ -132,8 +132,18 @@ def test_main_save_wires_pending_promotion_before_closing():
     assert body.index("savePendingPromotion()") < body.index("closeSettings()")
 
 
-def _route(route: str, select: str | None = None) -> dict:
-    definitions = w.WorkService(w.Journal.__new__(w.Journal)).definitions()
+def _route(route: str, select: str | None = None, development: bool = True) -> dict:
+    import os
+    from github_community_agent import promotion as pr
+    old = os.environ.pop(pr.DEV_WORK_TYPES_ENV, None)
+    if development:
+        os.environ[pr.DEV_WORK_TYPES_ENV] = "1"
+    try:
+        definitions = w.WorkService(w.Journal.__new__(w.Journal)).definitions()
+    finally:
+        os.environ.pop(pr.DEV_WORK_TYPES_ENV, None)
+        if old is not None:
+            os.environ[pr.DEV_WORK_TYPES_ENV] = old
     return _run(PRELUDE + "function unique(values){return [...new Set(values)].sort()}\n"
                 + _function("function renderRoute(") + _function("function renderChoices(")
                 + _function("function choose(") + f"""
@@ -172,3 +182,9 @@ def test_community_management_work_types_are_unchanged():
     assert [v for v, _ in r["options"]] == ["Review Issues", "Review Discussions", "Draft Issue Reply",
                                             "Draft Discussion Reply", "Community Report"]
     assert r["first"] is not None and not r["first"].startswith("promote_")
+
+
+def test_release_build_promotion_dropdown_lists_only_verified_work_types():
+    r = _route("domain", development=False)
+    assert [label for _, label in r["options"]] == ["GitHub Discussions"]
+    assert r["first"] == "promote_repository"

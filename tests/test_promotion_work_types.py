@@ -30,6 +30,12 @@ def _start_type(service, creds, repo, model, definition_id):
     return task_id, service.detail(task_id)["actions"][0]
 
 
+@pytest.fixture(autouse=True)
+def _development_work_types(monkeypatch):
+    """These tests cover development code for ALL Work Types (release builds expose only verified ones)."""
+    monkeypatch.setenv(pr.DEV_WORK_TYPES_ENV, "1")
+
+
 # -- selection -----------------------------------------------------------------------------
 
 
@@ -177,11 +183,17 @@ def test_manual_approval_covers_the_exact_text_and_edits_cancel_it(env):
     assert ready["status"] == "ready_manual" and ready["approved_sha256"]
     with pytest.raises(ToolError, match="cannot be approved"):
         service.approve(task_id, a["id"], "", a["draft_sha256"])
-    service.edit(task_id, a["id"], "New title", "New body")
+    service.edit(task_id, a["id"], "New title", "Disclosure: I maintain it. New body.")
     edited = service.detail(task_id)["actions"][0]
     assert edited["status"] == "draft" and edited["approved_sha256"] is None
+    # An edit that breaks a content rule (no disclosure) is stored but cannot be approved.
+    service.edit(task_id, a["id"], "New title", "New body without disclosure.")
+    broken = service.detail(task_id)["actions"][0]
+    assert broken["status"] == "incomplete" and "disclosure" in broken["error"]
+    with pytest.raises(ToolError, match="incomplete"):
+        service.approve(task_id, a["id"], "", broken["draft_sha256"])
     events = [e["event"] for e in service.detail(task_id)["events"]]
-    assert events == ["draft_created", "approved_for_manual_publication", "draft_edited"]
+    assert events == ["draft_created", "approved_for_manual_publication", "draft_edited", "draft_edited"]
 
 
 def test_github_discussions_still_requires_category_permission_and_exact_approval(env):

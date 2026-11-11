@@ -2,34 +2,48 @@
 
 **An independent open-source GitHub community-management product, built on shared Nature AI Worker Core capabilities.**
 
-GitHub Community Agent helps project maintainers understand and respond to their communities. Product promotion is planned for V2; it is **not** part of V1.
+GitHub Community Agent is a Windows desktop application that helps project maintainers understand and respond to their communities, using an AI model of their choice. It is **read-only toward GitHub**: V1 never posts, comments, labels, closes or edits anything.
 
 > **Independence:** GitHub Community Agent is an independent product of NATURE AI CORP. It is not affiliated with, sponsored by, or endorsed by GitHub, Inc. or Microsoft Corporation. "GitHub" is a trademark of GitHub, Inc., used only to identify the service this software works with.
 
-> **Development status:** V1 has real Windows application execution evidence for all five read-only Work Types. Security, packaging, regression and release acceptance remain pending. **No official independent Windows installer or V1 release has been published.**
+> **Release status:** **V1.0.0-rc1 has been publicly released** as a Windows pre-release:
+> [v1.0.0-rc1](https://github.com/nature-ai-corp/github-community-agent/releases/tag/v1.0.0-rc1).
+> It includes an **unsigned** Windows installer, `GitHubCommunityAgent-1.0.0-rc1-Setup-x64-unsigned.exe`
+> (SHA-256 `018eb04617d3a60314a79d08e0c22cb2cf4d61ee2916383d03cf6708e93db825`, also in `SHA256SUMS.txt`),
+> for Windows 10 or 11, 64-bit. Because it is not code-signed, Windows SmartScreen may warn before it runs;
+> verify the checksum first. **V2 Promotion is still under development** and is not part of this release.
 
-## V1 — Community Management
+## V1 — Community Management (released in v1.0.0-rc1)
 
-- **Review Issues:** inspect open GitHub issues, identify priorities and summarize findings.
-- **Review Discussions:** understand questions, requests, and unanswered discussions.
-- **Draft Issue Reply / Draft Discussion Reply:** prepare unposted, source-grounded AI drafts and route them through local human review. **Mark reviewed never posts to GitHub. V1 has no GitHub writing capability.**
-- **Community Report:** summarize community needs and suggested follow-up, with links to real GitHub evidence.
+V1 has exactly five Work Types, all read-only toward GitHub:
+
+- **Review Issues:** prioritized findings from a bounded page of recent open Issues, with source links.
+- **Review Discussions:** follow-up candidates from recent Discussions (needs a GitHub token with Discussions **read** access).
+- **Draft Issue Reply:** an unposted AI reply draft for one Issue, held for your review.
+- **Draft Discussion Reply:** an unposted AI reply draft for one Discussion, held for your review.
+- **Community Report:** a summary of observed Issue and Discussion activity, with stated coverage limits and links to real GitHub evidence.
+
+**Mark reviewed never posts to GitHub. V1 has no GitHub writing capability.** The Work Center also has
+**My Work**, **Needs My Attention** and **Archived Work** views of your Tasks; these are views, not Work Types.
 
 The app uses the general UI baseline of Nature AI Worker v0.1.1, with independent GC Agent functions, configuration, database, credentials and release process. It does not modify or ship the original Worker application.
 
-## V2 — Promotion (in development, not released)
+## V2 — Promotion (under development, not released)
 
-**One** Promotion Agent with one shared engine serves any product repository
-you are authorized to promote, through six independently selectable Work
-Types: **GitHub Discussions**, **Repository Optimization**, **Reddit
-Promotion**, **Developer Forums**, **Technical Articles** and **Social
-Media**. The only settings are the target repository (default
+One Promotion Agent researches a product repository you are authorized to
+promote, plans, drafts, and waits for you to approve the exact text. The only
+settings are the target repository (default
 `nature-ai-corp/github-community-agent`) and the GitHub token for that
-repository. Each Work Type researches the repository's real README and
-releases, plans, drafts, and waits for you to approve the exact text. Only
-GitHub Discussions publishes automatically (in that repository, after a fresh
-permission check); the other five are drafts you publish or apply yourself.
-Nothing is published without your explicit approval. See
+repository. Nothing is published without your explicit approval.
+
+**Release rule: no real-world verification, no released Work Type.** The only
+Promotion Work Type that has passed real-world acceptance, and the only one a
+V2 build will offer, is **GitHub Discussions**: an announcement Discussion in
+that repository, published after your approval and a fresh permission check,
+then monitored. Repository Optimization, Reddit Promotion, Developer Forums,
+Technical Articles and Social Media are **development work, not released
+capabilities**: they are not offered in the release configuration until each
+passes its own real-world acceptance. See
 [V2 Promotion design](docs/V2_PROMOTION.md). The released V1 (`v1.0.0-rc1`)
 does not include V2.
 
@@ -55,14 +69,13 @@ python -m venv .venv
 .\.venv\Scripts\github-community-agent-home.exe
 ```
 
-## Windows independent installer — internal preview only
+## Windows installer
 
-This repository contains a separate per-user GC Agent EXE and unsigned
-Inno Setup 6 developer installer. Actual Windows testing has verified
-first installation, installer-version replacement, uninstall and reinstall
-while retaining work history and encrypted settings. This **does not**
-constitute a stable, signed or publicly approved release. See
-[Windows Installer Acceptance](docs/WINDOWS_INSTALLER_ACCEPTANCE.md).
+The public **v1.0.0-rc1** pre-release ships a per-user, **unsigned** Inno Setup
+installer (see *Release status* above). Windows testing verified first
+installation, upgrade, uninstall and reinstall while retaining work history
+and encrypted settings. It is a release candidate, not a stable or signed
+release. See [Windows Installer Acceptance](docs/WINDOWS_INSTALLER_ACCEPTANCE.md).
 
 To build locally after Windows tests pass, install optional build tools with
 `.\\.venv\\Scripts\\python.exe -m pip install -e ".[dev,build]"`, run
@@ -70,8 +83,8 @@ To build locally after Windows tests pass, install optional build tools with
 Setup 6 run `scripts/windows-build-installer.ps1`. The installer has its
 own AppId and installs under the current user's program directory. Upgrade
 and uninstall must preserve `%LOCALAPPDATA%\\GitHubCommunityAgent`
-Work history and DPAPI-encrypted settings. **Do not distribute this unsigned
-developer installer**. See
+Work history and DPAPI-encrypted settings. Locally built installers are for
+testing only; distribute only the published release asset. See
 [V1 Security and License Gate](docs/V1_RELEASE_SECURITY_LICENSE_GATE.md)
 for open release blockers and an offline dependency metadata audit.
 
@@ -80,10 +93,6 @@ A Windows isolated wheel-build/resource preflight is provided at
 step. See [V1 Windows acceptance](docs/V1_WINDOWS_ACCEPTANCE_2026-11-08.md)
 for verified functional evidence and remaining release gates.
 
-Work Center provides **Archived Work**, a view-only record of previously
-completed or failed tasks, with retained reports, sources, and limited local
-Activity History. Archived records cannot be restored from the UI.
-
 Maintained by **NATURE AI CORP**. Apache-2.0 source and attribution are retained
-as listed in LICENSE and NOTICE. Official independent Windows distribution,
-versioning and signing are pending acceptance.
+as listed in LICENSE and NOTICE. Code signing and a stable (non-pre-release)
+version are still pending.

@@ -59,6 +59,14 @@ DEFINITIONS = (
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
+
+def available_definitions() -> tuple:
+    """Definitions this build exposes. Promotion Work Types pass the release gate
+    (promotion.enabled_work_types); every V1 definition is always available."""
+    from .promotion import enabled_work_types
+    enabled = enabled_work_types()
+    return tuple(d for d in DEFINITIONS if d.workflow != "promotion" or d.id in enabled)
+
 # Each Task owns its own user-facing definition. The Work Center only renders
 # these records; another product can supply different classification/fields.
 TASK_DETAILS = {
@@ -201,7 +209,7 @@ def task_choices(route: str, value: str) -> list[TaskDefinition]:
     """Choice route is mutually exclusive; Task definitions own both classifications."""
     if route not in ("work_type", "domain"):
         raise ToolError("Choose Work Type or Domain, not both.")
-    return [d for d in DEFINITIONS if value and getattr(d, route) == value]
+    return [d for d in available_definitions() if value and getattr(d, route) == value]
 
 
 def data_directory() -> Path:
@@ -271,6 +279,14 @@ class Journal:
                  error, task_id))
             if row.rowcount == 1:
                 self._event(con, task_id, "completed" if status == "finished" else status, now)
+
+    def update_result(self, task_id: int, result: dict) -> bool:
+        """Replace the stored result of a finished, non-archived Task (V2 draft regeneration)."""
+        with self._connect() as con:
+            row = con.execute(
+                "UPDATE work SET result_json=?, updated_utc=? WHERE id=? AND status!='running' AND deleted_utc IS NULL",
+                (json.dumps(result, ensure_ascii=False), _utc(), task_id))
+            return row.rowcount == 1
 
     def review(self, task_id: int) -> bool:
         with self._connect() as con:
@@ -347,7 +363,7 @@ class WorkService:
         self.promotion = promotion  # the ONE V2 Promotion Agent (promotion.PromotionService)
 
     def definitions(self) -> list[dict]:
-        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in DEFINITIONS]
+        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in available_definitions()]
 
     def start(self, payload: dict) -> int:
         """Create a real Work record then launch one existing production workflow."""
@@ -530,6 +546,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     if verb == "improve":
                         return self._send(200, {"improvement": promo.improve(task_id, self._promotion_model())})
                     return self._send(404, {"error": "Not found."})
+                if verb == "regenerate":
+                    return self._send(200, promo.regenerate(task_id, action_id, self._promotion_model()))
                 if verb == "edit":
                     promo.edit(task_id, action_id, payload.get("title"), payload.get("body"))
                     return self._send(200, {"ok": True})

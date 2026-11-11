@@ -117,12 +117,26 @@ class ModelSettings:
         _endpoint(self.provider, self.endpoint)
 
 
+@dataclass(frozen=True)
+class Completion:
+    """Model text plus completeness. ``complete`` is False when the provider stopped
+    for a length/content limit or when the text had to be cut to ``max_chars``."""
+    text: str
+    finish_reason: str | None
+    complete: bool
+
+
 class ChatCompletionsModel:
     def __init__(self, settings: ModelSettings, api_key: Callable[[], str | None]):
         self.settings = settings
         self.api_key = api_key
 
     def __call__(self, instruction: str, evidence: str) -> str:
+        # V1 behavior and limits, unchanged: 1200 completion tokens, 30 s, 6000 characters.
+        return self.complete(instruction, evidence).text
+
+    def complete(self, instruction: str, evidence: str, *, max_tokens: int = MAX_COMPLETION_TOKENS,
+                 timeout: float = 30, max_chars: int = MAX_RESPONSE_CHARS) -> Completion:
         url = _endpoint(self.settings.provider, self.settings.endpoint)
         # Normal production requests perform DNS screening before the key is
         # retrieved, and never on input supplied by untrusted GitHub content.
@@ -138,10 +152,10 @@ class ChatCompletionsModel:
                 {"role": "user", "content": evidence},
             ],
             "temperature": 0.2,
-            "max_tokens": MAX_COMPLETION_TOKENS,
+            "max_tokens": max_tokens,
         }
         try:
-            with httpx.Client(timeout=30, follow_redirects=False, trust_env=False,
+            with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False,
                               transport=_transport) as client:
                 with client.stream(
                     "POST", url, json=request_body,
@@ -171,10 +185,14 @@ class ChatCompletionsModel:
             if not isinstance(message, dict):
                 raise ValueError("bad message")
             content = message.get("content")
+            finish_reason = choices[0].get("finish_reason")
+            finish_reason = finish_reason if isinstance(finish_reason, str) else None
         except (ValueError, TypeError, KeyError, IndexError) as exc:
             raise ToolError("Unexpected AI provider response format.") from None
         if not isinstance(content, str) or not content.strip():
             raise ToolError("The configured AI model returned no usable text.")
         # Exact token must never appear in the returned draft, even if a provider
         # echoes it in source text. Output remains a *reviewable*, unposted draft.
-        return content.strip().replace(secret, "[REDACTED]")[:MAX_RESPONSE_CHARS]
+        text = content.strip().replace(secret, "[REDACTED]")
+        complete = finish_reason not in ("length", "content_filter") and len(text) <= max_chars
+        return Completion(text[:max_chars], finish_reason, complete)

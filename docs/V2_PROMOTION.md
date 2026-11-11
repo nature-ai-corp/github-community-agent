@@ -24,14 +24,23 @@ publishing, monitoring and improvement.
 
 ## Work Types
 
+**Release gate.** Only Work Types with real-world acceptance evidence are offered in a
+release build (`RELEASE_VERIFIED_WORK_TYPES` in `promotion.py`; evidence in
+[V2_PROMOTION_RELEASE_GATE.md](testing/V2_PROMOTION_RELEASE_GATE.md)). Today that is
+**GitHub Discussions only**. The other five are development code: they are hidden from
+New Work, refused by the backend API and service (create and every action), and can be
+enabled only when running from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`. A packaged
+(frozen) build ignores that variable. Existing Tasks of an excluded Work Type stay
+viewable, read-only.
+
 | Work Type | Task definition | Expected result | Publishing |
 |---|---|---|---|
-| GitHub Discussions | `promote_repository` | Announcement Discussion in the target repository, then engagement metrics | **Automated**, after exact approval and a fresh permission check |
-| Repository Optimization | `promote_repository_optimization` | Proposed description, topics, README, release and template changes | **Proposals only**; the app never writes to the repository |
-| Reddit Promotion | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
-| Developer Forums | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
-| Technical Articles | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
-| Social Media | `promote_social_media` | A short (max 280 characters) and a longer post | **Draft / manual publication only** |
+| GitHub Discussions (**released: VERIFIED**) | `promote_repository` | Announcement Discussion in the target repository, then engagement metrics | **Automated**, after exact approval and a fresh permission check |
+| Repository Optimization (development: NOT VERIFIED) | `promote_repository_optimization` | Proposed description, topics, README, release and template changes | **Proposals only**; the app never writes to the repository |
+| Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
+| Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
+| Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
+| Social Media (development: NOT VERIFIED) | `promote_social_media` | A short (max 280 characters) and a longer post | **Draft / manual publication only** |
 
 Only GitHub Discussions has a real publisher. The other five have **no**
 integration with Reddit, forums, blogs or social networks, and no fake one:
@@ -55,6 +64,34 @@ separately from GitHub tokens.
 | 5. Publish | GitHub Discussions only: separately confirmed, permission re-checked, then the fixed `createDiscussion` mutation runs once. Other Work Types: you publish by hand | **Yes, only this step, only GitHub Discussions** |
 | 6. Monitor | GitHub Discussions only: reads comments, upvotes and reactions | No |
 | 7. Improve | AI suggestions from the plan and the measured engagement; never publishes | No |
+
+## Content quality
+
+All six Work Types share one rule set (`_SHARED_RULES` in `promotion.py`): facts only from
+the evidence; GitHub API release data (`authoritative_facts`) overrides conflicting README
+text; no invented features, metrics, testimonials or endorsements; never describe unread
+Issues; no requests for votes, stars or follows; no incentives, testimonials or influencer
+outreach; one post per community and no cross-posting. Each Work Type adds only its own
+channel focus, so a plan covers only the selected Work Type.
+
+| Check | Applies to |
+|---|---|
+| Output complete (provider `finish_reason` is not `length`/`content_filter`, nothing cut) | Plans, drafts, improvement suggestions |
+| Plan stays in scope (no GitHub Discussion publication outside GitHub Discussions) and marks statements Verified / Proposed | Plans |
+| Title at most 120 characters; body within the Work Type's limit (4000–5500) | Drafts |
+| Short post at most 280 and long post at most 1200 characters | Social Media |
+| `Current (verified):` and `Proposed:` labels | Repository Optimization |
+| Affiliation disclosure ("I maintain …") at the start of each post | Reddit, Developer Forums, Technical Articles, Social Media |
+| No claim that no release or installer exists when a release is published; no description of unread Issues; no engagement bait, incentives or testimonials | All |
+
+Generation budgets are per Work Type (1,500–3,500 completion tokens, 120-second timeout;
+`GCA_PROMOTION_MAX_TOKENS` overrides them, 500–16,000). V1 keeps its own limits (1,200 tokens,
+30 seconds, 6,000 characters). A failed check triggers **one** corrective retry with the
+problems listed. If the output still fails, the draft is stored as **incomplete** with the
+reasons: it is never shown as a ready draft and cannot be approved. The owner can edit it
+(edits are re-checked) or use **Regenerate draft** (plan and draft again, at most five
+times per draft). Approval re-checks the exact content. Improvement suggestions that fail
+the rules are not stored.
 
 ## Security and isolation
 

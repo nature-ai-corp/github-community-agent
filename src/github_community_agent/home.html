@@ -615,6 +615,10 @@ function promotionReport(t){
   const out=['<section class="user-report" aria-label="Promotion"><div class="user-report-title"><strong>Promotion</strong><span class="report-status">'+escapeHTML(t.status.replace("_"," "))+'</span></div>',
     '<div class="report-subtitle">'+escapeHTML(t.repository)+' · repository bound to this Task</div>'];
   if(t.result&&r.work_type)out.push('<p class="report-meta">Work Type: <strong>'+escapeHTML(r.work_type)+'</strong> · '+escapeHTML(r.publication==="manual"?"Draft / manual publication only — this application does not post it":"Automated publishing after your approval")+'</p>');
+  if(t.result&&r.quality){
+    const qi=[...(r.quality.plan_issues||[]),...(r.quality.draft_issues||[])];
+    out.push('<section class="report-section"><h4>Quality checks</h4>'+(r.quality.passed?'<p>Passed: complete output, Work Type scope, length limits, disclosure and community rules.</p>':'<p><strong>Not ready.</strong> The draft below is incomplete and cannot be approved until it is regenerated or edited:</p><ul>'+qi.map(i=>'<li>'+escapeHTML(i)+'</li>').join("")+'</ul>')+'</section>');
+  }
   if(t.result&&Array.isArray(r.checklist)&&r.checklist.length)out.push('<section class="report-section"><h4>Before publishing</h4><ul>'+r.checklist.map(c=>'<li>'+escapeHTML(c)+'</li>').join("")+'</ul></section>');
   if(t.result){
     const facts=[f.description,f.license?"License "+f.license:null,typeof f.stars==="number"?f.stars+" stars":null,
@@ -631,6 +635,12 @@ async function loadPromotionPanel(t){
   if(!$("promo-panel"))return;
   try{renderPromotionPanel(t,await getJSON("/api/promotion/tasks/"+t.id+"/detail"))}
   catch(e){const p=$("promo-panel");if(p)p.innerHTML='<p class="note">'+escapeHTML("Promotion details unavailable: "+e.message)+'</p>'}
+}
+// Regeneration runs up to four model calls (plan and draft, each with one corrective retry).
+const REGENERATE_TIMEOUT_MS=600000;
+async function reopen(t){
+  try{await refresh();const nt=state.tasks.find(x=>x.id===t.id);if(nt){showDetail(nt);return}}catch(e){}
+  await loadPromotionPanel(t);
 }
 // Server-side GitHub calls time out after 10s connect + 20s read; never wait forever here.
 const PREFLIGHT_TIMEOUT_MS=45000;
@@ -658,14 +668,17 @@ function renderPromotionPanel(t,d){
         '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
         '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="ready_manual"?' (cancels approval)':'')+'</button>'+
         (a.status==="draft"?'<button type="button" class="primary promo-approve-manual">Approve this exact text for manual publication</button>':'')+
-        '<button type="button" class="promo-copy">Copy text</button></div>'+
+        (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+
+        (a.status!=="incomplete"?'<button type="button" class="promo-copy">Copy text</button>':'')+'</div>'+
+        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+
         '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p></section>');
       continue;
     }
-    if(["draft","approved","failed"].includes(a.status)){
+    if(["draft","approved","failed","incomplete"].includes(a.status)){
       parts.push('<label class="field-label">Title<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
         '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
-        '<button type="button" class="promo-save">Save edits'+(a.status==="approved"?' (cancels approval)':'')+'</button>');
+        '<button type="button" class="promo-save">Save edits'+(a.status==="approved"?' (cancels approval)':'')+'</button>'+
+        (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':''));
     }else{
       parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>');
     }
@@ -693,7 +706,14 @@ function renderPromotionPanel(t,d){
     const call=(verb,data,timeoutMs)=>postJSON("/api/promotion/tasks/"+t.id+"/actions/"+a.id+"/"+verb,data||{},timeoutMs);
     const on=(sel,fn)=>{const b=el.querySelector(sel);if(b)b.addEventListener("click",async()=>{b.disabled=true;try{await fn()}catch(e){msg(e.message)}finally{b.disabled=false}})};
     const edited=()=>el.querySelector(".promo-title")&&(el.querySelector(".promo-title").value!==a.title||el.querySelector(".promo-body").value!==a.body);
-    on(".promo-save",async()=>{await call("edit",{title:el.querySelector(".promo-title").value,body:el.querySelector(".promo-body").value});msg("Draft saved. Review it, then approve.");await loadPromotionPanel(t)});
+    on(".promo-save",async()=>{await call("edit",{title:el.querySelector(".promo-title").value,body:el.querySelector(".promo-body").value});msg("Draft saved. Review the quality result, then approve.");await reopen(t)});
+    on(".promo-regenerate",async()=>{
+      if(edited()&&!window.confirm("Discard your unsaved edits and regenerate this draft?"))return;
+      msg("Regenerating plan and draft with the AI model…");
+      const res=await call("regenerate",{},REGENERATE_TIMEOUT_MS);
+      msg(res.status==="draft"?"Regenerated: the new draft passed the quality checks.":"Regenerated, but still not ready: "+(res.issues||[]).join(" "));
+      await reopen(t);
+    });
     on(".promo-preflight",()=>runPreflight(a.repository,el.querySelector(".promo-check"),
       el.querySelector(".promo-category"),el.querySelector(".promo-approve"),()=>call("preflight",undefined,PREFLIGHT_TIMEOUT_MS)));
     on(".promo-approve-manual",async()=>{

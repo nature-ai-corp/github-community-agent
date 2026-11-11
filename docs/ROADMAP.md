@@ -26,10 +26,12 @@ generation, approval and publishing controls, monitoring, improvement, security
 and audit behavior. The workflow is: research → plan → draft → review and
 approve the exact text → publish (permission re-checked) → monitor → improve.
 
-New Work → Promotion offers six independently selectable Work Types on that
-one engine: GitHub Discussions (automated publishing), and Repository
-Optimization, Reddit Promotion, Developer Forums, Technical Articles and Social
-Media (draft / manual publication only).
+Release rule: no real-world verification, no released Work Type. The release
+configuration offers only **GitHub Discussions** (verified with Discussion #13).
+Repository Optimization, Reddit Promotion, Developer Forums, Technical Articles
+and Social Media exist as development code on the same engine and are excluded
+from release builds until each passes real-world acceptance
+([release gate](testing/V2_PROMOTION_RELEASE_GATE.md)).
 
 The selected repository is the promotion base, **not** permission to post
 elsewhere. V2 publishes only an approved GitHub Discussion in that repository

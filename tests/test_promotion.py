@@ -123,12 +123,25 @@ class FakeModel:
         for t in self.tokens:
             assert t not in instruction and t not in evidence, "a GitHub token reached the AI model"
         self.inputs.append(instruction + "\n" + evidence)
-        if instruction in {wt.draft_instruction for wt in pr.WORK_TYPES.values()}:
-            repo = json.loads(evidence)["evidence"]["repository"]
-            return f"TITLE: {repo} 1.0.0-rc1 is available\nBODY:\nThe first pre-release of {repo} is out."
-        if instruction == pr.PLAN_INSTRUCTION:
-            return "Audience: maintainers (Verified). Channels: GitHub Discussion (Proposed)."
+        for wt in pr.WORK_TYPES.values():
+            if instruction.startswith(wt.draft_instruction):
+                repo = json.loads(evidence)["evidence"]["repository"]
+                return f"TITLE: {repo} 1.0.0-rc1 is available\nBODY:\n" + VALID_BODY[wt.channel].format(repo=repo)
+        if instruction.startswith(pr.PLAN_INSTRUCTION):
+            return "Audience: maintainers (Verified: README). Approach: one post for this Work Type (Proposed)."
         return "Improve: post release notes earlier (targets comments)."
+
+
+# Minimal content that passes each Work Type's checks (format, labels, disclosure).
+VALID_BODY = {
+    "github_discussion": "The first pre-release of {repo} is out.",
+    "repository_optimization": "Current (verified): no topics.\nProposed: add topics.\nWhy: discoverability.",
+    "reddit": "I maintain {repo}. The first pre-release is out.",
+    "developer_forum": "I maintain {repo}. The first pre-release is out.",
+    "technical_article": "Disclosure: I maintain {repo}. The first pre-release is out.",
+    "social_media": "SHORT POST:\nI maintain {repo}: the first pre-release is out.\n"
+                    "LONG POST:\nI maintain {repo}. The first pre-release is out.",
+}
 
 
 @pytest.fixture
