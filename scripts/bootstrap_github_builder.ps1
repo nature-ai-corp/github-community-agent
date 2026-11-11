@@ -29,8 +29,26 @@ foreach ($bin in @("git", "gh")) {
 gh auth status | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI authentication is required." }
 if (Test-Path -LiteralPath $Destination) { throw "Destination already exists. Refusing to overwrite: $Destination" }
-gh repo view $TargetRepo --json nameWithOwner *> $null
-if ($LASTEXITCODE -eq 0) { throw "Target GitHub repository already exists: $TargetRepo" }
+# A missing repository is expected here. Windows PowerShell 5.1 turns gh's
+# stderr into a terminating error with ErrorActionPreference = Stop, so use
+# redirected files and inspect the process exit code and HTTP status.
+$checkOut = [System.IO.Path]::GetTempFileName()
+$checkErr = [System.IO.Path]::GetTempFileName()
+try {
+    $ghExe = (Get-Command gh).Source
+    $check = Start-Process -FilePath $ghExe -ArgumentList @("api", "repos/$TargetRepo") `
+        -Wait -PassThru -NoNewWindow -RedirectStandardOutput $checkOut -RedirectStandardError $checkErr
+    $checkError = Get-Content -LiteralPath $checkErr -Raw
+    if ($check.ExitCode -eq 0) {
+        throw "Target GitHub repository already exists: $TargetRepo"
+    }
+    if ($checkError -notmatch "(?i)HTTP 404") {
+        throw "Unable to confirm target repository is absent. gh error: $checkError"
+    }
+    Write-Host "Target repository not found (HTTP 404); proceed with guarded creation."
+} finally {
+    Remove-Item -LiteralPath $checkOut, $checkErr -Force -ErrorAction SilentlyContinue
+}
 $parent = Split-Path -Parent $Destination
 if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
 $createdLocal = $false
