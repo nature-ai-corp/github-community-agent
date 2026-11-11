@@ -106,3 +106,8 @@
 /* Archived Work: keep local history legible without building an audit dashboard. */
 .task-activity{padding-left:20px;font-size:12px;line-height:1.65}
 .task-activity li{margin:5px 0;overflow-wrap:anywhere}
+
+/* V2 Repository Optimization: before/after and README diff */
+.promo-change{border-top:1px solid var(--border,#d0d7de);padding-top:8px;margin-top:8px}
+.promo-diff{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;font-size:12px;
+  background:var(--code-bg,rgba(127,127,127,.08));padding:8px;border-radius:6px}

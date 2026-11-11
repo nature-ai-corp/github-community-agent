@@ -636,6 +636,68 @@ async function loadPromotionPanel(t){
   try{renderPromotionPanel(t,await getJSON("/api/promotion/tasks/"+t.id+"/detail"))}
   catch(e){const p=$("promo-panel");if(p)p.innerHTML='<p class="note">'+escapeHTML("Promotion details unavailable: "+e.message)+'</p>'}
 }
+// Repository Optimization: exact changes, each separately reviewed, approved, applied and verified.
+const CHANGE_LABEL={description:"Repository description",topics:"Topics",readme:"README.md (pull request)"};
+function changeValue(c,v){if(c.kind!=="topics")return v||"";try{return JSON.parse(v).join(", ")}catch(e){return v||""}}
+function renderChanges(d){
+  if(!Array.isArray(d.changes)||!d.changes.length)return "";
+  const out=['<section class="report-section"><h4>Proposed repository changes</h4><p class="note">Select what to apply: approve and apply each change separately, or skip it. Nothing changes on GitHub until you approve that exact change and then apply it. README changes go to a new branch and a pull request; the app never merges.</p>'];
+  for(const c of d.changes){
+    const editable=["proposed","incomplete","approved","failed","skipped"].includes(c.status);
+    out.push('<div class="promo-change" data-change="'+c.id+'"><h4>Change #'+c.id+' — '+escapeHTML(CHANGE_LABEL[c.kind]||c.kind)+' — '+escapeHTML(c.status)+'</h4>'+
+      '<p class="report-meta"><strong>Exact action:</strong> '+escapeHTML(c.action)+'</p>');
+    if(c.kind==="readme"){
+      out.push('<details open><summary>Changes (unified diff against the current README)</summary><pre class="promo-diff">'+escapeHTML(c.diff||"(no differences)")+'</pre></details>');
+      out.push('<details><summary>Current README (from GitHub)</summary><pre class="promo-diff">'+escapeHTML(c.before_value)+'</pre></details>');
+    }else{
+      out.push('<p class="report-meta">Before (from GitHub): <code>'+escapeHTML(changeValue(c,c.before_value)||"(empty)")+'</code></p>');
+    }
+    if(editable){
+      out.push(c.kind==="readme"?'<label class="field-label">Proposed README (Markdown)<textarea class="change-value" rows="16">'+escapeHTML(c.proposed_value)+'</textarea></label>':
+        '<label class="field-label">After'+(c.kind==="topics"?' (comma-separated)':'')+'<input class="change-value" value="'+escapeHTML(changeValue(c,c.proposed_value))+'"></label>');
+    }else{
+      out.push('<p class="report-meta">After: <code>'+escapeHTML(c.kind==="readme"?"(see diff)":changeValue(c,c.proposed_value))+'</code></p>');
+    }
+    const b=[];
+    if(editable)b.push('<button type="button" class="change-save">Save change</button>');
+    if(["proposed","incomplete","approved","failed"].includes(c.status))b.push('<button type="button" class="change-skip">Skip</button>');
+    if(c.status==="proposed")b.push('<button type="button" class="primary change-approve">Approve this exact change</button>');
+    if(c.status==="approved")b.push('<button type="button" class="primary change-apply">Apply approved change</button>');
+    if(["uncertain","applied","applying"].includes(c.status))b.push('<button type="button" class="change-verify">Verify on GitHub</button>');
+    if(b.length)out.push('<div class="form-actions">'+b.join("")+'</div>');
+    if(c.error)out.push('<p class="note"><strong>'+escapeHTML(c.error)+'</strong></p>');
+    const r=c.result||{},v=r.verification||{};
+    if(r.pr_url)out.push('<p>Pull request: <a href="'+escapeHTML(r.pr_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(r.pr_url)+'</a></p>');
+    if(v.verified_utc)out.push('<p class="note">Verified on GitHub '+escapeHTML(v.verified_utc)+': '+escapeHTML(Object.entries(v).filter(([k])=>k!=="verified_utc").map(([k,x])=>k+"="+x).join(" · "))+'</p>');
+    out.push('</div>');
+  }
+  out.push('</section>');
+  return out.join("");
+}
+function wireChanges(t,d,msg){
+  for(const c of (d.changes||[])){
+    const el=document.querySelector('[data-change="'+c.id+'"]');if(!el)continue;
+    const call=(verb,data)=>postJSON("/api/promotion/tasks/"+t.id+"/changes/"+c.id+"/"+verb,data||{},verb==="apply"||verb==="verify"?120000:undefined);
+    const field=()=>el.querySelector(".change-value");
+    const changed=()=>field()&&field().value!==changeValue(c,c.proposed_value);
+    const on=(sel,fn)=>{const btn=el.querySelector(sel);if(btn)btn.addEventListener("click",async()=>{btn.disabled=true;try{await fn()}catch(e){msg(e.message)}finally{btn.disabled=false}})};
+    on(".change-save",async()=>{await call("edit",{value:field().value});msg("Change saved; review it, then approve.");await reopen(t)});
+    on(".change-skip",async()=>{if(!window.confirm("Skip change #"+c.id+" ("+(CHANGE_LABEL[c.kind]||c.kind)+")? It will not be applied."))return;await call("skip");msg("Change skipped.");await reopen(t)});
+    on(".change-approve",async()=>{
+      if(changed()){msg("Save your edit before approving.");return}
+      if(!window.confirm("Approve this exact change?\n\nRepository: "+t.repository+"\nTarget: "+(CHANGE_LABEL[c.kind]||c.kind)+"\nAction: "+c.action+"\n\nNothing is changed until you apply it."))return;
+      await call("approve",{sha256:c.change_sha256});msg("Change approved. Apply it when ready.");await reopen(t);
+    });
+    on(".change-apply",async()=>{
+      if(!window.confirm("Apply this approved change on GitHub now?\n\nRepository: "+t.repository+"\nTarget: "+(CHANGE_LABEL[c.kind]||c.kind)+"\nAction: "+c.action))return;
+      msg("Applying and verifying on GitHub…");
+      const res=await call("apply",{sha256:c.approved_sha256});
+      msg(res.status==="applied"?"Applied and verified on GitHub"+(res.pr_url?": "+res.pr_url:"."):res.status==="uncertain"?"Outcome uncertain: use Verify on GitHub before any new attempt.":"Not applied: "+(res.error||"see the change"));
+      await reopen(t);
+    });
+    on(".change-verify",async()=>{const res=await call("verify");msg(res.status==="applied"?"Verified on GitHub.":"GitHub does not show the approved change.");await reopen(t)});
+  }
+}
 // Regeneration runs up to four model calls (plan and draft, each with one corrective retry).
 const REGENERATE_TIMEOUT_MS=600000;
 async function reopen(t){
@@ -697,6 +759,7 @@ function renderPromotionPanel(t,d){
     }
     parts.push('</section>');
   }
+  parts.push(renderChanges(d));
   const published=d.actions.some(a=>a.status==="published");
   parts.push('<section class="report-section"><h4>Improve</h4>'+(d.improvements.length?d.improvements.map(i=>'<p class="note">'+escapeHTML(i.created_utc)+'</p>'+reportLines(i.text)).join(""):'<p class="note">After publishing and refreshing engagement, ask for improvement suggestions. Suggestions never publish anything.</p>')+'<button type="button" id="promo-improve"'+(published?'':' disabled')+'>Suggest improvements</button></section><p class="note" id="promo-message" role="status"></p>');
   panel.innerHTML=parts.join("");
@@ -741,6 +804,7 @@ function renderPromotionPanel(t,d){
     on(".promo-reconcile",async()=>{const res=await call("reconcile");msg(res.status==="published"?"Found on GitHub: "+res.url:"Not found on GitHub. You may approve and publish again.");await loadPromotionPanel(t)});
     on(".promo-monitor",async()=>{await call("monitor");msg("Engagement refreshed.");await loadPromotionPanel(t)});
   }
+  wireChanges(t,d,msg);
   const imp=$("promo-improve");if(imp)imp.addEventListener("click",async()=>{imp.disabled=true;msg("Asking the AI model for improvement suggestions…");try{await postJSON("/api/promotion/tasks/"+t.id+"/improve",{});msg("Suggestions added.");await loadPromotionPanel(t)}catch(e){msg(e.message);imp.disabled=false}});
 }
 function showDetail(t){

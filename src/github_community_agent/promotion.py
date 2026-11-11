@@ -52,6 +52,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import base64
+import difflib
 import httpx
 
 from . import github_readonly as gh
@@ -417,8 +418,8 @@ REPOSITORY_OPTIMIZATION_INSTRUCTION = (
     "issue/discussion templates. " + _SHARED_RULES + " For each proposal write three labelled lines: "
     "'Current (verified):' the current state from the evidence, or 'unknown' if the evidence does not show "
     "it; 'Proposed:' the exact new text or setting; 'Why:' the reason. Flag any contradiction between the "
-    "README and the release data. These are proposals for the maintainer; nothing is changed "
-    "automatically. TITLE is a one-line summary. " + _FORMAT.format(w=600))
+    "README and the release data. These are proposals for the maintainer; nothing is changed until "
+    "the maintainer approves each exact change. TITLE is a one-line summary. " + _FORMAT.format(w=600))
 
 REDDIT_INSTRUCTION = (
     "Write ONE Reddit post that the maintainer may submit by hand, from their own account, to a subreddit "
@@ -470,6 +471,7 @@ def _budget(default: int) -> int:
 
 
 PLAN_MAX_TOKENS = 1500
+CHANGESET_MAX_TOKENS = 6000
 IMPROVE_MAX_TOKENS = 1500
 MODEL_TIMEOUT_SECONDS = 120
 MAX_PROMOTION_RESPONSE_CHARS = 30000
@@ -507,9 +509,11 @@ WORK_TYPES = {wt.definition_id: wt for wt in (
              "presentation (description, topics, README, releases, templates), applied by the maintainer by "
              "hand. Plan only these proposals; do not plan any post, announcement or GitHub Discussion.",
              REPOSITORY_OPTIMIZATION_INSTRUCTION, (
-                 "Check every proposal against the repository; apply only what is accurate.",
-                 "Apply approved changes yourself (repository settings or a pull request); this application "
-                 "never writes them."),
+                 "Check every proposed change against the repository; apply only what is accurate.",
+                 "Each change is applied only after you approve that exact change: README through a new "
+                 "branch and a pull request (never merged by the app), Description and Topics separately.",
+                 "Applying needs this repository's own token: WRITE for README, ADMIN for Description and "
+                 "Topics."),
              max_tokens=3000, body_max=5000, disclosure=False, labels=("Current (verified):", "Proposed:")),
     WorkType("promote_reddit", "Reddit Promotion", "reddit", False,
              "Selected Work Type: Reddit Promotion — ONE post the maintainer submits by hand to a subreddit "
@@ -723,6 +727,221 @@ def check_improvement(text: str, evidence: dict) -> list[str]:
     return _rule_issues(text, evidence)
 
 
+# -- Repository Optimization: owner-approved repository changes ---------------------------
+#
+# Research -> propose exact changes -> review/edit/skip -> approve each exact change ->
+# apply -> verify from GitHub. README changes are made ONLY on a new branch with a pull
+# request to the default branch (never merged, never pushed to it); Description and
+# Topics each need their own exact-action approval. Every write is one call from a fixed
+# allowlist, for the Task's own repository, after a fresh permission check and a check
+# that GitHub still has the state the proposal was based on.
+
+CHANGE_KINDS = ("description", "topics", "readme")
+README_PATH = "README.md"
+TOPIC_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,49}$")
+MAX_TOPICS = 20
+MAX_DESCRIPTION = 350
+MAX_README = 60000
+CHANGE_MARKER = "<!-- gc-agent-change:{key} -->"
+INDEPENDENCE_PHRASE = "not affiliated with, sponsored by, or endorsed by GitHub, Inc."
+
+CHANGESET_INSTRUCTION = (
+    "You prepare EXACT repository changes for the maintainer to review; nothing is applied without the "
+    "maintainer's approval of each change. " + _SHARED_RULES + " Reply with JSON ONLY, no prose, in "
+    "exactly this shape: {\"description\": \"<one line, at most 300 characters>\", \"topics\": "
+    "[\"<lowercase-hyphenated topic>\", ... at most 10], \"readme_markdown\": \"<the complete corrected "
+    "README>\"}. Base readme_markdown on 'current_readme': keep its structure, its links and every accurate "
+    "sentence; keep the independence disclaimer word for word; correct only statements that "
+    "'authoritative_facts' contradict (for example, a published release or installer) and statements that "
+    "present unreleased work as available. Topics: lowercase letters, digits and hyphens only.")
+
+
+def _change_value(kind: str, value):
+    """Normalized stored text of a change value."""
+    if kind == "topics":
+        return json.dumps(sorted(value), ensure_ascii=False)
+    return value
+
+
+def check_change(kind: str, value, before: str, evidence: dict) -> list[str]:
+    """Validation of one proposed change (generated or edited)."""
+    issues = []
+    if kind == "description":
+        if not isinstance(value, str) or not value.strip():
+            return ["Description is empty."]
+        if "\n" in value or len(value) > MAX_DESCRIPTION:
+            issues.append(f"Description must be one line of at most {MAX_DESCRIPTION} characters.")
+        issues += _rule_issues(value, evidence)
+    elif kind == "topics":
+        if not isinstance(value, list) or not value:
+            return ["Topics must be a non-empty list."]
+        bad = [t for t in value if not isinstance(t, str) or not TOPIC_PATTERN.fullmatch(t)]
+        if bad:
+            issues.append("Invalid topic names (lowercase letters, digits and hyphens, max 50): "
+                          + ", ".join(str(b) for b in bad[:5]))
+        if len(value) > MAX_TOPICS or len(set(value)) != len(value):
+            issues.append(f"Topics must be unique and at most {MAX_TOPICS}.")
+    elif kind == "readme":
+        if not isinstance(value, str) or not value.strip():
+            return ["README is empty."]
+        if len(value) > MAX_README:
+            issues.append(f"README is longer than {MAX_README} characters.")
+        if value.count("```") % 2:
+            issues.append("README has an unclosed code block (looks incomplete).")
+        if INDEPENDENCE_PHRASE in before and INDEPENDENCE_PHRASE not in " ".join(value.split()):
+            issues.append("README lost the independence disclaimer.")
+        if before and len(value) < 0.6 * len(before):
+            issues.append("README lost more than 40% of the current content.")
+        issues += _rule_issues(value, evidence)
+    else:
+        issues.append("Unknown change kind.")
+    return issues
+
+
+def parse_changeset(text: str) -> dict:
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`").split("\n", 1)[1] if "\n" in raw else raw
+        raw = raw.rsplit("```", 1)[0]
+    start, end = raw.find("{"), raw.rfind("}")
+    try:
+        data = json.loads(raw[start:end + 1]) if start >= 0 else None
+    except ValueError:
+        data = None
+    if not isinstance(data, dict) or not {"description", "topics", "readme_markdown"} <= set(data):
+        raise ToolError("The AI model did not return the change set in the expected JSON format.")
+    return {"description": data["description"], "topics": data["topics"], "readme": data["readme_markdown"]}
+
+
+def change_action(change: dict) -> str:
+    """The exact operation an approval authorizes, shown to the owner."""
+    repo, kind = change["repository"], change["kind"]
+    if kind == "readme":
+        return (f"Create branch {change['branch']} from {change['base_branch']} in {repo}, commit the approved "
+                f"{README_PATH} there, and open a pull request into {change['base_branch']}. Nothing is merged "
+                f"and {change['base_branch']} is not changed.")
+    if kind == "description":
+        return f"Set the repository description of {repo} to the approved text."
+    return f"Replace the repository topics of {repo} with the approved list."
+
+
+def change_sha256(change: dict) -> str:
+    return _sha([change["repository"], change["kind"], change.get("base_branch") or "", change.get("before_sha") or "",
+                 change["before_value"], change["proposed_value"], change_action(change)])
+
+
+_REST_ROUTES = {  # (method, name) -> path template; the ONLY REST calls this module makes
+    ("GET", "repo"): "/repos/{repo}",
+    ("PATCH", "repo"): "/repos/{repo}",
+    ("PUT", "topics"): "/repos/{repo}/topics",
+    ("GET", "readme"): "/repos/{repo}/contents/" + README_PATH,
+    ("PUT", "readme"): "/repos/{repo}/contents/" + README_PATH,
+    ("GET", "ref"): "/repos/{repo}/git/ref/heads/{ref}",
+    ("POST", "refs"): "/repos/{repo}/git/refs",
+    ("POST", "pulls"): "/repos/{repo}/pulls",
+    ("GET", "pulls"): "/repos/{repo}/pulls",
+    ("GET", "pull"): "/repos/{repo}/pulls/{number}",
+}
+
+
+def _rest(method: str, name: str, repository: str, token: str | None = None, *, ref: str = "",
+          number: int = 0, params: dict | None = None, body: dict | None = None) -> tuple[int, object]:
+    """One allowlisted REST call for this Task's repository. Writes are sent exactly once."""
+    template = _REST_ROUTES.get((method, name))
+    if template is None:
+        raise ToolError("Only the fixed repository-change GitHub requests can be sent.")
+    path = template.format(repo=_repo(repository), ref=quote(ref, safe="/-_."), number=int(number))
+    write = method != "GET"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "GitHubCommunityAgent-Promotion",
+               "X-GitHub-Api-Version": "2022-11-28"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        timeout = httpx.Timeout(connect=10, read=20, write=10, pool=10)
+        with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False,
+                          transport=gh._transport) as client:
+            with client.stream(method, gh.API_HOST + path, params=params, json=body, headers=headers) as resp:
+                content = b""
+                for chunk in resp.iter_bytes():
+                    content += chunk
+                    if len(content) > gh.MAX_BYTES:
+                        raise ToolError("The GitHub response exceeded the allowed size.")
+                status, rheaders = resp.status_code, resp.headers
+    except httpx.ConnectError as exc:
+        raise ToolError("GitHub connection failed; nothing was sent.") from exc
+    except (httpx.HTTPError, ToolError) as exc:
+        if write:
+            raise PublishUncertain("GitHub did not confirm the change; its outcome is uncertain.") from exc
+        if isinstance(exc, ToolError):
+            raise
+        raise ToolError("GitHub request failed.") from exc
+    if write and status >= 500:
+        raise PublishUncertain("GitHub returned a server error; the change outcome is uncertain.")
+    scopes = rheaders.get("x-oauth-scopes") if token else None
+    if scopes is not None:
+        extra = sorted({s.strip() for s in scopes.split(",") if s.strip()} - ALLOWED_CLASSIC_SCOPES)
+        if extra:
+            raise ToolError("The GitHub token for this repository has more access than promotion needs "
+                            "(scopes: " + ", ".join(extra) + ").")
+    if status in (401, 403, 429):
+        gh._check_status(status, rheaders, "repository")
+    try:
+        data = gh._json(content) if content else None
+    except ToolError:
+        data = None
+    return status, data
+
+
+def _read_readme(repository: str, ref: str, token: str | None = None) -> tuple[str, str]:
+    status, data = _rest("GET", "readme", repository, token, params={"ref": ref})
+    if status != 200 or not isinstance(data, dict) or data.get("encoding") != "base64":
+        raise ToolError(f"Could not read {README_PATH} on {ref}.")
+    try:
+        text = base64.b64decode(data.get("content") or "").decode("utf-8")
+    except (ValueError, TypeError):
+        raise ToolError(f"{README_PATH} on {ref} is not valid UTF-8 text.") from None
+    return text, str(data.get("sha") or "")
+
+
+def current_repository_state(repository: str, token: str | None = None) -> dict:
+    """Live state the proposals and approvals are based on (public reads)."""
+    status, meta = _rest("GET", "repo", repository, token)
+    if status != 200 or not isinstance(meta, dict):
+        raise ToolError("GitHub repository not found.")
+    if meta.get("private") is not False:
+        raise ToolError("Repository changes are supported only for public repositories.")
+    base = meta.get("default_branch") if isinstance(meta.get("default_branch"), str) else "main"
+    readme, sha = _read_readme(repository, base, token)
+    topics = sorted(t for t in (meta.get("topics") or []) if isinstance(t, str))
+    return {"default_branch": base, "description": meta.get("description") or "", "topics": topics,
+            "readme": readme, "readme_sha": sha}
+
+
+def check_change_permission(repository: str, token: str, kind: str) -> dict:
+    """README needs WRITE/MAINTAIN/ADMIN (branch + pull request); Description and Topics need ADMIN."""
+    repo = _repo(repository)
+    owner, name = repo.split("/")
+    data = _graphql(PERMISSION_QUERY, {"owner": owner, "name": name}, token)
+    node = data.get("repository")
+    if not isinstance(node, dict) or node.get("nameWithOwner", "").lower() != repo.lower():
+        raise ToolError("GitHub repository not found for this token.")
+    permission = node.get("viewerPermission") if isinstance(node.get("viewerPermission"), str) else ""
+    needed = WRITE_PERMISSIONS if kind == "readme" else frozenset({"ADMIN"})
+    reasons = []
+    if node.get("isPrivate") is not False:
+        reasons.append("The repository is not public.")
+    if permission not in needed:
+        reasons.append(f"The token's user has {permission or 'no'} permission; "
+                       + ("WRITE, MAINTAIN or ADMIN" if kind == "readme" else "ADMIN") + " is required.")
+    return {"permission": permission, "can_apply": not reasons, "reasons": reasons}
+
+
+def readme_diff(before: str, after: str) -> str:
+    lines = difflib.unified_diff(before.splitlines(), after.splitlines(), f"{README_PATH} (current)",
+                                 f"{README_PATH} (proposed)", lineterm="", n=2)
+    return "\n".join(list(lines)[:600])
+
+
 # -- durable store (same SQLite file as the V1 work journal; separate tables) ---------------
 
 
@@ -744,6 +963,13 @@ class PromotionStore:
             con.execute("""CREATE TABLE IF NOT EXISTS promotion_improvements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
                 created_utc TEXT NOT NULL, text TEXT NOT NULL)""")
+            # Repository Optimization: one row per exact proposed repository change.
+            con.execute("""CREATE TABLE IF NOT EXISTS promotion_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, repository TEXT NOT NULL,
+                kind TEXT NOT NULL, base_branch TEXT, before_value TEXT NOT NULL, before_sha TEXT,
+                proposed_value TEXT NOT NULL, status TEXT NOT NULL, approved_sha256 TEXT,
+                idempotency_key TEXT, result_json TEXT, error TEXT, created_utc TEXT NOT NULL,
+                updated_utc TEXT NOT NULL)""")
             # Append-only audit: internal event names only, never tokens or content.
             con.execute("""CREATE TABLE IF NOT EXISTS promotion_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
@@ -768,6 +994,47 @@ class PromotionStore:
             action_id = int(row.lastrowid)
             self._event(con, task_id, action_id, "draft_created" if status == "draft" else "draft_incomplete")
             return action_id
+
+    def add_change(self, task_id, repository, kind, base_branch, before_value, before_sha, proposed,
+                   status, error=None) -> int:
+        now = _utc()
+        with self._connect() as con:
+            row = con.execute(
+                "INSERT INTO promotion_changes(task_id,repository,kind,base_branch,before_value,before_sha,"
+                "proposed_value,status,error,created_utc,updated_utc) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (task_id, repository, kind, base_branch, before_value, before_sha, proposed, status, error, now, now))
+            change_id = int(row.lastrowid)
+            self._event(con, task_id, None, f"change#{change_id}:{kind}:{status}")
+            return change_id
+
+    def get_change(self, change_id: int) -> dict | None:
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute("SELECT * FROM promotion_changes WHERE id=?", (change_id,)).fetchone()
+        if not row:
+            return None
+        change = dict(row)
+        change["result"] = json.loads(change.pop("result_json")) if change["result_json"] else None
+        return change
+
+    def changes_for(self, task_id: int) -> list[dict]:
+        with self._connect() as con:
+            ids = [r[0] for r in con.execute("SELECT id FROM promotion_changes WHERE task_id=? ORDER BY id",
+                                             (task_id,))]
+        return [self.get_change(i) for i in ids]
+
+    def change_transition(self, change_id, task_id, allowed: tuple, event: str, **fields) -> bool:
+        if "result" in fields:
+            fields["result_json"] = json.dumps(fields.pop("result"), ensure_ascii=False)
+        sets = ", ".join(f"{k}=?" for k in fields) + (", " if fields else "") + "updated_utc=?"
+        marks = ",".join("?" for _ in allowed)
+        with self._connect() as con:
+            row = con.execute(
+                f"UPDATE promotion_changes SET {sets} WHERE id=? AND task_id=? AND status IN ({marks})",
+                (*fields.values(), _utc(), change_id, task_id, *allowed))
+            if row.rowcount == 1:
+                self._event(con, task_id, None, f"change#{change_id}:{event}")
+            return row.rowcount == 1
 
     def get(self, action_id: int) -> dict | None:
         with self._connect() as con:
@@ -933,6 +1200,8 @@ class PromotionService:
             evidence = research(repository)
             g = self._plan_and_draft(model, work_type, evidence)
             plan, quality = g["plan"], g["quality"]
+            if work_type.channel == "repository_optimization":
+                quality["change_issues"] = self._propose_changes(task_id, repository, model, evidence, g["facts"])
             issues = quality["plan_issues"] + quality["draft_issues"]
             self.store.add_draft(task_id, repository, g["title"], g["body"], work_type.channel,
                                  status="draft" if not issues else "incomplete",
@@ -986,7 +1255,10 @@ class PromotionService:
         return {"task_id": task_id, "repository": task["repository"], "work_type": work_type.label,
                 "available": task["definition_id"] in enabled_work_types(),
                 "channel": work_type.channel, "automated_publishing": work_type.automated_publishing,
-                "checklist": list(work_type.checklist), **self.store.for_task(task_id)}
+                "checklist": list(work_type.checklist), **self.store.for_task(task_id),
+                "changes": [self._public_change({**c, "branch": f"gca/readme-t{task_id}-c{c['id']}"
+                                                 if c["kind"] == "readme" else None})
+                            for c in self.store.changes_for(task_id)]}
 
     def edit(self, task_id, action_id, title, body) -> None:
         self._bound(task_id, action_id)
@@ -999,6 +1271,229 @@ class PromotionService:
         if not self.store.edit(action_id, task_id, title, body, "draft" if not issues else "incomplete",
                                ("Not ready: " + " ".join(issues))[:300] if issues else None):
             raise ToolError("Only drafts, approved, ready, incomplete or failed actions can be edited.")
+
+    # -- Repository Optimization changes ------------------------------------------------
+
+    def _propose_changes(self, task_id, repository, model, evidence, facts) -> list[str]:
+        """Exact proposed changes based on the LIVE repository state (public reads, no token)."""
+        try:
+            state = current_repository_state(repository)
+        except ToolError as exc:
+            return [f"Could not read the current repository state: {exc}"]
+        before = {"description": state["description"], "topics": json.dumps(state["topics"]),
+                  "readme": state["readme"]}
+        parsed = {}
+
+        def check(text):
+            parsed["cs"] = parse_changeset(text)
+            return [f"{k}: {i}" for k in CHANGE_KINDS
+                    for i in check_change(k, parsed["cs"][k], before[k], evidence)]
+        lean = {k: v for k, v in evidence.items() if k != "readme_excerpt"}
+        _, issues = self._checked(model, CHANGESET_INSTRUCTION, {
+            "authoritative_facts": facts, "evidence": lean, "current_readme": state["readme"],
+            "current_description": state["description"], "current_topics": state["topics"]},
+            CHANGESET_MAX_TOKENS, check)
+        if "cs" not in parsed:
+            return issues
+        for kind in CHANGE_KINDS:
+            value = parsed["cs"][kind]
+            kind_issues = check_change(kind, value, before[kind], evidence)
+            proposed = _change_value(kind, value) if kind != "topics" or isinstance(value, list) else json.dumps(value)
+            self.store.add_change(task_id, repository, kind, state["default_branch"], before[kind],
+                                  state["readme_sha"] if kind == "readme" else None,
+                                  proposed if isinstance(proposed, str) else json.dumps(proposed),
+                                  "proposed" if not kind_issues else "incomplete",
+                                  ("Not ready: " + " ".join(kind_issues))[:300] if kind_issues else None)
+        return issues
+
+    def _change(self, task_id, change_id) -> dict:
+        task = self.journal.get(task_id)
+        change = self.store.get_change(change_id)
+        if (not task or task["deleted_utc"] is not None or task["definition_id"] != "promote_repository_optimization"
+                or not change or change["task_id"] != task_id or change["repository"] != task["repository"]):
+            raise ToolError("Repository change not found for this Task.")
+        _require_enabled(task["definition_id"])
+        change["branch"] = f"gca/readme-t{task_id}-c{change_id}" if change["kind"] == "readme" else None
+        return change
+
+    def _public_change(self, change: dict) -> dict:
+        out = {k: change[k] for k in ("id", "kind", "status", "base_branch", "before_value", "proposed_value",
+                                      "approved_sha256", "result", "error", "branch")}
+        out["action"] = change_action(change)
+        out["change_sha256"] = change_sha256(change)
+        if change["kind"] == "readme":
+            out["diff"] = readme_diff(change["before_value"], change["proposed_value"])
+        return out
+
+    def edit_change(self, task_id, change_id, value) -> None:
+        change = self._change(task_id, change_id)
+        kind = change["kind"]
+        if kind == "topics" and isinstance(value, str):
+            value = [t.strip() for t in value.split(",") if t.strip()]
+        if kind != "topics" and isinstance(value, str):
+            value = value.strip() if kind == "description" else value
+        issues = check_change(kind, value, change["before_value"], self._evidence(task_id))
+        stored = json.dumps(sorted(value)) if kind == "topics" and isinstance(value, list) else value
+        if not isinstance(stored, str):
+            raise ToolError("Invalid change value.")
+        if not self.store.change_transition(change_id, task_id, ("proposed", "incomplete", "approved", "failed",
+                                                                 "skipped"), "edited", proposed_value=stored,
+                                            status="proposed" if not issues else "incomplete",
+                                            approved_sha256=None,
+                                            error=("Not ready: " + " ".join(issues))[:300] if issues else None):
+            raise ToolError("This change can no longer be edited.")
+
+    def skip_change(self, task_id, change_id) -> None:
+        self._change(task_id, change_id)
+        if not self.store.change_transition(change_id, task_id, ("proposed", "incomplete", "approved", "failed"),
+                                            "skipped", status="skipped", approved_sha256=None):
+            raise ToolError("This change cannot be skipped in its current state.")
+
+    def approve_change(self, task_id, change_id, sha) -> str:
+        """Approve ONE exact change: repository, target, before state, new value and action."""
+        change = self._change(task_id, change_id)
+        if change["status"] != "proposed":
+            raise ToolError("Only a proposed, valid change can be approved.")
+        issues = check_change(change["kind"], json.loads(change["proposed_value"]) if change["kind"] == "topics"
+                              else change["proposed_value"], change["before_value"], self._evidence(task_id))
+        if issues:
+            raise ToolError("Not ready: " + " ".join(issues))
+        expected = change_sha256(change)
+        if sha != expected:
+            raise ToolError("The approved change does not match the current proposal; review it again.")
+        if not self.store.change_transition(change_id, task_id, ("proposed",), "approved",
+                                            status="approved", approved_sha256=expected, error=None):
+            raise ToolError("This change cannot be approved in its current state.")
+        return expected
+
+    def apply_change(self, task_id, change_id, sha) -> dict:
+        """Apply exactly the approved change once, then verify it from GitHub. Never merges."""
+        change = self._change(task_id, change_id)
+        repo, kind = change["repository"], change["kind"]
+        if change["status"] != "approved":
+            raise ToolError("Only an approved change can be applied.")
+        expected = change_sha256(change)
+        if sha != expected or change["approved_sha256"] != expected:
+            raise ToolError("Refused: this is not the approved change.")
+        token = self._token(repo)
+        perm = check_change_permission(repo, token, kind)
+        if not perm["can_apply"]:
+            raise ToolError("Refused: " + " ".join(perm["reasons"]))
+        state = current_repository_state(repo, token)
+        current = {"description": state["description"], "topics": json.dumps(state["topics"]),
+                   "readme": state["readme"]}[kind]
+        if (current != change["before_value"] or state["default_branch"] != change["base_branch"]
+                or (kind == "readme" and state["readme_sha"] != change["before_sha"])):
+            self.store.change_transition(change_id, task_id, ("approved",), "stale", status="failed",
+                                         error="GitHub changed since this proposal; nothing was applied. "
+                                               "Edit or run a new Task.")
+            return {"status": "failed", "error": "GitHub changed since this proposal; nothing was applied."}
+        key = uuid.uuid4().hex
+        if not self.store.change_transition(change_id, task_id, ("approved",), "applying",
+                                            status="applying", idempotency_key=key):
+            raise ToolError("This change is already being applied.")
+        try:
+            result = self._write_change(change, token, key)
+        except PublishUncertain:
+            self.store.change_transition(change_id, task_id, ("applying",), "uncertain", status="uncertain",
+                                         error="Outcome uncertain; use Verify before any new attempt.")
+            return {"status": "uncertain"}
+        except ToolError as exc:
+            self.store.change_transition(change_id, task_id, ("applying",), "failed", status="failed",
+                                         error=str(exc)[:300])
+            return {"status": "failed", "error": str(exc)[:300]}
+        self.store.change_transition(change_id, task_id, ("applying",), "written", result=result)
+        return self.verify_change(task_id, change_id)
+
+    def _write_change(self, change: dict, token: str, key: str) -> dict:
+        repo, kind = change["repository"], change["kind"]
+        if kind == "description":
+            status, _ = _rest("PATCH", "repo", repo, token, body={"description": change["proposed_value"]})
+            if status != 200:
+                raise ToolError(f"GitHub refused the description change (HTTP {status}).")
+            return {"operation": "PATCH /repos/" + repo}
+        if kind == "topics":
+            status, _ = _rest("PUT", "topics", repo, token, body={"names": json.loads(change["proposed_value"])})
+            if status != 200:
+                raise ToolError(f"GitHub refused the topics change (HTTP {status}).")
+            return {"operation": f"PUT /repos/{repo}/topics"}
+        base, branch = change["base_branch"], change["branch"]
+        status, ref = _rest("GET", "ref", repo, token, ref=base)
+        commit = ((ref or {}).get("object") or {}).get("sha") if isinstance(ref, dict) else None
+        if status != 200 or not isinstance(commit, str):
+            raise ToolError(f"Could not read branch {base}.")
+        status, _ = _rest("POST", "refs", repo, token, body={"ref": f"refs/heads/{branch}", "sha": commit})
+        if status == 422:
+            raise PublishUncertain(f"Branch {branch} already exists; verify before any new attempt.")
+        if status != 201:
+            raise ToolError(f"GitHub refused to create branch {branch} (HTTP {status}).")
+        content = base64.b64encode(change["proposed_value"].encode("utf-8")).decode("ascii")
+        status, _ = _rest("PUT", "readme", repo, token, body={
+            "message": f"Update {README_PATH} (GitHub Community Agent approved change #{change['id']})",
+            "content": content, "sha": change["before_sha"], "branch": branch})
+        if status not in (200, 201):
+            raise ToolError(f"GitHub refused the {README_PATH} commit (HTTP {status}).")
+        status, pr = _rest("POST", "pulls", repo, token, body={
+            "title": f"Update {README_PATH} (approved Repository Optimization change)", "head": branch,
+            "base": base, "maintainer_can_modify": True,
+            "body": (f"Owner-approved change #{change['id']} from GitHub Community Agent Repository "
+                     f"Optimization. Review before merging; this pull request is never merged by the app.\n\n"
+                     + CHANGE_MARKER.format(key=key))})
+        if status != 201 or not isinstance(pr, dict) or type(pr.get("number")) is not int:
+            raise PublishUncertain("GitHub did not confirm the pull request; verify before any new attempt.")
+        return {"operation": "branch + commit + pull request", "branch": branch, "base_branch_commit": commit,
+                "pr_number": pr["number"], "pr_url": f"{gh.html_root(repo)}/pull/{pr['number']}"}
+
+    def verify_change(self, task_id, change_id) -> dict:
+        """Read the actual GitHub state and record whether it matches the approved change."""
+        change = self._change(task_id, change_id)
+        if change["status"] not in ("applying", "uncertain", "applied"):
+            raise ToolError("Only an applied or uncertain change can be verified.")
+        repo, kind = change["repository"], change["kind"]
+        token = self._token(repo)
+        result = dict(change["result"] or {})
+        ok, facts = False, {}
+        if kind in ("description", "topics"):
+            status, meta = _rest("GET", "repo", repo, token)
+            if status != 200 or not isinstance(meta, dict):
+                raise ToolError("Could not read the repository to verify the change.")
+            actual = (meta.get("description") or "") if kind == "description" else json.dumps(
+                sorted(t for t in (meta.get("topics") or []) if isinstance(t, str)))
+            ok = actual == change["proposed_value"]
+            facts = {"github_value": actual, "matches_approved": ok}
+        else:
+            owner = repo.split("/")[0]
+            number = result.get("pr_number")
+            if type(number) is not int:
+                status, pulls = _rest("GET", "pulls", repo, token,
+                                      params={"head": f"{owner}:{change['branch']}", "state": "all"})
+                found = [x for x in (pulls or []) if isinstance(x, dict) and type(x.get("number")) is int]                     if status == 200 and isinstance(pulls, list) else []
+                number = found[0]["number"] if found else None
+            if number is not None:
+                status, pr = _rest("GET", "pull", repo, token, number=number)
+                pr = pr if status == 200 and isinstance(pr, dict) else {}
+                branch_text, _ = _read_readme(repo, change["branch"], token)
+                _, base_sha = _read_readme(repo, change["base_branch"], token)
+                facts = {"pr_number": number, "pr_url": f"{gh.html_root(repo)}/pull/{number}",
+                         "pr_state": pr.get("state"), "merged": pr.get("merged") is True,
+                         "head": (pr.get("head") or {}).get("ref"), "base": (pr.get("base") or {}).get("ref"),
+                         "branch_readme_matches_approved": branch_text == change["proposed_value"],
+                         "base_branch_readme_unchanged": base_sha == change["before_sha"]}
+                ok = (facts["head"] == change["branch"] and facts["base"] == change["base_branch"]
+                      and facts["branch_readme_matches_approved"] and facts["pr_state"] in ("open", "closed"))
+                result.update({"pr_number": number, "pr_url": facts["pr_url"], "branch": change["branch"]})
+            else:
+                facts = {"pull_request_found": False}
+        result["verification"] = {**facts, "verified_utc": _utc()}
+        allowed = ("applying", "uncertain", "applied")
+        if ok:
+            self.store.change_transition(change_id, task_id, allowed, "verified", status="applied",
+                                         result=result, error=None)
+            return {"status": "applied", "verification": result["verification"],
+                    **({"pr_url": result["pr_url"]} if "pr_url" in result else {})}
+        self.store.change_transition(change_id, task_id, allowed, "verification_failed", status="failed",
+                                     result=result, error="GitHub does not show the approved change.")
+        return {"status": "failed", "verification": result["verification"]}
 
     def _work_type(self, task_id) -> WorkType:
         return WORK_TYPES[self.journal.get(task_id)["definition_id"]]

@@ -36,7 +36,7 @@ viewable, read-only.
 | Work Type | Task definition | Expected result | Publishing |
 |---|---|---|---|
 | GitHub Discussions (**released: VERIFIED**) | `promote_repository` | Announcement Discussion in the target repository, then engagement metrics | **Automated**, after exact approval and a fresh permission check |
-| Repository Optimization (development: NOT VERIFIED) | `promote_repository_optimization` | Proposed description, topics, README, release and template changes | **Proposals only**; the app never writes to the repository |
+| Repository Optimization (development: NOT VERIFIED) | `promote_repository_optimization` | Exact proposed changes with live before/after: Description, Topics, README (diff) | **Owner-approved apply, per change**: README only via a new branch + pull request into the default branch (never merged, never pushed to it); Description and Topics each by separate exact-action approval (ADMIN); every result read back from GitHub |
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
@@ -159,3 +159,25 @@ the rules are not stored.
   isolated V2 test environment published
   `https://github.com/nature-ai-corp/github-community-agent/discussions/13`
   on 2026-11-11, and monitoring and improvement ran on it.
+
+## Repository Optimization workflow (development, NOT VERIFIED)
+
+Research → Propose Changes → Review → Approve → Apply → Verify, in the same engine:
+
+1. **Propose**: the live repository state is read (public reads, no token): description,
+   topics, default branch, full README and its blob SHA. The model proposes exact values;
+   each becomes one change item (`promotion_changes`), validated (topic names, one-line
+   description, README keeps the independence disclaimer and at least 60% of its content,
+   no stale release claims). Invalid items are `incomplete`.
+2. **Review**: before/after for each item, a unified diff for README; edit (re-checked,
+   cancels approval) or skip.
+3. **Approve**: one item at a time; the fingerprint covers repository, kind, default
+   branch, before state (and README SHA), new value and the exact action text.
+4. **Apply**: only the approved item, once: fresh permission check (WRITE for README,
+   ADMIN for Description/Topics), then a check that GitHub still has the "before" state
+   (otherwise nothing is written). Fixed REST allowlist (`_REST_ROUTES`), no merge or
+   delete endpoint. README: create `gca/readme-t<task>-c<change>` from the default branch →
+   commit `README.md` there → open a pull request. Lost responses are `uncertain`.
+5. **Verify**: read GitHub back — PR open from that branch into the default branch, the
+   branch's README equals the approved text, the default branch is unchanged; or the
+   description/topics equal the approved values. PR URL, facts and events are stored.

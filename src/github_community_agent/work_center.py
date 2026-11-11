@@ -418,7 +418,16 @@ class WorkService:
             self.journal.finish(task_id, "failed", error="Execution failed; inspect application settings.")
 
 
-MAX_PROMOTION_REQUEST_BYTES = 40000  # an edited announcement (V2 promotion routes only)
+MAX_PROMOTION_REQUEST_BYTES = 200000  # an edited announcement or README (V2 promotion routes only)
+
+
+def _change_route(path: str):
+    """Parse /api/promotion/tasks/<id>/changes/<cid>/<verb>; None otherwise."""
+    parts = path.strip("/").split("/")
+    if (len(parts) == 7 and parts[:3] == ["api", "promotion", "tasks"] and parts[3].isdigit()
+            and parts[4] == "changes" and parts[5].isdigit()):
+        return int(parts[3]), int(parts[5]), parts[6]
+    return None
 
 
 def _promotion_route(path: str):
@@ -538,6 +547,23 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, promotion_credentials.update(
                         payload.get("repository"), payload.get("token") or "",
                         payload.get("remove_token") is True))
+                change = _change_route(path)
+                if change:
+                    task_id, change_id, verb = change
+                    if verb == "edit":
+                        promo.edit_change(task_id, change_id, payload.get("value"))
+                        return self._send(200, {"ok": True})
+                    if verb == "skip":
+                        promo.skip_change(task_id, change_id)
+                        return self._send(200, {"ok": True})
+                    if verb == "approve":
+                        return self._send(200, {"ok": True, "approved_sha256":
+                                                promo.approve_change(task_id, change_id, payload.get("sha256"))})
+                    if verb == "apply":
+                        return self._send(200, promo.apply_change(task_id, change_id, payload.get("sha256")))
+                    if verb == "verify":
+                        return self._send(200, promo.verify_change(task_id, change_id))
+                    return self._send(404, {"error": "Not found."})
                 route = _promotion_route(path)
                 if not route:
                     return self._send(404, {"error": "Not found."})
