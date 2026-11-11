@@ -58,6 +58,7 @@ import base64
 import difflib
 import httpx
 
+from . import bluesky as bs
 from . import github_readonly as gh
 from .encrypted_settings import SettingsError
 from .errors import ToolError
@@ -479,6 +480,7 @@ IMPROVE_MAX_TOKENS = 1500
 MODEL_TIMEOUT_SECONDS = 120
 MAX_PROMOTION_RESPONSE_CHARS = 30000
 MAX_REGENERATIONS = 5
+RECONCILE_WAIT_SECONDS = 60  # Bluesky: never conclude 'not created' right after an uncertain write
 
 
 @dataclass(frozen=True)
@@ -580,6 +582,16 @@ def development_mode() -> bool:
 
 def enabled_work_types() -> frozenset:
     return frozenset(WORK_TYPES) if development_mode() else RELEASE_VERIFIED_WORK_TYPES
+
+
+# Social Media is ONE Work Type; each platform is added and verified individually.
+# A packaged build exposes only platforms with real-world acceptance (none yet).
+SOCIAL_PLATFORMS = frozenset({"bluesky"})
+RELEASE_VERIFIED_SOCIAL_PLATFORMS: frozenset = frozenset()
+
+
+def enabled_social_platforms() -> frozenset:
+    return SOCIAL_PLATFORMS if development_mode() else RELEASE_VERIFIED_SOCIAL_PLATFORMS
 
 
 class ChangeRefused(ToolError):
@@ -1082,8 +1094,11 @@ class PromotionStore:
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
                 action_id INTEGER, event TEXT NOT NULL, happened_utc TEXT NOT NULL)""")
             # Additive migration (existing rows untouched): last independent publication check.
-            if "verification_json" not in {r[1] for r in con.execute("PRAGMA table_info(promotion_actions)")}:
+            columns = {r[1] for r in con.execute("PRAGMA table_info(promotion_actions)")}
+            if "verification_json" not in columns:
                 con.execute("ALTER TABLE promotion_actions ADD COLUMN verification_json TEXT")
+            if "published_cid" not in columns:  # Bluesky record CID
+                con.execute("ALTER TABLE promotion_actions ADD COLUMN published_cid TEXT")
 
     def _connect(self):
         return sqlite3.connect(self.db, timeout=15)
@@ -1168,7 +1183,8 @@ class PromotionStore:
 
     def edit(self, action_id, task_id, title, body, status="draft", error=None) -> bool:
         # Any edit invalidates a previous approval; content is re-checked by the caller.
-        return self._transition(action_id, task_id, ("draft", "approved", "failed", "ready_manual", "incomplete"),
+        return self._transition(action_id, task_id, ("draft", "approved", "failed", "ready_manual", "incomplete",
+                                                     "bluesky_approved", "bluesky_failed"),
                                 "draft_edited", title=title, body=body, status=status, approved_sha256=None,
                                 category=None, error=error)
 
@@ -1259,8 +1275,11 @@ class PromotionStore:
             a["metrics"] = metrics.get(a["id"], [])
             a["draft_sha256"] = draft_sha256(a["repository"], a["title"], a["body"], a["channel"])
             if a["channel"] != CHANNEL:  # manual publication: approved destination, post ID and last check
-                a["post_id"] = (a["published_node_id"] or "").removeprefix("t3_") or None
+                a["post_id"] = ((a["published_node_id"] or "").removeprefix("t3_") or None
+                                if a["channel"] == "reddit" else None)
                 a["verification"] = json.loads(a["verification_json"]) if a.get("verification_json") else None
+            if a["channel"] == "social_media":  # Bluesky record identity (AT-URI and CID)
+                a["bluesky_uri"] = a["published_node_id"] if a["status"].startswith("bluesky_") else None
             a.pop("verification_json", None)
             a.pop("idempotency_key", None)
             a.pop("published_node_id", None)
@@ -1273,10 +1292,11 @@ class PromotionStore:
 class PromotionService:
     """research -> plan -> draft -> approve -> publish -> monitor -> improve, for ANY repository."""
 
-    def __init__(self, journal, store: PromotionStore, credentials: PromotionCredentials):
+    def __init__(self, journal, store: PromotionStore, credentials: PromotionCredentials, bluesky=None):
         self.journal = journal
         self.store = store
         self.credentials = credentials
+        self.bluesky = bluesky  # bluesky.BlueskyCredentials: its own DPAPI file, never the GitHub tokens
         self._applying: set[int] = set()
         self._applying_lock = threading.RLock()
 
@@ -1391,13 +1411,19 @@ class PromotionService:
         work_type = WORK_TYPES.get(task["definition_id"]) if task else None
         if not work_type:
             raise ToolError("Promotion Task not found.")
-        return {"task_id": task_id, "repository": task["repository"], "work_type": work_type.label,
-                "available": task["definition_id"] in enabled_work_types(),
-                "channel": work_type.channel, "automated_publishing": work_type.automated_publishing,
-                "checklist": list(work_type.checklist), **self.store.for_task(task_id),
-                "changes": [self._public_change({**c, "branch": f"gca/readme-t{task_id}-c{c['id']}"
-                                                 if c["kind"] == "readme" else None})
-                            for c in self.store.changes_for(task_id)]}
+        out = {"task_id": task_id, "repository": task["repository"], "work_type": work_type.label,
+               "available": task["definition_id"] in enabled_work_types(),
+               "channel": work_type.channel, "automated_publishing": work_type.automated_publishing,
+               "checklist": list(work_type.checklist), **self.store.for_task(task_id),
+               "changes": [self._public_change({**c, "branch": f"gca/readme-t{task_id}-c{c['id']}"
+                                                if c["kind"] == "readme" else None})
+                           for c in self.store.changes_for(task_id)]}
+        if work_type.channel == "social_media":
+            account = self.bluesky_account()
+            out["bluesky_available"], out["bluesky_account"] = account["available"], account
+            for a in out["actions"]:
+                a["bluesky"] = self._bluesky_view(task["repository"], a, account)
+        return out
 
     def edit(self, task_id, action_id, title, body) -> None:
         self._bound(task_id, action_id)
@@ -1807,6 +1833,222 @@ class PromotionService:
         url = f"{gh.html_root(repository)}/discussions/{number}"
         self.store.mark_published(action_id, task_id, url, node_id)
         return {"status": "published", "url": url}
+
+    # -- Social Media: Bluesky (development only until real-world acceptance) -----------
+    # One exact action: create ONE app.bsky.feed.post in the connected project account.
+    # Approval binds platform, account DID, collection, exact SHORT POST text and link facets.
+
+    @staticmethod
+    def _bluesky_text(body: str) -> str:
+        return (_section(body or "", "SHORT POST:", ["SHORT POST:", "LONG POST:"]) or "").strip()
+
+    def bluesky_account(self) -> dict:
+        available = self.bluesky is not None and bs.PLATFORM in enabled_social_platforms()
+        if not available:
+            return {"available": False, "connected": False}
+        try:
+            return {"available": True, **self.bluesky.public()}
+        except SettingsError:
+            return {"available": True, "connected": False, "error": "Stored Bluesky credentials cannot be read."}
+
+    def _bluesky_enabled(self) -> None:
+        if self.bluesky is None or bs.PLATFORM not in enabled_social_platforms():
+            raise ToolError("Bluesky is not available in this release: it has not passed real-world acceptance.")
+
+    def bluesky_connect(self, handle, app_password) -> dict:
+        self._bluesky_enabled()
+        return {"available": True, **self.bluesky.connect(handle, app_password)}
+
+    def bluesky_disconnect(self) -> dict:
+        self._bluesky_enabled()
+        return {"available": True, **self.bluesky.remove()}
+
+    def _bluesky_view(self, repository: str, a: dict, account: dict) -> dict:
+        text = self._bluesky_text(a["body"])
+        facets, issues = bs.link_facets(text), bs.text_issues(text)
+        did = account.get("did") if account.get("connected") else None
+        approved_did = (a["category"] or "").removeprefix("bluesky:") if a["status"].startswith("bluesky_") else None
+        return {"text": text, "graphemes": bs.grapheme_count(text), "bytes": len(text.encode("utf-8")),
+                "facets": facets, "issues": issues, "account_did": did,
+                "approval_sha256": bs.approval_sha256(repository, did, text, facets) if did and not issues else None,
+                "approved_did": approved_did or None, "uri": a.get("bluesky_uri"), "cid": a.get("published_cid"),
+                "url": a.get("published_url") if a["status"].startswith("bluesky_") else None}
+
+    def _bluesky_action(self, task_id, action_id) -> dict:
+        action = self._bound(task_id, action_id)
+        if action["channel"] != "social_media":
+            raise ToolError("Bluesky publishing is available for the Social Media Work Type only.")
+        self._bluesky_enabled()
+        return action
+
+    def _bluesky_post(self, action) -> tuple:
+        text = self._bluesky_text(action["body"])
+        issues = bs.text_issues(text)
+        if issues:
+            raise bs.BlueskyError("Not publishable on Bluesky: " + " ".join(issues), "text_limits")
+        return text, bs.link_facets(text)
+
+    def bluesky_approve(self, task_id, action_id, sha) -> dict:
+        """Approve ONE exact Bluesky action (nothing is sent)."""
+        action = self._bluesky_action(task_id, action_id)
+        try:
+            if action["status"] not in ("draft", "bluesky_failed"):
+                raise bs.BlueskyError("Only an unapproved draft, or a failed Bluesky attempt, can be approved "
+                                      "for Bluesky.", "state")
+            try:
+                self._ready_content(task_id, action)
+            except ToolError as exc:
+                raise bs.BlueskyError(str(exc), "content") from None
+            account = self.bluesky.account()
+            if not account:
+                raise bs.BlueskyError("Connect the project's Bluesky account in Settings \u2192 Promotion first.",
+                                      "no_account")
+            text, facets = self._bluesky_post(action)
+            if account["app_password"] in text:
+                raise bs.BlueskyError("The post contains a credential.", "credential")
+            expected = bs.approval_sha256(action["repository"], account["did"], text, facets)
+            if sha != expected:
+                raise bs.BlueskyError("The approval does not match the current text, links or account; review "
+                                      "it again.", "approval_mismatch")
+            if not self.store._transition(action_id, task_id, ("draft", "bluesky_failed"), "bluesky_approved",
+                                          status="bluesky_approved", category="bluesky:" + account["did"],
+                                          approved_sha256=expected, error=None, idempotency_key=None,
+                                          published_node_id=None, published_url=None, published_cid=None,
+                                          verification_json=None):
+                raise bs.BlueskyError("This draft changed meanwhile; reload it.", "state")
+        except bs.BlueskyError as exc:
+            self._action_activity(task_id, action_id, f"bluesky_approve_refused:{exc.code}", store=True)
+            raise
+        self._action_activity(task_id, action_id, "bluesky_approved")
+        return {"status": "bluesky_approved", "approved_sha256": expected, "did": account["did"],
+                "handle": account["handle"]}
+
+    def bluesky_publish(self, task_id, action_id, sha) -> dict:
+        """The one authorized write. Durable outbox first; an uncertain outcome is never retried."""
+        action = self._bluesky_action(task_id, action_id)
+        try:
+            if action["status"] != "bluesky_approved":
+                code = "duplicate" if action["status"] == "bluesky_publishing" else (
+                    "already_published" if action["status"] in ("bluesky_published", "bluesky_verified")
+                    else "not_approved")
+                raise bs.BlueskyError("Only an action approved for Bluesky can be published.", code)
+            did = (action["category"] or "").removeprefix("bluesky:")
+            text, facets = self._bluesky_post(action)
+            expected = bs.approval_sha256(action["repository"], did, text, facets)
+            if sha != expected or action["approved_sha256"] != expected:
+                raise bs.BlueskyError("Publication refused: this is not the approved action.", "approval_mismatch")
+            session = self.bluesky.session()  # fresh login; the token is kept in memory only
+            if session["did"] != did:
+                raise bs.BlueskyError("The connected Bluesky account is not the approved account; nothing was "
+                                      "sent.", "account_mismatch")
+        except bs.BlueskyError as exc:
+            self._action_activity(task_id, action_id, f"bluesky_publish_refused:{exc.code}", store=True)
+            raise
+        rkey = bs.new_rkey()
+        uri, url = bs.post_uri(did, rkey), bs.post_url(did, rkey)
+        if not self.store._transition(action_id, task_id, ("bluesky_approved",), "bluesky_publishing",
+                                      status="bluesky_publishing", idempotency_key=rkey, published_node_id=uri,
+                                      published_url=url):
+            self._action_activity(task_id, action_id, "bluesky_publish_refused:duplicate", store=True)
+            raise ToolError("This action is already being published.")
+        self._action_activity(task_id, action_id, "bluesky_publish_requested")
+        try:
+            created = bs.create_post(session, rkey, text, facets)
+        except bs.BlueskyUncertain:
+            self.store._transition(action_id, task_id, ("bluesky_publishing",), "bluesky_uncertain",
+                                   status="bluesky_uncertain",
+                                   error="Outcome uncertain; check whether it was published before any new attempt.")
+            self._action_activity(task_id, action_id, "bluesky_uncertain")
+            return {"status": "bluesky_uncertain", "uri": uri}
+        except bs.BlueskyError as exc:
+            self.store._transition(action_id, task_id, ("bluesky_publishing",), "bluesky_failed",
+                                   status="bluesky_failed", error=str(exc)[:300], idempotency_key=None,
+                                   published_node_id=None, published_url=None)
+            self._action_activity(task_id, action_id, f"bluesky_failed:{exc.code}")
+            return {"status": "bluesky_failed", "error": str(exc)[:300]}
+        self.store._transition(action_id, task_id, ("bluesky_publishing",), "bluesky_published",
+                               status="bluesky_published", published_cid=created["cid"], error=None)
+        self._action_activity(task_id, action_id, "bluesky_published")
+        return {"status": "bluesky_published", "uri": uri, "cid": created["cid"], "url": url, "verified": False}
+
+    def bluesky_reconcile(self, task_id, action_id) -> dict:
+        """Uncertain outcome: read exactly the outbox record (same DID + rkey) from the PDS."""
+        action = self._bluesky_action(task_id, action_id)
+        if action["status"] != "bluesky_uncertain" or not action["idempotency_key"]:
+            raise ToolError("Only an uncertain Bluesky publication needs this check.")
+        started = datetime.fromisoformat(action["updated_utc"])
+        if (datetime.now(timezone.utc) - started).total_seconds() < RECONCILE_WAIT_SECONDS:
+            raise ToolError(f"Wait at least {RECONCILE_WAIT_SECONDS} seconds after the attempt, then check again.")
+        did = (action["category"] or "").removeprefix("bluesky:")
+        account = self.bluesky.account()
+        if not account or account["did"] != did:
+            raise ToolError("Connect the approved Bluesky account to check this record.")
+        try:
+            record = bs.get_record(account["pds"], did, action["idempotency_key"])
+        except bs.BlueskyError as exc:
+            self._action_activity(task_id, action_id, f"bluesky_reconcile_unavailable:{exc.code}")
+            raise ToolError(f"{exc} The outcome stays uncertain.") from None
+        if record is None:
+            self.store._transition(action_id, task_id, ("bluesky_uncertain",), "bluesky_failed",
+                                   status="bluesky_failed", idempotency_key=None, published_node_id=None,
+                                   published_url=None,
+                                   error="Not created on Bluesky; approve again to make a new attempt.")
+            self._action_activity(task_id, action_id, "bluesky_reconciled_not_found")
+            return {"status": "bluesky_failed"}
+        self.store._transition(action_id, task_id, ("bluesky_uncertain",), "bluesky_published",
+                               status="bluesky_published", published_cid=record["cid"], error=None)
+        self._action_activity(task_id, action_id, "bluesky_reconciled_published")
+        return {"status": "bluesky_published", "uri": record["uri"], "cid": record["cid"],
+                "url": action["published_url"], "verified": False}
+
+    def bluesky_verify(self, task_id, action_id) -> dict:
+        """Independent read-back via the public AppView: verified only if DID, record and content match."""
+        action = self._bluesky_action(task_id, action_id)
+        if action["status"] not in ("bluesky_published", "bluesky_verified") or not action["published_node_id"]:
+            self._action_activity(task_id, action_id, "bluesky_verify_refused:not_published", store=True)
+            raise ToolError("Only a published Bluesky post can be verified.")
+        did = (action["category"] or "").removeprefix("bluesky:")
+        text = self._bluesky_text(action["body"])
+        facets = bs.link_facets(text)
+        checked = _utc()
+        try:
+            post = bs.get_public_post(action["published_node_id"])
+        except bs.BlueskyError as exc:
+            facts = {"checked_utc": checked, "outcome": "unavailable", "reason": exc.code}
+            self.store._transition(action_id, task_id, (action["status"],), "bluesky_check:unavailable",
+                                   verification_json=json.dumps(facts))
+            self._action_activity(task_id, action_id, f"bluesky_verify_unavailable:{exc.code}")
+            return {"status": action["status"], "verified": action["status"] == "bluesky_verified",
+                    "outcome": "unavailable", "reason": str(exc)}
+
+        def canon(value):
+            return json.dumps(value or [], sort_keys=True, ensure_ascii=False)
+        checks = {"found": post is not None}
+        if post is not None:
+            record = post.get("record") if isinstance(post.get("record"), dict) else {}
+            checks.update({
+                "uri": post.get("uri") == action["published_node_id"],
+                "cid": post.get("cid") == action["published_cid"],
+                "author_did": (post.get("author") or {}).get("did") == did,
+                "collection": record.get("$type") == bs.COLLECTION,
+                "text": record.get("text") == text,
+                "facets": canon(record.get("facets")) == canon(facets)})
+        verified = all(checks.values())
+        outcome = "verified" if verified else ("not_found" if post is None else "mismatch")
+        facts = {"checked_utc": checked, "outcome": outcome, "checks": checks}
+        if post is not None:
+            for k in ("likeCount", "replyCount", "repostCount", "quoteCount"):
+                if type(post.get(k)) is int:
+                    facts[k] = post[k]
+            if isinstance(post.get("indexedAt"), str):
+                facts["indexed_at"] = post["indexedAt"][:40]
+        status = "bluesky_verified" if verified else "bluesky_published"
+        self.store._transition(action_id, task_id, ("bluesky_published", "bluesky_verified"),
+                               f"bluesky_check:{outcome}", status=status, verification_json=json.dumps(facts))
+        self._action_activity(task_id, action_id,
+                              "bluesky_verified" if verified else f"bluesky_verify_failed:{outcome}")
+        return {"status": status, "verified": verified, "outcome": outcome, "checks": checks,
+                "checked_utc": checked}
 
     # -- Record Manual Publication (Reddit) --------------------------------------------
     # Separate from approval: approval fixes the exact text and subreddit BEFORE posting;

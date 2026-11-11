@@ -40,14 +40,19 @@ viewable, read-only.
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
-| Social Media (development: NOT VERIFIED) | `promote_social_media` | A short (max 280 characters) and a longer post | **Draft / manual publication only** |
+| Social Media (development: NOT VERIFIED) | `promote_social_media` | A short (max 280 characters) and a longer post | Draft; **Bluesky** publisher in development (exact approval, Agent publishes, public read-back) |
 
 Only GitHub Discussions has a real publisher. The other five have **no**
 integration with Reddit, forums, blogs or social networks, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read
 the community's rules, keep the affiliation disclosure, post once, never as an
-answer to someone else's question). Reddit Promotion additionally approves the
+answer to someone else's question). Social Media has its first platform publisher,
+**Bluesky** (development only): the SHORT POST is approved as one exact action
+(account DID, text, link facets), published with one `createRecord` from the
+connected project account (app password, own DPAPI file) and verified through the
+public AppView. Platforms are released one by one after real-world acceptance.
+Reddit Promotion additionally approves the
 target subreddit with the text and, after you post by hand, can **record the
 post URL** (validated against the approved subreddit; status
 `published_user_confirmed`) and **check it on Reddit** with one public read

@@ -369,3 +369,90 @@ def test_reddit_draft_asks_for_the_subreddit_before_approval():
     block = HTML[HTML.index("if(manual){"):HTML.index("continue;", HTML.index("if(manual){"))]
     assert 'class="promo-subreddit"' in block and 'a.channel==="reddit"' in block
     assert "promo-publish" not in block and "promo-preflight" not in block
+
+
+# -- Social Media -> Bluesky ----------------------------------------------------------------
+
+BSKY_JS = (HTML[HTML.index("const ACTION_EVENTS="):HTML.index("function renderActivity(")]
+           + HTML[HTML.index("const BLUESKY_LOCKED="):HTML.index("function renderPromotionPanel(")]
+           + _function("function blueskyStatusText("))
+BSKY_D = ('{bluesky_available:true,bluesky_account:{available:true,connected:true,handle:"proj.bsky.social",'
+          'did:"did:plc:aaaa"}}')
+BSKY_A = ('{id:7,channel:"social_media",status:"draft",approved_sha256:null,verification:null,'
+          'bluesky:{text:"I maintain it https://github.com/o/r",graphemes:36,bytes:36,facets:[{}],issues:[],'
+          'account_did:"did:plc:aaaa",approval_sha256:"s1",approved_did:null,uri:null,cid:null,url:null}}')
+
+
+def _bsky(script: str) -> dict:
+    return _run(PRELUDE + BSKY_JS + "\n(async()=>{const d=" + BSKY_D + ";const a=" + BSKY_A + ";const out={};"
+                + script + "console.log(JSON.stringify(out));})();")
+
+
+def test_bluesky_card_shows_exact_text_counts_and_account_before_approval():
+    r = _bsky("""out.html=blueskyHTML(a,d);out.none=blueskyHTML(a,{...d,bluesky_available:false});
+out.noacct=blueskyHTML({...a,bluesky:{...a.bluesky,approval_sha256:null}},{...d,bluesky_account:{connected:false}});""")
+    assert "I maintain it https://github.com/o/r" in r["html"] and "36/300 characters" in r["html"]
+    assert "36/3000 bytes" in r["html"] and "@proj.bsky.social" in r["html"] and "bsky-approve" in r["html"]
+    assert "bsky-publish" not in r["html"] and r["none"] == ""
+    assert "No Bluesky account connected" in r["noacct"] and 'bsky-approve" disabled' in r["noacct"]
+
+
+def test_bluesky_approve_and_publish_flows_confirm_and_report_only_server_results():
+    r = _bsky("""
+const calls=[];const deps={confirm:()=>true,call:async(v,x)=>{calls.push([v,x]);
+  return v==="bluesky_publish"?{status:"bluesky_published",url:"https://bsky.app/profile/did:plc:aaaa/post/3k"}:{status:"bluesky_approved"}}};
+out.cancel=await blueskyApproveFlow(a,d,{...deps,confirm:()=>false});
+out.approve=await blueskyApproveFlow(a,d,deps);
+const ready={...a,status:"bluesky_approved",approved_sha256:"s2",bluesky:{...a.bluesky,approved_did:"did:plc:aaaa"}};
+out.readyHTML=blueskyHTML(ready,d);
+out.publish=await blueskyPublishFlow(ready,d,deps);
+out.uncertain=await blueskyPublishFlow(ready,d,{...deps,call:async()=>({status:"bluesky_uncertain"})});
+out.failed=await blueskyPublishFlow(ready,d,{...deps,call:async()=>({status:"bluesky_failed",error:"HTTP 400"})});
+out.calls=calls;""")
+    assert r["cancel"] == "Cancelled. Nothing was approved."
+    assert r["calls"][0] == ["bluesky_approve", {"sha256": "s1"}]
+    assert r["calls"][1] == ["bluesky_publish", {"sha256": "s2"}]
+    assert "bsky-publish" in r["readyHTML"] and "refuses any other account" in r["readyHTML"]
+    assert "NOT independently verified" in r["publish"]
+    assert "Do not publish again" in r["uncertain"] and "nothing was posted" in r["failed"]
+
+
+def test_bluesky_published_and_verified_states_are_distinct_and_safe():
+    r = _bsky("""
+const pub={...a,status:"bluesky_published",bluesky:{...a.bluesky,uri:"at://did:plc:aaaa/app.bsky.feed.post/3k",
+  cid:"bafy",url:"https://bsky.app/profile/did:plc:aaaa/post/3k"}};
+out.pub=blueskyHTML(pub,d);
+out.ver=blueskyHTML({...pub,status:"bluesky_verified",verification:{checked_utc:"t",outcome:"verified",checks:{found:true},likeCount:2}},d);
+out.mis=blueskyHTML({...pub,verification:{checked_utc:"t",outcome:"mismatch",checks:{found:true,text:false}}},d);
+out.bad=blueskyHTML({...pub,bluesky:{...pub.bluesky,url:"javascript:alert(1)"}},d);
+out.unc=blueskyHTML({...pub,status:"bluesky_uncertain"},d);
+out.msgs=[blueskyVerifyMessage({outcome:"verified"}),blueskyVerifyMessage({outcome:"not_found"}),
+  blueskyVerifyMessage({outcome:"unavailable",reason:"HTTP 503"})];""")
+    assert "NOT independently verified yet" in r["pub"] and "at://did:plc:aaaa/app.bsky.feed.post/3k" in r["pub"]
+    assert "CID bafy" in r["pub"] and "bsky-verify" in r["pub"]
+    assert "Independently verified on Bluesky" in r["ver"] and "2 likes" in r["ver"]
+    assert "failed: text" in r["mis"] and "NOT independently verified" in r["mis"]
+    assert "javascript:" not in r["bad"] and "(no URL)" in r["bad"]
+    assert "bsky-reconcile" in r["unc"] and "Do not approve or publish again" in r["unc"]
+    assert r["msgs"][0].startswith("Independently verified") and "NOT verified" in r["msgs"][1]
+    assert "unchanged" in r["msgs"][2]
+
+
+def test_bluesky_settings_status_and_activity_labels():
+    r = _bsky("""out.s=[blueskyStatusText({available:false}),blueskyStatusText({available:true,connected:false}),
+  blueskyStatusText({available:true,connected:true,handle:"proj.bsky.social",did:"did:plc:aaaa"})];
+out.l=[actionEventLabel("action#7:bluesky_published"),actionEventLabel("action#7:bluesky_publish_refused:account_mismatch"),
+  actionEventLabel("action#7:bluesky_failed:http_429"),actionEventLabel("action#7:bluesky_verified")];""")
+    assert r["s"] == ["", "No Bluesky account connected.",
+                      "Connected: @proj.bsky.social (did:plc:aaaa). The app password is stored encrypted."]
+    assert r["l"] == ["Draft #7: published on Bluesky (not yet verified)",
+                      "Draft #7: Bluesky publish refused — nothing was sent (different Bluesky account)",
+                      "Draft #7: Bluesky publication failed — nothing was posted (http_429)",
+                      "Draft #7: independently verified on Bluesky"]
+
+
+def test_bluesky_settings_never_prefill_or_echo_the_app_password():
+    block = HTML[HTML.index('<div id="bluesky-settings"'):HTML.index("</details>", HTML.index('<div id="bluesky-settings"'))]
+    assert 'type="password" id="bsky-password"' in block and "hidden" in block
+    load = _function("async function loadBlueskySettings(")
+    assert '$("bsky-password").value=""' in load and "app_password" not in load

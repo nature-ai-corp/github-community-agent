@@ -539,6 +539,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 try:
                     if path == "/api/promotion/settings":
                         return self._send(200, promotion_credentials.public())
+                    if path == "/api/promotion/bluesky":  # public account facts only; never the app password
+                        return self._send(200, service.promotion.bluesky_account())
                     route = _promotion_route(path)
                     if route and route[1] is None and route[2] == "detail":
                         return self._send(200, service.promotion.detail(route[0]))
@@ -564,6 +566,10 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, promotion_credentials.update(
                         payload.get("repository"), payload.get("token") or "",
                         payload.get("remove_token") is True))
+                if path == "/api/promotion/bluesky":
+                    if payload.get("remove") is True:
+                        return self._send(200, promo.bluesky_disconnect())
+                    return self._send(200, promo.bluesky_connect(payload.get("handle"), payload.get("app_password")))
                 change = _change_route(path)
                 if change:
                     task_id, change_id, verb = change
@@ -601,6 +607,14 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, {"ok": True, "status": "approved", "approved_sha256": approved})
                 if verb == "publish":
                     return self._send(200, promo.publish(task_id, action_id, payload.get("sha256")))
+                if verb == "bluesky_approve":
+                    return self._send(200, promo.bluesky_approve(task_id, action_id, payload.get("sha256")))
+                if verb == "bluesky_publish":
+                    return self._send(200, promo.bluesky_publish(task_id, action_id, payload.get("sha256")))
+                if verb == "bluesky_reconcile":
+                    return self._send(200, promo.bluesky_reconcile(task_id, action_id))
+                if verb == "bluesky_verify":
+                    return self._send(200, promo.bluesky_verify(task_id, action_id))
                 if verb == "record_publication":
                     return self._send(200, promo.record_manual_publication(
                         task_id, action_id, payload.get("url"), payload.get("confirmed"), payload.get("sha256")))
@@ -709,10 +723,12 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
 
 
 def main() -> int:
+    from .bluesky import BlueskyCredentials
     from .promotion import PromotionCredentials, PromotionService, PromotionStore
     journal = Journal(data_directory() / "work.sqlite3")
     credentials = PromotionCredentials(data_directory())
-    promotion = PromotionService(journal, PromotionStore(data_directory() / "work.sqlite3"), credentials)
+    promotion = PromotionService(journal, PromotionStore(data_directory() / "work.sqlite3"), credentials,
+                                 BlueskyCredentials(data_directory()))  # its own DPAPI file
     service = WorkService(journal, promotion)
     settings = EncryptedSettings(data_directory())
     nonce = secrets.token_urlsafe(24)

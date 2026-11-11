@@ -66,6 +66,15 @@
 <p class="muted small">Each token is stored encrypted and used only for its own repository. Publishing needs WRITE access and Discussions enabled; research and drafting do not need a token.</p>
 <div class="dialog-actions"><button type="button" id="promo-remove">Remove token for this repository</button><span class="spacer"></span><button type="button" id="promo-save">Save promotion target</button></div>
 <div id="promo-settings-message" role="status"></div>
+<div id="bluesky-settings" hidden>
+<h4>Bluesky project account (development — not a released platform)</h4>
+<p class="muted small">Use the dedicated project account and an APP password (Bluesky → Settings → Privacy and security → App passwords), never the account password. It is stored encrypted for this Windows account, separately from GitHub tokens and AI keys, and used only to publish a post you approved.</p>
+<label>Bluesky handle<input id="bsky-handle" placeholder="project.bsky.social" autocomplete="off"></label>
+<label>App password<input type="password" id="bsky-password" autocomplete="off" placeholder="xxxx-xxxx-xxxx-xxxx"></label>
+<p class="muted small" id="bsky-status"></p>
+<div class="dialog-actions"><button type="button" id="bsky-remove">Disconnect Bluesky</button><span class="spacer"></span><button type="button" id="bsky-connect">Connect Bluesky account</button></div>
+<div id="bsky-message" role="status"></div>
+</div>
 </details>
 <div id="settings-message" role="status"></div>
 <div class="dialog-actions">
@@ -116,8 +125,32 @@ $("settings-message").textContent="";
 $("settings-advanced").open=false;
 $("settings-promotion").open=false;$("promo-settings-message").textContent="";
 renderPromotionSettings();
+loadBlueskySettings();
 $("settings-overlay").classList.remove("hid");
 $("provider").focus();
+}
+// Bluesky project account (development only). The app password is sent once to connect
+// and never returned; the page only ever shows the handle and DID.
+function blueskyStatusText(b){
+if(!b||!b.available)return "";
+if(b.error)return b.error;
+return b.connected?"Connected: @"+b.handle+" ("+b.did+"). The app password is stored encrypted.":"No Bluesky account connected.";
+}
+async function loadBlueskySettings(){
+let b={available:false};
+try{b=await getJSON("/api/promotion/bluesky")}catch(e){}
+$("bluesky-settings").hidden=!b.available;$("bsky-password").value="";$("bsky-message").textContent="";
+$("bsky-status").textContent=blueskyStatusText(b);
+if(b.connected)$("bsky-handle").value=b.handle;
+}
+async function saveBluesky(remove){
+if(remove&&!window.confirm("Disconnect the Bluesky account? The stored app password is deleted from this PC. Revoke the app password on Bluesky as well."))return;
+try{
+const b=await postJSON("/api/promotion/bluesky",remove?{remove:true}:{handle:$("bsky-handle").value,app_password:$("bsky-password").value},45000);
+$("bsky-status").textContent=blueskyStatusText(b);
+$("bsky-message").textContent=remove?"Bluesky account disconnected.":"Connected and verified with one Bluesky login. Nothing was posted.";
+}catch(e){$("bsky-message").textContent="Not connected: "+e.message}
+finally{$("bsky-password").value=""}
 }
 function promotionState(p){
 return {available:true,selected:p.selected,repositories:p.repositories||[],selectedHasToken:p.selected_has_token===true};
@@ -162,7 +195,7 @@ return false;
 }
 }
 function closeSettings(){
-$("model-key").value="";$("read-key").value="";$("promo-token").value="";
+$("model-key").value="";$("read-key").value="";$("promo-token").value="";$("bsky-password").value="";
 $("settings-overlay").classList.add("hid");
 }
 function settingsDraft(){
@@ -622,14 +655,24 @@ const ACTION_EVENTS={approved_manual:"approved for manual publication",
   manual_recorded_user_confirmed:"publication recorded — user-confirmed, not independently verified",
   manual_record_refused:"publication not recorded",manual_verified:"independently verified on Reddit",
   manual_verify_failed:"Reddit check: NOT verified",manual_verify_unavailable:"Reddit could not be read — not verified",
-  manual_verify_refused:"Reddit check refused"};
+  manual_verify_refused:"Reddit check refused",
+  bluesky_approved:"approved for Bluesky",bluesky_approve_refused:"Bluesky approval refused",
+  bluesky_publish_requested:"Bluesky publish requested",bluesky_publish_refused:"Bluesky publish refused — nothing was sent",
+  bluesky_published:"published on Bluesky (not yet verified)",bluesky_uncertain:"Bluesky outcome uncertain",
+  bluesky_failed:"Bluesky publication failed — nothing was posted",bluesky_reconciled_published:"uncertain outcome resolved: published",
+  bluesky_reconciled_not_found:"uncertain outcome resolved: not created",bluesky_reconcile_unavailable:"Bluesky check unavailable — still uncertain",
+  bluesky_verified:"independently verified on Bluesky",bluesky_verify_failed:"Bluesky check: NOT verified",
+  bluesky_verify_unavailable:"Bluesky could not be read — not verified",bluesky_verify_refused:"Bluesky verify refused"};
 const MANUAL_REASONS={subreddit_mismatch:"post is in a different subreddit",url_invalid:"not a Reddit post URL",
   url_share_link:"short or share link",not_confirmed:"publication not confirmed",not_approved:"not approved",
   approval_mismatch:"approval does not match",already_recorded:"already recorded",
   duplicate_post:"post already recorded for another draft",duplicate:"draft changed meanwhile",
   not_recorded:"no post URL recorded",mismatch:"title or body differs from the approved text",
   removed:"post removed or deleted",not_found:"post not found",unavailable_network:"network error",
-  unavailable_format:"unexpected response",invalid_post_id:"invalid post ID"};
+  unavailable_format:"unexpected response",invalid_post_id:"invalid post ID",
+  no_account:"no Bluesky account connected",account_mismatch:"different Bluesky account",text_limits:"text exceeds Bluesky limits",
+  content:"draft not ready",state:"wrong state",already_published:"already published",credential:"contains a credential",
+  not_published:"not published",network:"network error",format:"unexpected response",uncertain:"uncertain"};
 function manualReason(code){const h=/^unavailable_http_(\d+)$/.exec(code||"");return h?"HTTP "+h[1]:(MANUAL_REASONS[code]||code)}
 function actionEventLabel(name){
   const m=/^action#(\d+):([a-z_]+)(?::([a-z0-9_]+))?$/.exec(String(name));
@@ -845,14 +888,72 @@ function verifyMessage(res){
   if(res.outcome==="unavailable")return "Reddit could not be read"+(res.reason?" ("+res.reason+")":"")+". The record is unchanged; nothing new was verified.";
   return (VERIFY_OUTCOMES[res.outcome]||"NOT verified")+". The publication remains user-confirmed only.";
 }
+// Social Media → Bluesky (development only). One exact action: ONE post in the connected
+// project account. Approval binds account DID, exact text and link facets; publishing is a
+// separate confirmed click; "verified" only after the public read-back matched.
+const BLUESKY_LOCKED=["bluesky_publishing","bluesky_published","bluesky_verified","bluesky_uncertain"];
+const BLUESKY_STATUS={bluesky_approved:"approved for Bluesky — not published",bluesky_publishing:"publishing to Bluesky…",
+  bluesky_published:"published on Bluesky — NOT independently verified yet",bluesky_verified:"published on Bluesky — independently verified",
+  bluesky_uncertain:"Bluesky outcome UNCERTAIN — check before any new attempt",bluesky_failed:"Bluesky publication failed — nothing was posted"};
+const BLUESKY_CHECKS={found:"post found",uri:"record URI",cid:"record CID",author_did:"account DID",collection:"record type",text:"text",facets:"links"};
+function blueskyHTML(a,d){
+  const b=a.bluesky; if(!b||!d.bluesky_available)return "";
+  const acct=d.bluesky_account||{};
+  const out=['<div class="manual-record bluesky-box"><h5>Bluesky (development — not a released platform)</h5>',
+    '<p class="note">Exact post text (SHORT POST): '+escapeHTML(b.graphemes)+'/300 characters · '+escapeHTML(b.bytes)+'/3000 bytes · '+escapeHTML(b.facets.length)+' link(s)</p>',
+    '<div class="draft-reply-text bluesky-text">'+escapeHTML(b.text)+'</div>'];
+  if(b.issues.length)out.push('<p class="note"><strong>Not publishable on Bluesky: '+escapeHTML(b.issues.join(" "))+'</strong></p>');
+  out.push('<p class="note">'+(acct.connected?'Connected account: @'+escapeHTML(acct.handle)+' ('+escapeHTML(acct.did)+')':'No Bluesky account connected (Settings → Promotion).')+'</p>');
+  if(["draft","bluesky_failed"].includes(a.status)){
+    out.push('<div class="form-actions"><button type="button" class="primary bsky-approve"'+(b.approval_sha256?'':' disabled')+'>Approve this exact Bluesky post</button></div>');
+  }
+  if(a.status==="bluesky_approved")out.push('<p class="note">Approved for '+escapeHTML(b.approved_did||"")+' · fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publishing logs in fresh and refuses any other account.</p><div class="form-actions"><button type="button" class="primary bsky-publish">Publish to Bluesky</button></div>');
+  if(a.status==="bluesky_uncertain")out.push('<p class="note">Do not approve or publish again. Check whether the record exists (wait one minute after the attempt).</p><div class="form-actions"><button type="button" class="bsky-reconcile">Check whether it was published</button></div>');
+  if(["bluesky_published","bluesky_verified"].includes(a.status)){
+    const url=String(b.url||"").startsWith("https://bsky.app/profile/")?b.url:"", v=a.verification;
+    out.push('<p class="manual-state manual-state-'+(a.status==="bluesky_verified"?'verified':'confirmed')+'"><strong>'+(a.status==="bluesky_verified"?'Independently verified on Bluesky':'Published — NOT independently verified yet')+'</strong></p>',
+      '<p>Post: '+(url?'<a href="'+escapeHTML(url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(url)+'</a>':'(no URL)')+'</p>',
+      '<p class="note">URI '+escapeHTML(b.uri||"")+' · CID '+escapeHTML(b.cid||"")+'</p>');
+    if(v){
+      const failed=Object.entries(v.checks||{}).filter(([,ok])=>!ok).map(([k])=>BLUESKY_CHECKS[k]||k);
+      out.push('<p class="note">Last check '+escapeHTML(v.checked_utc||"")+': '+escapeHTML(v.outcome)+(v.reason?' ('+escapeHTML(v.reason)+')':'')+
+        (failed.length?' · failed: '+escapeHTML(failed.join(", ")):'')+(typeof v.likeCount==="number"?' · '+escapeHTML(v.likeCount)+' likes':'')+
+        (typeof v.replyCount==="number"?' · '+escapeHTML(v.replyCount)+' replies':'')+(typeof v.repostCount==="number"?' · '+escapeHTML(v.repostCount)+' reposts':'')+'</p>');
+    }
+    out.push('<div class="form-actions"><button type="button" class="bsky-verify">Verify on Bluesky</button></div>');
+  }
+  return out.join("")+'</div>';
+}
+// deps: {confirm, call}. Messages never report success the server did not return.
+async function blueskyApproveFlow(a,d,deps){
+  const b=a.bluesky, acct=d.bluesky_account||{};
+  if(!b||!b.approval_sha256)return "Not ready for Bluesky approval.";
+  if(!deps.confirm("Approve this exact Bluesky post?\n\nPlatform: Bluesky\nAccount: @"+acct.handle+"\nDID: "+acct.did+"\nLinks: "+b.facets.length+"\n\n"+b.text+"\n\nNothing is posted until you publish."))return "Cancelled. Nothing was approved.";
+  await deps.call("bluesky_approve",{sha256:b.approval_sha256});
+  return "Approved for Bluesky. Nothing was posted.";
+}
+async function blueskyPublishFlow(a,d,deps){
+  const b=a.bluesky||{};
+  if(!deps.confirm("Publish this post publicly on Bluesky now?\n\nAccount DID: "+b.approved_did+"\n\n"+b.text))return "Cancelled. Nothing was sent.";
+  const res=await deps.call("bluesky_publish",{sha256:a.approved_sha256});
+  if(res.status==="bluesky_published")return "Published on Bluesky: "+res.url+" — NOT independently verified yet; use “Verify on Bluesky”.";
+  if(res.status==="bluesky_uncertain")return "Outcome uncertain. Do not publish again; use “Check whether it was published”.";
+  return "Publication failed; nothing was posted: "+(res.error||"see details");
+}
+function blueskyVerifyMessage(res){
+  if(res.outcome==="verified")return "Independently verified on Bluesky: same account DID, record, text and links.";
+  if(res.outcome==="unavailable")return "Bluesky could not be read ("+(res.reason||"")+"). The record is unchanged.";
+  if(res.outcome==="not_found")return "Not found by the public Bluesky index yet (it can take a moment). NOT verified.";
+  return "NOT verified: the public post differs from the approved action.";
+}
 function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
   for(const a of d.actions){
     const manual=a.channel!=="github_discussion";
-    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
-    if(manual&&MANUAL_PUBLISHED.includes(a.status)){
-      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+'</section>');
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||BLUESKY_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    if(manual&&(MANUAL_PUBLISHED.includes(a.status)||BLUESKY_LOCKED.includes(a.status))){
+      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+blueskyHTML(a,d)+'</section>');
       continue;
     }
     if(manual){
@@ -865,7 +966,7 @@ function renderPromotionPanel(t,d){
         (a.status!=="incomplete"?'<button type="button" class="promo-copy">Copy text</button>':'')+'</div>'+
         (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+
         '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p>'+
-        (a.channel==="reddit"?manualPublicationHTML(a):'')+'</section>');
+        (a.channel==="reddit"?manualPublicationHTML(a):'')+(a.channel==="social_media"?blueskyHTML(a,d):'')+'</section>');
       continue;
     }
     if(["draft","approved","failed","incomplete"].includes(a.status)){
@@ -923,6 +1024,11 @@ function renderPromotionPanel(t,d){
         {confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data)}));
       await reopen(t);
     });
+    const bdeps={confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data,PREFLIGHT_TIMEOUT_MS)};
+    on(".bsky-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}msg(await blueskyApproveFlow(a,d,bdeps));await reopen(t)});
+    on(".bsky-publish",async()=>{msg(await blueskyPublishFlow(a,d,bdeps));await reopen(t)});
+    on(".bsky-reconcile",async()=>{const res=await call("bluesky_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="bluesky_published"?"Found on Bluesky: "+res.url+" — verify it next.":"Not created on Bluesky. You may approve and publish again.");await reopen(t)});
+    on(".bsky-verify",async()=>{msg("Reading the post from the public Bluesky index…");msg(blueskyVerifyMessage(await call("bluesky_verify",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".promo-verify-post",async()=>{msg("Reading the public post on Reddit once…");msg(verifyMessage(await call("verify_publication",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".promo-copy",async()=>{
       const text=el.querySelector(".promo-title").value+"\n\n"+el.querySelector(".promo-body").value;
@@ -970,6 +1076,8 @@ $("settings-save").addEventListener("click",saveSettings);
 $("test-connection").addEventListener("click",testSettings);
 $("promo-save").addEventListener("click",()=>savePromotion(false));
 $("promo-remove").addEventListener("click",()=>savePromotion(true));
+$("bsky-connect").addEventListener("click",()=>saveBluesky(false));
+$("bsky-remove").addEventListener("click",()=>saveBluesky(true));
 $("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
