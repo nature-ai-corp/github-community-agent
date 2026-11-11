@@ -459,6 +459,43 @@ def test_promotion_routes_require_nonce_and_never_return_tokens(env):
         httpd.server_close()
 
 
+def test_create_promotion_task_over_http_starts_service(env):
+    """Regression: POST /api/tasks for Promotion raised UnboundLocalError (ModelSettings
+    shadowed by a function-local import), the connection dropped and the browser
+    showed "Failed to fetch"."""
+    _, journal, creds, _, _ = env
+
+    class RecordingPromotion:
+        def __init__(self):
+            self.models = []
+
+        def start(self, model):
+            self.models.append(model)
+            return 42
+
+    promo = RecordingPromotion()
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), w.handler_factory(
+        w.WorkService(journal, promo), NONCE, MemorySettings(), creds))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    port = httpd.server_port
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("POST", "/api/tasks", body=json.dumps({
+            "route": "domain", "selection": "Promotion", "definition_id": "promote_repository",
+        }).encode(), headers={"Host": f"127.0.0.1:{port}", "Origin": f"http://127.0.0.1:{port}",
+                              "Content-Type": "application/json", "X-App-Nonce": NONCE})
+        r = conn.getresponse()
+        body = json.loads(r.read().decode())
+        conn.close()
+        assert r.status == 202 and body == {"id": 42, "status": "running"}
+        assert len(promo.models) == 1
+        assert promo.models[0].settings.provider == "openai"
+        assert promo.models[0].settings.model == "gpt-4.1-mini"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_route_parser_accepts_only_known_shapes():
     assert w._promotion_route("/api/promotion/tasks/7/detail") == (7, None, "detail")
     assert w._promotion_route("/api/promotion/tasks/7/actions/3/publish") == (7, 3, "publish")

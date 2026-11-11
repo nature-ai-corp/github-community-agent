@@ -311,7 +311,6 @@ class WorkService:
             raise ToolError("Model API key must be provided for this run.")
         # Validate user-supplied settings BEFORE creating a work record.
         from .runtime import CommunitySettings
-        from .model_provider import ModelSettings
         CommunitySettings(repository)
         ModelSettings(provider, model_name)
         task_id = self.journal.create(definition_id, repository)
