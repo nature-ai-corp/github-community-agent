@@ -38,7 +38,7 @@ def _function(name: str) -> str:
 
 
 def _run(script: str) -> dict:
-    proc = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
+    proc = subprocess.run([NODE, "-e", script], capture_output=True, encoding="utf-8", timeout=30)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout.strip().splitlines()[-1])
 
