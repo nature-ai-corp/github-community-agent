@@ -496,6 +496,44 @@ def test_create_promotion_task_over_http_starts_service(env):
         httpd.server_close()
 
 
+def test_preflight_without_token_is_a_clear_error_and_saved_token_survives_restart(env):
+    """Regression for the endless "Checking…" state: with no token saved the
+    preflight returns a clear 400 (never hangs); once saved via the settings route
+    the token persists across a server restart (a new credentials instance on the
+    same data directory) and the same preflight then succeeds."""
+    _, journal, creds, service, root = env
+    task_id, a = _start(service, creds, REPO_A, FakeModel())
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), w.handler_factory(
+        w.WorkService(journal, service), NONCE, MemorySettings(), creds))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    port = httpd.server_port
+
+    def post(path, body):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("POST", path, body=json.dumps(body).encode(), headers={
+            "Host": f"127.0.0.1:{port}", "Origin": f"http://127.0.0.1:{port}",
+            "Content-Type": "application/json", "X-App-Nonce": NONCE})
+        r = conn.getresponse()
+        data = r.read().decode()
+        conn.close()
+        return r.status, data
+    preflight = f"/api/promotion/tasks/{task_id}/actions/{a['id']}/preflight"
+    try:
+        status, text = post(preflight, {})
+        assert status == 400
+        assert json.loads(text)["error"] == f"No GitHub token is saved for {REPO_A}. Add it in Settings → Promotion."
+        status, text = post("/api/promotion/settings", {"repository": REPO_A, "token": TOKEN_A})
+        assert status == 200 and json.loads(text)["selected_has_token"] is True and TOKEN_A not in text
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+    restarted = pr.PromotionCredentials(root)
+    assert restarted.public()["selected_has_token"] is True
+    assert TOKEN_A.encode() not in (root / "promotion.dpapi").read_bytes()
+    service2 = pr.PromotionService(journal, pr.PromotionStore(root / "work.sqlite3"), restarted)
+    assert service2.preflight(task_id, a["id"])["can_publish"] is True
+
+
 def test_route_parser_accepts_only_known_shapes():
     assert w._promotion_route("/api/promotion/tasks/7/detail") == (7, None, "detail")
     assert w._promotion_route("/api/promotion/tasks/7/actions/3/publish") == (7, 3, "publish")
