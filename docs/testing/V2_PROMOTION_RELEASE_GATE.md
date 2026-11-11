@@ -53,7 +53,8 @@ A frozen V2 bundle built with `scripts/windows-build-release-bundle.ps1` from th
 ### Reddit Promotion
 
 - **Promise:** One honest, disclosed Reddit post for a subreddit whose rules allow project posts.
-- **Operation:** Research → plan (this channel only) → draft with first-sentence disclosure. No Reddit integration.
+- **Operation:** Research → plan (this channel only) → draft with first-sentence disclosure → owner approves the exact text **and the target subreddit** (both in the fingerprint) → owner posts by hand → **Record Manual Publication** → **Check on Reddit**. The app never posts and holds no Reddit credential.
+- **Record Manual Publication (development, NOT VERIFIED):** the post URL is accepted only if it is a Reddit post permalink (`https://www.reddit.com/r/<subreddit>/comments/<id>/…`; short and share links refused) in the **approved** subreddit, the post ID is extracted, and the owner explicitly confirms the exact approved text was posted → status `published_user_confirmed`. `published_verified` is set **only** when one public, unauthenticated read (`/by_id/t3_<id>.json`) shows the same post ID and subreddit, the approved title and body, and no removal. An unreadable post (blocked, rate-limited, network) never upgrades the record; a later failed check withdraws `published_verified`. Every record, refusal and check is in Task Activity History (`action#<id>:…`). A recorded URL alone is **not** acceptance evidence.
 - **User receives:** Post text and a rules checklist.
 - **Real-world evidence required:** The owner-approved exact text posted manually by the owner in a subreddit whose rules were checked, and the real post URL verified.
 - **Security and approval:** Owner approval of text and subreddit; owner's own account; one post, no cross-posting, no vote requests.

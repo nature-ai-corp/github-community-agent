@@ -280,3 +280,92 @@ console.log(JSON.stringify([changeEventLabel("change#2:apply_refused:permission"
 """)
     assert r == ["Change #2: apply refused — nothing was changed (insufficient permission)",
                  "Change #3: applied and verified on GitHub", "", ""]
+
+
+# -- Reddit: Record Manual Publication -----------------------------------------------------
+
+MANUAL_JS = (HTML[HTML.index("const ACTION_EVENTS="):HTML.index("function renderActivity(")]
+             + HTML[HTML.index("const MANUAL_PUBLISHED="):HTML.index("function renderPromotionPanel(")])
+READY = ('{id:5,channel:"reddit",status:"ready_manual",category:"coolgithubprojects",approved_sha256:"s1",'
+         'published_url:null,post_id:null,verification:null}')
+POST_URL = "https://www.reddit.com/r/coolgithubprojects/comments/1abc2de/x/"
+
+
+def _manual(script: str) -> dict:
+    return _run(PRELUDE + MANUAL_JS + "\n(async()=>{const a=" + READY + ";const out={};" + script
+                + "console.log(JSON.stringify(out));})();")
+
+
+def test_ready_reddit_draft_shows_the_record_form_with_confirmation():
+    r = _manual("out.html=manualPublicationHTML(a);")
+    html = r["html"]
+    assert "Record manual publication" in html and "promo-post-url" in html and "promo-post-confirm" in html
+    assert "r/coolgithubprojects" in html and "nothing is posted" in html
+    assert "verified" not in html.lower()
+
+
+def test_record_flow_requires_url_and_confirmation_and_reports_user_confirmed_only():
+    r = _manual(f"""
+const calls=[]; const deps={{confirm:()=>true, call:async(v,d)=>{{calls.push([v,d]);
+  return {{status:"published_user_confirmed",verified:false,post_id:"1abc2de",subreddit:"coolgithubprojects"}}}}}};
+out.noUrl=await recordPublicationFlow(a,"  ",true,deps);
+out.noConfirm=await recordPublicationFlow(a,"{POST_URL}",false,deps);
+out.cancel=await recordPublicationFlow(a,"{POST_URL}",true,{{...deps,confirm:()=>false}});
+out.callsBefore=calls.length;
+out.ok=await recordPublicationFlow(a,"{POST_URL}",true,deps);
+out.calls=calls;""")
+    assert "Paste the Reddit post URL" in r["noUrl"] and "Tick the confirmation" in r["noConfirm"]
+    assert r["cancel"] == "Cancelled. Nothing was recorded." and r["callsBefore"] == 0
+    assert r["calls"] == [["record_publication", {"url": POST_URL, "confirmed": True, "sha256": "s1"}]]
+    assert r["ok"].startswith("Recorded as user-confirmed") and "NOT independently verified" in r["ok"]
+
+
+def test_refused_record_is_not_reported_as_success():
+    r = _manual(f"""
+try{{await recordPublicationFlow(a,"{POST_URL}",true,{{confirm:()=>true,
+  call:async()=>{{throw Error("This post is in r/programming, but the approved subreddit is r/coolgithubprojects.")}}}});
+  out.result="returned"}}catch(e){{out.result="threw:"+e.message}}""")
+    assert r["result"].startswith("threw:") and "approved subreddit" in r["result"]
+
+
+def test_user_confirmed_and_verified_states_are_clearly_distinguished():
+    r = _manual("""
+const base={...a,published_url:"https://www.reddit.com/r/coolgithubprojects/comments/1abc2de/",post_id:"1abc2de"};
+out.confirmed=manualPublicationHTML({...base,status:"published_user_confirmed"});
+out.unavailable=manualPublicationHTML({...base,status:"published_user_confirmed",
+  verification:{checked_utc:"2026-11-11T20:00:00+00:00",outcome:"unavailable",reason:"unavailable_http_403"}});
+out.mismatch=manualPublicationHTML({...base,status:"published_user_confirmed",
+  verification:{checked_utc:"t",outcome:"mismatch",checks:{found:true,title:true,body:false}}});
+out.verified=manualPublicationHTML({...base,status:"published_verified",
+  verification:{checked_utc:"t",outcome:"verified",checks:{found:true,body:true},score:5,num_comments:2}});
+out.bad=manualPublicationHTML({...base,status:"published_user_confirmed",published_url:"javascript:alert(1)"});
+out.msgs=[verifyMessage({outcome:"verified"}),verifyMessage({outcome:"unavailable",reason:"Reddit refused the public read (HTTP 403)."}),
+  verifyMessage({outcome:"removed"})];""")
+    assert "User-confirmed only — NOT independently verified" in r["confirmed"] and "Not checked yet" in r["confirmed"]
+    assert "Independently verified" not in r["confirmed"] and "Check on Reddit" in r["confirmed"]
+    assert "NOT independently verified" in r["unavailable"] and "HTTP 403" in r["unavailable"]
+    assert "failed: body" in r["mismatch"] and "NOT independently verified" in r["mismatch"]
+    assert "Independently verified on Reddit" in r["verified"] and "score 5" in r["verified"]
+    assert "javascript:" not in r["bad"] and "(no URL)" in r["bad"]
+    assert r["msgs"][0].startswith("Independently verified")
+    assert "nothing new was verified" in r["msgs"][1] and "user-confirmed only" in r["msgs"][2]
+
+
+def test_activity_history_labels_manual_publication_events():
+    r = _manual("""out.labels=[actionEventLabel("action#5:approved_manual"),
+  actionEventLabel("action#5:manual_record_refused:subreddit_mismatch"),
+  actionEventLabel("action#5:manual_recorded_user_confirmed"),
+  actionEventLabel("action#5:manual_verify_unavailable:unavailable_http_403"),
+  actionEventLabel("action#5:manual_verified"),actionEventLabel("action#5:bogus"),actionEventLabel("created")];""")
+    assert r["labels"] == [
+        "Draft #5: approved for manual publication",
+        "Draft #5: publication not recorded (post is in a different subreddit)",
+        "Draft #5: publication recorded — user-confirmed, not independently verified",
+        "Draft #5: Reddit could not be read — not verified (HTTP 403)",
+        "Draft #5: independently verified on Reddit", "", ""]
+
+
+def test_reddit_draft_asks_for_the_subreddit_before_approval():
+    block = HTML[HTML.index("if(manual){"):HTML.index("continue;", HTML.index("if(manual){"))]
+    assert 'class="promo-subreddit"' in block and 'a.channel==="reddit"' in block
+    assert "promo-publish" not in block and "promo-preflight" not in block

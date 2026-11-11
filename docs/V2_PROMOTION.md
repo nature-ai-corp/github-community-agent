@@ -47,7 +47,12 @@ integration with Reddit, forums, blogs or social networks, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read
 the community's rules, keep the affiliation disclosure, post once, never as an
-answer to someone else's question). Because nothing is sent, **no channel
+answer to someone else's question). Reddit Promotion additionally approves the
+target subreddit with the text and, after you post by hand, can **record the
+post URL** (validated against the approved subreddit; status
+`published_user_confirmed`) and **check it on Reddit** with one public read
+(`published_verified` only if subreddit, title and body match and it was not
+removed). Because nothing is sent, **no channel
 credentials are collected**, and the GitHub token is never used for them:
 permission check, publish, reconcile and monitor are refused for those Work
 Types. If a channel integration is added later, its credentials must be stored

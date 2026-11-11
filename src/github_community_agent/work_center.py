@@ -601,6 +601,11 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, {"ok": True, "status": "approved", "approved_sha256": approved})
                 if verb == "publish":
                     return self._send(200, promo.publish(task_id, action_id, payload.get("sha256")))
+                if verb == "record_publication":
+                    return self._send(200, promo.record_manual_publication(
+                        task_id, action_id, payload.get("url"), payload.get("confirmed"), payload.get("sha256")))
+                if verb == "verify_publication":
+                    return self._send(200, promo.verify_manual_publication(task_id, action_id))
                 if verb == "reconcile":
                     return self._send(200, promo.reconcile(task_id, action_id))
                 if verb == "monitor":

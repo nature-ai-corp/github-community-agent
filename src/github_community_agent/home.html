@@ -617,11 +617,30 @@ function changeEventLabel(name){
   if(!m||!CHANGE_EVENTS[m[2]])return "";
   return "Change #"+m[1]+": "+CHANGE_EVENTS[m[2]]+(m[3]?" ("+(REFUSAL_REASONS[m[3]]||m[3])+")":"");
 }
+// Manual publication (Reddit) events ("action#5:manual_record_refused:subreddit_mismatch").
+const ACTION_EVENTS={approved_manual:"approved for manual publication",
+  manual_recorded_user_confirmed:"publication recorded — user-confirmed, not independently verified",
+  manual_record_refused:"publication not recorded",manual_verified:"independently verified on Reddit",
+  manual_verify_failed:"Reddit check: NOT verified",manual_verify_unavailable:"Reddit could not be read — not verified",
+  manual_verify_refused:"Reddit check refused"};
+const MANUAL_REASONS={subreddit_mismatch:"post is in a different subreddit",url_invalid:"not a Reddit post URL",
+  url_share_link:"short or share link",not_confirmed:"publication not confirmed",not_approved:"not approved",
+  approval_mismatch:"approval does not match",already_recorded:"already recorded",
+  duplicate_post:"post already recorded for another draft",duplicate:"draft changed meanwhile",
+  not_recorded:"no post URL recorded",mismatch:"title or body differs from the approved text",
+  removed:"post removed or deleted",not_found:"post not found",unavailable_network:"network error",
+  unavailable_format:"unexpected response",invalid_post_id:"invalid post ID"};
+function manualReason(code){const h=/^unavailable_http_(\d+)$/.exec(code||"");return h?"HTTP "+h[1]:(MANUAL_REASONS[code]||code)}
+function actionEventLabel(name){
+  const m=/^action#(\d+):([a-z_]+)(?::([a-z0-9_]+))?$/.exec(String(name));
+  if(!m||!ACTION_EVENTS[m[2]])return "";
+  return "Draft #"+m[1]+": "+ACTION_EVENTS[m[2]]+(m[3]?" ("+manualReason(m[3])+")":"");
+}
 function renderActivity(t){
   const events=Array.isArray(t.activity)?t.activity:[];
   if(!events.length)return '<details class="technical-details"><summary>Activity History</summary><p class="note">This record predates activity tracking. Earlier events are not available.</p></details>';
   const labels={created:"Task created",completed:"Task finished",needs_attention:"Draft needs attention",failed:"Task failed",marked_reviewed_locally:"Marked reviewed locally (not posted)",archived:"Moved to Archived Work",restored:"Restored to My Work"};
-  return '<details class="technical-details"><summary>Activity History ('+events.length+')</summary><ol class="task-activity">'+events.map(e=>'<li><strong>'+escapeHTML(labels[e.event]||changeEventLabel(e.event)||e.event)+'</strong> <span class="note">'+escapeHTML(e.at_utc)+'</span></li>').join("")+'</ol></details>';
+  return '<details class="technical-details"><summary>Activity History ('+events.length+')</summary><ol class="task-activity">'+events.map(e=>'<li><strong>'+escapeHTML(labels[e.event]||changeEventLabel(e.event)||actionEventLabel(e.event)||e.event)+'</strong> <span class="note">'+escapeHTML(e.at_utc)+'</span></li>').join("")+'</ol></details>';
 }
 // V2 Promotion: ONE workflow for the Task's bound repository. Every external
 // action requires an explicit approval of the exact text and a confirmed publish.
@@ -780,21 +799,73 @@ async function runPreflight(repo,out,sel,approve,request){
     out.textContent="Permission check failed: "+(e&&e.message?e.message:"unknown error");
   }
 }
+// Record Manual Publication (Reddit). The person posts by hand; this app only records the
+// URL ("user-confirmed") and checks it with one public read ("independently verified" only
+// if subreddit, title and body match). A URL alone is never shown as success.
+const MANUAL_PUBLISHED=["published_user_confirmed","published_verified"];
+const MANUAL_STATUS={ready_manual:"approved for manual publication",
+  published_user_confirmed:"published — user-confirmed, NOT independently verified",
+  published_verified:"published — independently verified on Reddit"};
+const VERIFY_OUTCOMES={verified:"verified: same post, subreddit, title and body; not removed",
+  mismatch:"NOT verified — the post differs from the approved text",removed:"NOT verified — the post was removed or deleted",
+  not_found:"NOT verified — Reddit reports no such post",unavailable:"Reddit could not be read — nothing verified"};
+const CHECK_LABELS={found:"post found",post_id:"post ID",subreddit:"subreddit",title:"title",body:"body",not_removed:"not removed"};
+function manualPublicationHTML(a){
+  const sub=a.category?"r/"+escapeHTML(a.category):"the approved subreddit";
+  if(a.status==="ready_manual")return '<div class="manual-record"><h5>Record manual publication</h5>'+
+    '<p class="note">After you post the approved text in '+sub+' yourself, paste the post URL here. This only records it; nothing is posted.</p>'+
+    '<label class="field-label">Reddit post URL<input class="promo-post-url" maxlength="500" placeholder="https://www.reddit.com/r/'+escapeHTML(a.category||"")+'/comments/…"></label>'+
+    '<label class="check-label"><input type="checkbox" class="promo-post-confirm"> I posted exactly this approved title and body in '+sub+' from my own account.</label>'+
+    '<div class="form-actions"><button type="button" class="primary promo-record">Record publication</button></div></div>';
+  if(!MANUAL_PUBLISHED.includes(a.status))return "";
+  const verified=a.status==="published_verified", v=a.verification;
+  const url=String(a.published_url||"").startsWith("https://www.reddit.com/")?a.published_url:"";
+  const out=['<p class="manual-state manual-state-'+(verified?'verified':'confirmed')+'"><strong>'+(verified?'Independently verified on Reddit':'User-confirmed only — NOT independently verified')+'</strong></p>',
+    '<p>Post: '+(url?'<a href="'+escapeHTML(url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(url)+'</a>':'(no URL)')+' · ID '+escapeHTML(a.post_id||"")+' · '+sub+'</p>'];
+  if(v){
+    const failed=Object.entries(v.checks||{}).filter(([,ok])=>!ok).map(([k])=>CHECK_LABELS[k]||k);
+    out.push('<p class="note">Last check '+escapeHTML(v.checked_utc||"")+': '+escapeHTML(VERIFY_OUTCOMES[v.outcome]||v.outcome)+
+      (v.reason?' ('+escapeHTML(manualReason(v.reason))+')':'')+(failed.length?' · failed: '+escapeHTML(failed.join(", ")):'')+
+      (typeof v.score==="number"?' · score '+escapeHTML(v.score):'')+(typeof v.num_comments==="number"?' · '+escapeHTML(v.num_comments)+' comments':'')+'</p>');
+  }else out.push('<p class="note">Not checked yet. “Check on Reddit” reads the public post once (no account, nothing is posted).</p>');
+  out.push('<div class="form-actions"><button type="button" class="promo-verify-post">Check on Reddit</button></div>');
+  return '<div class="manual-record">'+out.join("")+'</div>';
+}
+// deps: {confirm, call}. Returns the message to show; success is reported only from the server's record.
+async function recordPublicationFlow(a,url,confirmed,deps){
+  url=String(url||"").trim();
+  if(!url)return "Paste the Reddit post URL first.";
+  if(!confirmed)return "Tick the confirmation that you posted exactly the approved text in r/"+a.category+".";
+  if(!deps.confirm("Record this manual publication?\n\nSubreddit: r/"+a.category+"\nURL: "+url+"\n\nIt is saved as user-confirmed. It counts as independently verified only after a successful check on Reddit."))return "Cancelled. Nothing was recorded.";
+  const res=await deps.call("record_publication",{url,confirmed:true,sha256:a.approved_sha256});
+  return "Recorded as user-confirmed: post "+res.post_id+" in r/"+res.subreddit+". NOT independently verified yet — use “Check on Reddit”.";
+}
+function verifyMessage(res){
+  if(res.outcome==="verified")return "Independently verified on Reddit: the post is in the approved subreddit with the approved title and body.";
+  if(res.outcome==="unavailable")return "Reddit could not be read"+(res.reason?" ("+res.reason+")":"")+". The record is unchanged; nothing new was verified.";
+  return (VERIFY_OUTCOMES[res.outcome]||"NOT verified")+". The publication remains user-confirmed only.";
+}
 function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
   for(const a of d.actions){
     const manual=a.channel!=="github_discussion";
-    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(a.status==="ready_manual"?"approved for manual publication":a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    if(manual&&MANUAL_PUBLISHED.includes(a.status)){
+      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+'</section>');
+      continue;
+    }
     if(manual){
       parts.push('<label class="field-label">Title<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
         '<label class="field-label">Body (Markdown)<textarea class="promo-body" rows="10" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
         '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="ready_manual"?' (cancels approval)':'')+'</button>'+
+        (a.status==="draft"&&a.channel==="reddit"?'<label class="field-label">Target subreddit (approved together with the text)<input class="promo-subreddit" maxlength="23" placeholder="r/example"></label>':'')+
         (a.status==="draft"?'<button type="button" class="primary promo-approve-manual">Approve this exact text for manual publication</button>':'')+
         (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+
         (a.status!=="incomplete"?'<button type="button" class="promo-copy">Copy text</button>':'')+'</div>'+
         (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+
-        '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p></section>');
+        '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p>'+
+        (a.channel==="reddit"?manualPublicationHTML(a):'')+'</section>');
       continue;
     }
     if(["draft","approved","failed","incomplete"].includes(a.status)){
@@ -842,9 +913,17 @@ function renderPromotionPanel(t,d){
       el.querySelector(".promo-category"),el.querySelector(".promo-approve"),()=>call("preflight",undefined,PREFLIGHT_TIMEOUT_MS)));
     on(".promo-approve-manual",async()=>{
       if(edited()){msg("Save your edits before approving.");return}
-      if(!window.confirm("Approve this exact text for manual publication?\n\nWork Type: "+(d.work_type||a.channel)+"\nTitle: "+a.title+"\n\nThis application does not post it; you publish it yourself."))return;
-      await call("approve",{category:"",sha256:a.draft_sha256});msg("Approved for manual publication. Copy it and follow the checklist.");await loadPromotionPanel(t);
+      const subEl=el.querySelector(".promo-subreddit"), sub=subEl?subEl.value.trim():"";
+      if(subEl&&!sub){msg("Enter the target subreddit first.");return}
+      if(!window.confirm("Approve this exact text for manual publication?\n\nWork Type: "+(d.work_type||a.channel)+(sub?"\nSubreddit: "+sub:"")+"\nTitle: "+a.title+"\n\nThis application does not post it; you publish it yourself."))return;
+      await call("approve",{category:sub,sha256:a.draft_sha256});msg("Approved for manual publication. Copy it and follow the checklist.");await reopen(t);
     });
+    on(".promo-record",async()=>{
+      msg(await recordPublicationFlow(a,el.querySelector(".promo-post-url").value,el.querySelector(".promo-post-confirm").checked,
+        {confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data)}));
+      await reopen(t);
+    });
+    on(".promo-verify-post",async()=>{msg("Reading the public post on Reddit once…");msg(verifyMessage(await call("verify_publication",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".promo-copy",async()=>{
       const text=el.querySelector(".promo-title").value+"\n\n"+el.querySelector(".promo-body").value;
       try{await navigator.clipboard.writeText(text);msg("Copied to the clipboard.")}catch(e){msg("Copy failed; select the text and copy it manually.")}

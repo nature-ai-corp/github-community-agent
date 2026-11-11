@@ -135,7 +135,8 @@ def test_manual_work_types_never_publish_or_use_the_github_token(env, definition
                  lambda: service.monitor(task_id, a["id"])):
         with pytest.raises(ToolError, match="draft/manual-publication only"):
             call()
-    approved = service.approve(task_id, a["id"], "", a["draft_sha256"])
+    destination = "r/example" if definition_id == "promote_reddit" else ""  # Reddit binds the subreddit
+    approved = service.approve(task_id, a["id"], destination, a["draft_sha256"])
     with pytest.raises(ToolError, match="draft/manual-publication only"):
         service.publish(task_id, a["id"], approved)
     assert service.detail(task_id)["actions"][0]["status"] == "ready_manual"

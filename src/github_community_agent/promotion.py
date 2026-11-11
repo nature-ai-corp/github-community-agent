@@ -33,7 +33,10 @@ Work Types
 * Only ``GitHub Discussions`` has an automated publisher (above). The other five
   are draft / manual-publication only: approving them records the exact text the
   person will post by hand; this application never sends it anywhere and never
-  uses the GitHub token for them. Repository Optimization only proposes changes.
+  uses the GitHub token for them. Repository Optimization applies only owner-approved
+  exact changes. Reddit Promotion can afterwards record the URL of the hand-made
+  post ("user-confirmed") and check it with one public read ("independently
+  verified" only if subreddit, title and body match); it never posts.
 """
 from __future__ import annotations
 
@@ -522,7 +525,9 @@ WORK_TYPES = {wt.definition_id: wt for wt in (
              REDDIT_INSTRUCTION, (
                  "Read the target subreddit's rules and confirm project or self-promotion posts are allowed there.",
                  "Post by hand from your own account and keep the affiliation disclosure.",
-                 "Post once; do not cross-post the same text to many subreddits or ask for upvotes."),
+                 "Post once; do not cross-post the same text to many subreddits or ask for upvotes.",
+                 "Approve the exact text together with the target subreddit, paste it unchanged (Markdown "
+                 "mode), then record the post URL here so it can be checked."),
              max_tokens=1800, body_max=4000, disclosure=True),
     WorkType("promote_developer_forums", "Developer Forums", "developer_forum", False,
              "Selected Work Type: Developer Forums — ONE announcement the maintainer posts by hand in a forum "
@@ -953,6 +958,97 @@ def readme_diff(before: str, after: str) -> str:
     return "\n".join(list(lines)[:600])
 
 
+# -- Record Manual Publication (Reddit Promotion) ------------------------------------------
+#
+# The person posts the approved text by hand, from their own account. This application
+# never posts, never logs in to Reddit and holds no Reddit credential. Afterwards the person
+# records the post URL. The app accepts it only if it is a Reddit post permalink in the
+# subreddit that was APPROVED with the text, extracts the post ID, and requires an explicit
+# confirmation that the exact approved text was posted. That record is "user-confirmed".
+# "Independently verified" is set ONLY when one public, unauthenticated read of that post
+# shows the same post ID and subreddit, the approved title and body, and no removal. If
+# Reddit cannot be read, the record stays user-confirmed; success is never claimed from
+# the URL alone.
+SUBREDDIT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_]{1,20}")
+_REDDIT_POST = re.compile(r"https://(?:www\.|old\.|new\.)?reddit\.com/r/([A-Za-z0-9][A-Za-z0-9_]{1,20})"
+                          r"/comments/([a-z0-9]{5,12})(?:/[^/?#\s]*)?/?")
+_REDDIT_SHORT = re.compile(r"https?://(?:www\.)?(?:redd\.it/|reddit\.com/r/[^/\s]+/s/)", re.I)
+REDDIT_POST_ID = re.compile(r"[a-z0-9]{5,12}")
+REDDIT_INFO_URL = "https://www.reddit.com/by_id/t3_{post_id}.json"  # the ONLY Reddit request: a public GET
+REDDIT_USER_AGENT = "windows:github-community-agent.publication-check:2 (read-only)"
+MANUAL_PUBLISHED = ("published_user_confirmed", "published_verified")
+_reddit_transport: httpx.BaseTransport | None = None  # replaced in tests only
+
+
+def normalize_subreddit(value) -> str:
+    """'r/Example', '/r/Example/' or 'Example' -> 'Example'; anything else is refused."""
+    name = re.sub(r"^/?r/", "", value.strip(), flags=re.I).strip("/") if isinstance(value, str) else ""
+    if not SUBREDDIT_NAME.fullmatch(name):
+        raise ChangeRefused("Enter the target subreddit you approved, for example r/example.", "subreddit_invalid")
+    return name
+
+
+def parse_reddit_post_url(url) -> dict:
+    """A Reddit post permalink -> canonical URL, subreddit and post ID. Query and fragment are ignored."""
+    if not isinstance(url, str) or not url.strip() or len(url) > 500:
+        raise ChangeRefused("Enter the Reddit post URL.", "url_invalid")
+    url = url.strip()
+    if _REDDIT_SHORT.match(url):
+        raise ChangeRefused("Short and share links do not name the post. Open the post and copy its full address "
+                            "(https://www.reddit.com/r/<subreddit>/comments/<id>/…).", "url_share_link")
+    m = _REDDIT_POST.fullmatch(re.split(r"[?#]", url, maxsplit=1)[0])
+    if not m:
+        raise ChangeRefused("This is not a Reddit post URL. Use the post's full address: "
+                            "https://www.reddit.com/r/<subreddit>/comments/<id>/…", "url_invalid")
+    subreddit, post_id = m.groups()
+    return {"subreddit": subreddit, "post_id": post_id,
+            "url": f"https://www.reddit.com/r/{subreddit}/comments/{post_id}/"}
+
+
+def _reddit_text(value) -> str:
+    """Reddit returns HTML-escaped text; compare content, not line endings or trailing spaces."""
+    import html
+    text = html.unescape(value if isinstance(value, str) else "").replace("\r\n", "\n")
+    return "\n".join(line.rstrip() for line in text.split("\n")).strip()
+
+
+def fetch_reddit_post(post_id: str) -> dict | None:
+    """ONE public, unauthenticated GET of a post (no account, no cookies, no write, no retry).
+
+    Returns None if Reddit reports no such post; raises ChangeRefused('unavailable_…') if it
+    cannot be read (blocked, rate-limited, network, unexpected format)."""
+    if not isinstance(post_id, str) or not REDDIT_POST_ID.fullmatch(post_id):
+        raise ChangeRefused("Invalid Reddit post ID.", "invalid_post_id")
+    try:
+        with httpx.Client(timeout=httpx.Timeout(20, connect=10), follow_redirects=False, trust_env=False,
+                          transport=_reddit_transport) as client:
+            r = client.get(REDDIT_INFO_URL.format(post_id=post_id),
+                           headers={"User-Agent": REDDIT_USER_AGENT, "Accept": "application/json"})
+    except httpx.HTTPError:
+        raise ChangeRefused("Reddit could not be reached.", "unavailable_network") from None
+    if r.status_code != 200:
+        raise ChangeRefused(f"Reddit refused the public read (HTTP {r.status_code}).",
+                            f"unavailable_http_{r.status_code}")
+    try:
+        children = r.json()["data"]["children"]
+        assert isinstance(children, list)
+    except Exception:
+        raise ChangeRefused("Reddit returned an unexpected response.", "unavailable_format") from None
+    post = next((c["data"] for c in children if isinstance(c, dict) and c.get("kind") == "t3"
+                 and isinstance(c.get("data"), dict) and c["data"].get("id") == post_id), None)
+    if post is None:
+        return None
+
+    def count(v):
+        return v if type(v) is int else None
+    return {"id": post_id, "subreddit": post.get("subreddit") if isinstance(post.get("subreddit"), str) else "",
+            "title": post.get("title"), "selftext": post.get("selftext"),
+            "removed": bool(post.get("removed_by_category")) or post.get("selftext") in ("[removed]", "[deleted]")
+            or post.get("author") == "[deleted]",
+            "locked": post.get("locked") is True, "score": count(post.get("score")),
+            "num_comments": count(post.get("num_comments"))}
+
+
 # -- durable store (same SQLite file as the V1 work journal; separate tables) ---------------
 
 
@@ -985,6 +1081,9 @@ class PromotionStore:
             con.execute("""CREATE TABLE IF NOT EXISTS promotion_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
                 action_id INTEGER, event TEXT NOT NULL, happened_utc TEXT NOT NULL)""")
+            # Additive migration (existing rows untouched): last independent publication check.
+            if "verification_json" not in {r[1] for r in con.execute("PRAGMA table_info(promotion_actions)")}:
+                con.execute("ALTER TABLE promotion_actions ADD COLUMN verification_json TEXT")
 
     def _connect(self):
         return sqlite3.connect(self.db, timeout=15)
@@ -1087,10 +1186,29 @@ class PromotionStore:
         return self._transition(action_id, task_id, ("draft", "failed"), "approved",
                                 status="approved", category=category, approved_sha256=sha, error=None)
 
-    def approve_manual(self, action_id, task_id, sha) -> bool:
-        # Draft/manual-publication channels: records the exact text a person will post by hand.
+    def approve_manual(self, action_id, task_id, sha, destination=None) -> bool:
+        # Draft/manual-publication channels: records the exact text (and, for Reddit, the
+        # approved subreddit) a person will post by hand.
         return self._transition(action_id, task_id, ("draft",), "approved_for_manual_publication",
-                                status="ready_manual", approved_sha256=sha, error=None)
+                                status="ready_manual", approved_sha256=sha, category=destination, error=None)
+
+    def record_manual(self, action_id, task_id, url, post_ref) -> bool:
+        return self._transition(action_id, task_id, ("ready_manual",), "manual_recorded_user_confirmed",
+                                status="published_user_confirmed", published_url=url,
+                                published_node_id=post_ref, error=None)
+
+    def published_with_ref(self, channel, post_ref) -> list[int]:
+        with self._connect() as con:
+            return [r[0] for r in con.execute(
+                "SELECT id FROM promotion_actions WHERE channel=? AND published_node_id=?", (channel, post_ref))]
+
+    def set_verification(self, action_id, task_id, facts: dict, status: str) -> bool:
+        return self._transition(action_id, task_id, MANUAL_PUBLISHED, f"manual_check:{facts['outcome']}",
+                                status=status, verification_json=json.dumps(facts, ensure_ascii=False))
+
+    def add_action_event(self, task_id, action_id, event) -> None:
+        with self._connect() as con:
+            self._event(con, task_id, action_id, event)
 
     def mark_publishing(self, action_id, task_id, key) -> bool:
         return self._transition(action_id, task_id, ("approved",), "publishing",
@@ -1140,6 +1258,10 @@ class PromotionStore:
         for a in actions:
             a["metrics"] = metrics.get(a["id"], [])
             a["draft_sha256"] = draft_sha256(a["repository"], a["title"], a["body"], a["channel"])
+            if a["channel"] != CHANNEL:  # manual publication: approved destination, post ID and last check
+                a["post_id"] = (a["published_node_id"] or "").removeprefix("t3_") or None
+                a["verification"] = json.loads(a["verification_json"]) if a.get("verification_json") else None
+            a.pop("verification_json", None)
             a.pop("idempotency_key", None)
             a.pop("published_node_id", None)
         return {"actions": actions, "improvements": improvements, "events": events}
@@ -1623,13 +1745,18 @@ class PromotionService:
         self._ready_content(task_id, action)
         if action["channel"] != CHANNEL:
             # Draft/manual-publication: approve the exact text; nothing is sent, no token is used.
-            if category not in (None, ""):
+            # Reddit: the approval also binds the destination subreddit (part of the fingerprint).
+            if action["channel"] == "reddit":
+                category = normalize_subreddit(category)
+            elif category not in (None, ""):
                 raise ToolError("This Work Type has no Discussion category.")
             if sha != draft_sha256(action["repository"], action["title"], action["body"], action["channel"]):
                 raise ToolError("The approved content does not match the current draft; review it again.")
-            approved = content_sha256(action["repository"], "", action["title"], action["body"], action["channel"])
-            if not self.store.approve_manual(action_id, task_id, approved):
+            approved = content_sha256(action["repository"], category or "", action["title"], action["body"],
+                                      action["channel"])
+            if not self.store.approve_manual(action_id, task_id, approved, category or None):
                 raise ToolError("This action cannot be approved in its current state.")
+            self._action_activity(task_id, action_id, "approved_manual")
             return approved
         if not isinstance(category, str) or not category or len(category) > 80:
             raise ToolError("Choose a Discussion category.")
@@ -1680,6 +1807,97 @@ class PromotionService:
         url = f"{gh.html_root(repository)}/discussions/{number}"
         self.store.mark_published(action_id, task_id, url, node_id)
         return {"status": "published", "url": url}
+
+    # -- Record Manual Publication (Reddit) --------------------------------------------
+    # Separate from approval: approval fixes the exact text and subreddit BEFORE posting;
+    # recording happens AFTER the person posted by hand. Nothing here posts anything.
+
+    def _action_activity(self, task_id: int, action_id: int, event: str, *, store: bool = False) -> None:
+        """Task Activity History entry for a draft (fixed codes only, never URLs or text)."""
+        if store:
+            self.store.add_action_event(task_id, action_id, event)
+        record = getattr(self.journal, "record_event", None)
+        if record:
+            record(task_id, f"action#{action_id}:{event}")
+
+    def _reddit_action(self, task_id, action_id) -> dict:
+        action = self._bound(task_id, action_id)
+        if action["channel"] != "reddit":
+            raise ToolError("Recording a manual publication is available for Reddit Promotion only.")
+        return action
+
+    def record_manual_publication(self, task_id, action_id, url, confirmed, sha) -> dict:
+        """Record the URL of a post the person published by hand: user-confirmed, NOT verified."""
+        action = self._reddit_action(task_id, action_id)
+        try:
+            return self._record_manual(task_id, action_id, action, url, confirmed, sha)
+        except ChangeRefused as exc:
+            self._action_activity(task_id, action_id, f"manual_record_refused:{exc.code}", store=True)
+            raise
+
+    def _record_manual(self, task_id, action_id, action, url, confirmed, sha) -> dict:
+        if action["status"] in MANUAL_PUBLISHED:
+            raise ChangeRefused("A publication is already recorded for this draft.", "already_recorded")
+        if action["status"] != "ready_manual" or not action["category"]:
+            raise ChangeRefused("Approve the exact text and subreddit before recording a publication.",
+                                "not_approved")
+        expected = content_sha256(action["repository"], action["category"], action["title"], action["body"],
+                                  action["channel"])
+        if sha != expected or action["approved_sha256"] != expected:
+            raise ChangeRefused("The approval does not match the current text; review it again.",
+                                "approval_mismatch")
+        post = parse_reddit_post_url(url)
+        if post["subreddit"].lower() != action["category"].lower():
+            raise ChangeRefused(f"This post is in r/{post['subreddit']}, but the approved subreddit is "
+                                f"r/{action['category']}. Nothing was recorded.", "subreddit_mismatch")
+        if confirmed is not True:
+            raise ChangeRefused(f"Confirm that you posted exactly the approved title and body in "
+                                f"r/{action['category']} from your own account.", "not_confirmed")
+        ref = f"t3_{post['post_id']}"
+        if any(i != action_id for i in self.store.published_with_ref(action["channel"], ref)):
+            raise ChangeRefused("This Reddit post is already recorded for another draft.", "duplicate_post")
+        if not self.store.record_manual(action_id, task_id, post["url"], ref):
+            raise ChangeRefused("This draft changed meanwhile; reload it.", "duplicate")
+        self._action_activity(task_id, action_id, "manual_recorded_user_confirmed")
+        return {"status": "published_user_confirmed", "verified": False, "url": post["url"],
+                "post_id": post["post_id"], "subreddit": post["subreddit"]}
+
+    def verify_manual_publication(self, task_id, action_id) -> dict:
+        """Independent check: one public read of the recorded post. Verified ONLY if everything matches."""
+        action = self._reddit_action(task_id, action_id)
+        if action["status"] not in MANUAL_PUBLISHED or not action["published_node_id"]:
+            self._action_activity(task_id, action_id, "manual_verify_refused:not_recorded", store=True)
+            raise ToolError("Record the Reddit post URL first.")
+        post_id = action["published_node_id"].removeprefix("t3_")
+        checked = _utc()
+        try:
+            post = fetch_reddit_post(post_id)
+        except ChangeRefused as exc:
+            # Cannot tell: the record stays exactly as it was (never upgraded, never downgraded).
+            facts = {"checked_utc": checked, "outcome": "unavailable", "reason": exc.code}
+            self.store.set_verification(action_id, task_id, facts, action["status"])
+            self._action_activity(task_id, action_id, f"manual_verify_unavailable:{exc.code}")
+            return {"status": action["status"], "verified": action["status"] == "published_verified",
+                    "outcome": "unavailable", "reason": str(exc)}
+        checks = {"found": post is not None}
+        if post is not None:
+            checks.update({
+                "post_id": post["id"] == post_id,
+                "subreddit": post["subreddit"].lower() == (action["category"] or "").lower(),
+                "title": _reddit_text(post["title"]) == _reddit_text(action["title"]),
+                "body": _reddit_text(post["selftext"]) == _reddit_text(action["body"]),
+                "not_removed": not post["removed"]})
+        verified = all(checks.values())
+        outcome = ("verified" if verified else "not_found" if post is None
+                   else "removed" if post["removed"] else "mismatch")
+        facts = {"checked_utc": checked, "outcome": outcome, "checks": checks}
+        if post is not None:
+            facts.update({"score": post["score"], "num_comments": post["num_comments"], "locked": post["locked"]})
+        status = "published_verified" if verified else "published_user_confirmed"
+        self.store.set_verification(action_id, task_id, facts, status)
+        self._action_activity(task_id, action_id, "manual_verified" if verified else f"manual_verify_failed:{outcome}")
+        return {"status": status, "verified": verified, "outcome": outcome, "checks": checks,
+                "checked_utc": checked}
 
     def reconcile(self, task_id, action_id) -> dict:
         action = self._automated(task_id, action_id)
