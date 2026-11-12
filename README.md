@@ -27,6 +27,28 @@ The app uses the general UI baseline of Nature AI Worker v0.1.1, with independen
 
 V2 Promotion is under development and is **not** part of v1.0.0-rc1. No V2 capability has been released.
 
+One Promotion Agent researches a product repository you are authorized to
+promote, plans, drafts, and waits for you to approve the exact text. The only
+settings are the target repository (default
+`nature-ai-corp/github-community-agent`) and the GitHub token for that
+repository. Nothing is published without your explicit approval.
+
+**Release rule: no real-world verification, no released Work Type.** The
+Promotion Work Types that have passed real-world acceptance, and the only ones a
+V2 build will offer, are **GitHub Discussions** (an announcement Discussion in
+that repository, published after your approval and a fresh permission check,
+then monitored), **Repository Optimization** (exact Description, Topics and
+README changes, each applied only after your approval; README only through a
+pull request that you merge), **Bluesky** (one exact, approved post that the
+Agent publishes from the connected project account and verifies from the public
+index) and **DEV Community** (one exact, approved technical article that the Agent
+saves as a private draft, checks, publishes after your confirmation and verifies).
+Reddit Promotion and Developer Forums are **development work, not released
+capabilities**: they are not offered in the release configuration until each
+passes its own real-world acceptance. See
+[V2 Promotion design](docs/V2_PROMOTION.md). The released V1 (`v1.0.0-rc1`)
+does not include V2.
+
 ## Project boundaries
 
 This project must have its **own** installation, UI/product identity, configuration, data, GitHub credentials, test suite, CI, versioning and releases. Shared Worker Core functionality must be explicitly versioned and dependency-audited. Enterprise Platform Server and S–C client code are outside scope. Existing Nature AI Worker source remains untouched while migration is verified.

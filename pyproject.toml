@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-community-agent"
-version = "1.0.0rc1"
+version = "2.0.0b1"
 description = "Independent GitHub community management agent (pre-release)"
 readme = "README.md"
 license = "Apache-2.0"

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -47,11 +48,29 @@ DEFINITIONS = (
     TaskDefinition("draft_issue", "Draft Issue Reply", "Draft Issue Reply", "", "draft_replies", "V1", True),
     TaskDefinition("draft_discussion", "Draft Discussion Reply", "Draft Discussion Reply", "", "draft_replies", "V1", True),
     TaskDefinition("community_report", "Community Report", "Community Report", "", "community_report", "V1", True),
-    TaskDefinition("promote_self", "Promote GitHub Community Agent", "", "Self-Promotion", None, "V2", False),
-    TaskDefinition("promote_worker", "Promote Nature AI Worker", "", "Product Promotion", None, "V2", False),
-    TaskDefinition("promote_other", "Promote Other Repository", "", "Product Promotion", None, "V2", False),
+    # V2: ONE Promotion Agent / engine with independently selectable Promotion Work
+    # Types (one Task definition each; each social platform is its own Work Type).
+    # The target repository and its token are configuration. promote_repository keeps
+    # its id (existing Tasks/evidence). promote_social_media is legacy: existing Tasks
+    # keep it, New Task never offers it (promotion.LEGACY_WORK_TYPES).
+    TaskDefinition("promote_repository", "GitHub Discussions", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_repository_optimization", "Repository Optimization", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_reddit", "Reddit Promotion", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_developer_forums", "Developer Forums", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_technical_articles", "Technical Articles (legacy)", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_bluesky", "Bluesky", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_dev_community", "DEV Community", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_social_media", "Social Media (legacy)", "", "Promotion", "promotion", "V2", True),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
+
+
+def available_definitions() -> tuple:
+    """Definitions New Task offers. Promotion Work Types pass the release gate and are not
+    legacy (promotion.startable_work_types); every V1 definition is always available."""
+    from .promotion import startable_work_types
+    enabled = startable_work_types()
+    return tuple(d for d in DEFINITIONS if d.workflow != "promotion" or d.id in enabled)
 
 # Each Task owns its own user-facing definition. The Work Center only renders
 # these records; another product can supply different classification/fields.
@@ -106,35 +125,130 @@ TASK_DETAILS = {
         "review": "Human review recommended; no changes are published.",
         "limitations": "A missing Discussions token or limited fetched data makes coverage incomplete."
     },
-    "promote_self": {
-        "goal": "Plan promotion of GitHub Community Agent itself.",
-        "steps": ["V2 planned: assess the project's current public materials.",
-                  "V2 planned: propose promotion opportunities and prepare content.",
-                  "V2 planned: require review before any publication."],
-        "output": "Future promotion plan and draft materials; not yet available.",
-        "requires": "V2 Promotion implementation and explicit review/approval safeguards.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
+    "promote_repository": {
+        "goal": "Announce the selected product repository (default: GitHub Community Agent) in its own GitHub Discussions.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan audience, value proposition, channels, schedule and measurable objectives.",
+                  "Draft one factual announcement for a GitHub Discussion in that repository.",
+                  "You review, edit and approve the exact text; nothing is posted before that.",
+                  "Publish only the approved action, after a fresh permission check.",
+                  "Monitor engagement and get improvement suggestions."],
+        "output": "Evidence, plan, an editable draft, the published Discussion link and engagement metrics.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key; publishing "
+                    "needs that repository's own GitHub token (WRITE access, Discussions enabled).",
+        "review": "Explicit approval of the exact repository, category, title and body before publication.",
+        "limitations": "Automated publishing: only a Discussion in the selected repository itself, never "
+                       "to other repositories or third-party sites."
     },
-    "promote_worker": {
-        "goal": "Plan promotion of the separate Nature AI Worker product.",
-        "steps": ["V2 planned: analyze product positioning and public materials.",
-                  "V2 planned: prepare tailored outreach and community content.",
-                  "V2 planned: require review and approval before publication."],
-        "output": "Future promotion plan and drafts; not yet available.",
-        "requires": "V2 Promotion implementation and approved target scope.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
+    "promote_repository_optimization": {
+        "goal": "Propose improvements to how the product repository presents itself (description, topics, README, releases, templates).",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft concrete proposals, each with the exact proposed text, its evidence and rationale.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "Reviewable list of proposed repository changes; nothing is changed in the repository.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Proposals only. This application never writes to the repository; you apply approved changes yourself."
     },
-    "promote_other": {
-        "goal": "Plan promotion of another explicitly selected GitHub repository.",
-        "steps": ["V2 planned: review the specified repository and audience.",
-                  "V2 planned: prepare an evidence-based promotion plan and content.",
-                  "V2 planned: require approval before any external action."],
-        "output": "Future promotion plan and drafts; not yet available.",
-        "requires": "V2 Promotion implementation and an explicitly authorized target repository.",
-        "review": "Future external publication requires human approval.",
-        "limitations": "V2 is not implemented; this Task cannot run."
+    "promote_reddit": {
+        "goal": "Prepare one honest, disclosed Reddit post about the product for a subreddit that allows project posts.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one post with an affiliation disclosure.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable Reddit post draft and a community-rules checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: no Reddit integration; nothing is posted to Reddit."
+    },
+    "promote_developer_forums": {
+        "goal": "Prepare one disclosed project announcement for a developer forum section that allows it.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one technical announcement with an affiliation disclosure.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable forum post draft and a community-rules checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Draft / manual publication only: no forum integration; nothing is posted to any forum."
+    },
+    "promote_technical_articles": {
+        "goal": "Legacy: technical article drafts created before platform Work Types. Existing Tasks only.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one article grounded in the documented steps, with source links.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "An editable article draft and a publication checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Legacy draft only: no publisher, cannot be started. Use a platform Work Type "
+                       "(DEV Community) instead."
+    },
+    "promote_bluesky": {
+        "goal": "Publish ONE short, factual, disclosed post about the product from the project's own "
+                "Bluesky account, after you approve the exact post.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one Bluesky post (within Bluesky's 300-character limit) with the repository link.",
+                  "You review and edit it, then approve the exact post: account, text and links.",
+                  "The Agent publishes it once from the connected project account and verifies it from the "
+                  "public Bluesky index."],
+        "output": "One Bluesky post published by the Agent, with its record URI, CID, public URL and "
+                  "verification result in the Task.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key, and the "
+                    "project's Bluesky account connected with an app password (Settings → Promotion → "
+                    "Promotion Platform: Bluesky). No GitHub token is used.",
+        "review": "Explicit approval of the exact post, bound to the account and links; publishing is a "
+                  "separate confirmation. Any edit cancels the approval.",
+        "limitations": "One post per approval, from the one connected project account; an uncertain outcome "
+                       "is checked, never retried blindly. Bluesky-hosted accounts only."
+    },
+    "promote_dev_community": {
+        "goal": "Publish ONE original, educational technical article on DEV Community (dev.to) from the "
+                "project's own DEV account, after you approve the exact article.",
+        "steps": ["Research the repository's README, releases and the source documents you name, with links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one complete Markdown article on your topic, with affiliation and AI-assistance "
+                  "disclosures, a description and up to 4 tags.",
+                  "You review and edit it, then approve the exact article: account, title, description, tags, "
+                  "full body and publishing settings.",
+                  "The Agent saves it on DEV as a PRIVATE draft and compares the saved draft with your "
+                  "approved version.",
+                  "After your separate confirmation, the Agent publishes that draft and verifies the public "
+                  "article."],
+        "output": "One DEV article published by the Agent, with its article ID, public URL and the draft and "
+                  "public verification results in the Task.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key, and the "
+                    "project's DEV account connected with a DEV API key (Settings → Promotion → Promotion "
+                    "Platform: DEV Community). No GitHub token is used.",
+        "review": "Explicit approval of the exact article, bound to the DEV account; saving the private draft "
+                  "and publishing are separate confirmations. Any edit cancels the approval.",
+        "limitations": "One article per approval, from the one connected project account. Educational content "
+                       "only (DEV Terms §11, DEV's AI-assisted article guidelines). Uncertain outcomes are "
+                       "checked, never retried blindly."
+    },
+    "promote_social_media": {
+        "goal": "Legacy: social media post drafts created before platform Work Types. Existing Tasks only.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft a short post (max 280 characters) and a longer post.",
+                  "You review, edit and approve the exact text.",
+                  "Publish it yourself, by hand, following the community-rules checklist."],
+        "output": "Editable social media post drafts and a posting checklist.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
+                    "token or channel account is used.",
+        "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
+        "limitations": "Legacy draft only: no publisher, cannot be started. Use a platform Work Type "
+                       "(Bluesky) instead."
     },
 }
 
@@ -145,7 +259,7 @@ def task_choices(route: str, value: str) -> list[TaskDefinition]:
     """Choice route is mutually exclusive; Task definitions own both classifications."""
     if route not in ("work_type", "domain"):
         raise ToolError("Choose Work Type or Domain, not both.")
-    return [d for d in DEFINITIONS if value and getattr(d, route) == value]
+    return [d for d in available_definitions() if value and getattr(d, route) == value]
 
 
 def data_directory() -> Path:
@@ -155,6 +269,9 @@ def data_directory() -> Path:
 
 def _utc() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+_SAFE_EVENT = re.compile(r"[a-z0-9_#:.-]{1,80}")
 
 
 class Journal:
@@ -216,6 +333,27 @@ class Journal:
             if row.rowcount == 1:
                 self._event(con, task_id, "completed" if status == "finished" else status, now)
 
+    def update_result(self, task_id: int, result: dict) -> bool:
+        """Replace the stored result of a finished, non-archived Task (V2 draft regeneration)."""
+        with self._connect() as con:
+            row = con.execute(
+                "UPDATE work SET result_json=?, updated_utc=? WHERE id=? AND status!='running' AND deleted_utc IS NULL",
+                (json.dumps(result, ensure_ascii=False), _utc(), task_id))
+            return row.rowcount == 1
+
+    def record_event(self, task_id: int, event: str) -> bool:
+        """Add one Activity History entry for an existing, non-archived Task.
+
+        Only fixed internal event codes (e.g. "change#3:apply_refused:permission");
+        never error text, tokens or other untrusted content."""
+        if not isinstance(event, str) or not _SAFE_EVENT.fullmatch(event):
+            raise ValueError("Invalid activity event name.")
+        with self._connect() as con:
+            if not con.execute("SELECT 1 FROM work WHERE id=? AND deleted_utc IS NULL", (task_id,)).fetchone():
+                return False
+            self._event(con, task_id, event, _utc())
+            return True
+
     def review(self, task_id: int) -> bool:
         with self._connect() as con:
             now = _utc()
@@ -241,6 +379,19 @@ class Journal:
             if row.rowcount == 1:
                 self._event(con, task_id, "archived", now)
             return row.rowcount == 1
+
+    def get(self, task_id: int) -> dict | None:
+        """One Work record (including archived), with its parsed result."""
+        if type(task_id) is not int or task_id < 1:
+            return None
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute("SELECT * FROM work WHERE id=?", (task_id,)).fetchone()
+        if not row:
+            return None
+        record = dict(row)
+        record["result"] = json.loads(record.pop("result_json")) if record["result_json"] else None
+        return record
 
     def list(self, include_archived: bool = False) -> list[dict]:
         with self._connect() as con:
@@ -273,11 +424,12 @@ class Journal:
 
 
 class WorkService:
-    def __init__(self, journal: Journal):
+    def __init__(self, journal: Journal, promotion=None):
         self.journal = journal
+        self.promotion = promotion  # the ONE V2 Promotion Agent (promotion.PromotionService)
 
     def definitions(self) -> list[dict]:
-        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in DEFINITIONS]
+        return [{**asdict(d), "details": TASK_DETAILS[d.id]} for d in available_definitions()]
 
     def start(self, payload: dict) -> int:
         """Create a real Work record then launch one existing production workflow."""
@@ -288,6 +440,19 @@ class WorkService:
         if (not definition or not definition.enabled
                 or definition not in task_choices(route, selected)):
             raise ToolError("Task must match the selected Work Type OR Domain.")
+        if definition.workflow == "promotion":
+            # V2: the repository comes from Settings → Promotion (bound at creation);
+            # the AI model is the app's shared provider configuration.
+            if self.promotion is None:
+                raise ToolError("Promotion is not available in this session.")
+            model_key = payload.get("model_key")
+            if not isinstance(model_key, str) or not model_key:
+                raise ToolError("Model API key must be provided for this run.")
+            settings = ModelSettings(payload.get("provider"), payload.get("model_name"))
+            model = ChatCompletionsModel(settings, api_key=lambda: model_key)
+            if payload.get("brief") not in (None, "", {}):
+                return self.promotion.start(model, definition.id, brief=payload.get("brief"))
+            return self.promotion.start(model, definition.id)
         repository = payload.get("repository", "")
         provider = payload.get("provider")
         model_name = payload.get("model_name")
@@ -302,7 +467,6 @@ class WorkService:
             raise ToolError("Model API key must be provided for this run.")
         # Validate user-supplied settings BEFORE creating a work record.
         from .runtime import CommunitySettings
-        from .model_provider import ModelSettings
         CommunitySettings(repository)
         ModelSettings(provider, model_name)
         task_id = self.journal.create(definition_id, repository)
@@ -323,7 +487,33 @@ class WorkService:
             self.journal.finish(task_id, "failed", error="Execution failed; inspect application settings.")
 
 
-def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None):
+MAX_PROMOTION_REQUEST_BYTES = 200000  # an edited announcement or README (V2 promotion routes only)
+
+
+def _change_route(path: str):
+    """Parse /api/promotion/tasks/<id>/changes/<cid>/<verb>; None otherwise."""
+    parts = path.strip("/").split("/")
+    if (len(parts) == 7 and parts[:3] == ["api", "promotion", "tasks"] and parts[3].isdigit()
+            and parts[4] == "changes" and parts[5].isdigit()):
+        return int(parts[3]), int(parts[5]), parts[6]
+    return None
+
+
+def _promotion_route(path: str):
+    """Parse /api/promotion/tasks/<id>[/actions/<aid>]/<verb>; None if not a promotion route."""
+    parts = path.strip("/").split("/")
+    if parts[:3] != ["api", "promotion", "tasks"] or len(parts) < 5 or not parts[3].isdigit():
+        return None
+    task_id = int(parts[3])
+    if len(parts) == 5:
+        return task_id, None, parts[4]
+    if len(parts) == 7 and parts[4] == "actions" and parts[5].isdigit():
+        return task_id, int(parts[5]), parts[6]
+    return None
+
+
+def handler_factory(service: WorkService, nonce: str, settings: EncryptedSettings | None = None,
+                    promotion_credentials=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "GitHubCommunityAgent/0.1"
 
@@ -393,7 +583,124 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(403, {"error": "Unauthorized."})
                 include_archived = urlsplit(self.path).query == "include_archived=1"
                 return self._send(200, {"tasks": service.journal.list(include_archived=include_archived)})
+            if path.startswith("/api/promotion/"):
+                if self.headers.get("X-App-Nonce") != nonce:
+                    return self._send(403, {"error": "Unauthorized."})
+                if service.promotion is None or promotion_credentials is None:
+                    return self._send(503, {"error": "Promotion is not available."})
+                try:
+                    if path == "/api/promotion/settings":
+                        return self._send(200, promotion_credentials.public())
+                    if path == "/api/promotion/bluesky":  # public account facts only; never the app password
+                        return self._send(200, service.promotion.bluesky_account())
+                    if path == "/api/promotion/devto":  # account id and username only; never the API key
+                        return self._send(200, service.promotion.devto_account())
+                    route = _promotion_route(path)
+                    if route and route[1] is None and route[2] == "detail":
+                        return self._send(200, service.promotion.detail(route[0]))
+                except SettingsError:
+                    return self._send(503, {"error": "Cannot read protected promotion settings."})
+                except ToolError as exc:
+                    return self._send(404, {"error": str(exc)[:300]})
             return self._send(404, {"error": "Not found."})
+
+        def _promotion_model(self):
+            saved = settings.load() if settings is not None else {}
+            key = saved.get("model_key")
+            if not key:
+                raise ToolError("Configure an AI model and API key in Settings first.")
+            return ChatCompletionsModel(ModelSettings(saved["provider"], saved["model"]), api_key=lambda: key)
+
+        def _promotion_post(self, path: str, payload: dict):
+            promo = service.promotion
+            if promo is None or promotion_credentials is None:
+                return self._send(503, {"error": "Promotion is not available."})
+            try:
+                if path == "/api/promotion/settings":
+                    return self._send(200, promotion_credentials.update(
+                        payload.get("repository"), payload.get("token") or "",
+                        payload.get("remove_token") is True))
+                if path == "/api/promotion/bluesky":
+                    if payload.get("remove") is True:
+                        return self._send(200, promo.bluesky_disconnect())
+                    return self._send(200, promo.bluesky_connect(payload.get("handle"), payload.get("app_password")))
+                if path == "/api/promotion/devto":
+                    if payload.get("remove") is True:
+                        return self._send(200, promo.devto_disconnect())
+                    return self._send(200, promo.devto_connect(payload.get("api_key")))
+                change = _change_route(path)
+                if change:
+                    task_id, change_id, verb = change
+                    if verb == "edit":
+                        promo.edit_change(task_id, change_id, payload.get("value"))
+                        return self._send(200, {"ok": True})
+                    if verb == "skip":
+                        promo.skip_change(task_id, change_id)
+                        return self._send(200, {"ok": True})
+                    if verb == "approve":
+                        return self._send(200, {"ok": True, "approved_sha256":
+                                                promo.approve_change(task_id, change_id, payload.get("sha256"))})
+                    if verb == "apply":
+                        return self._send(200, promo.apply_change(task_id, change_id, payload.get("sha256")))
+                    if verb == "verify":
+                        return self._send(200, promo.verify_change(task_id, change_id))
+                    return self._send(404, {"error": "Not found."})
+                route = _promotion_route(path)
+                if not route:
+                    return self._send(404, {"error": "Not found."})
+                task_id, action_id, verb = route
+                if action_id is None:
+                    if verb == "improve":
+                        return self._send(200, {"improvement": promo.improve(task_id, self._promotion_model())})
+                    return self._send(404, {"error": "Not found."})
+                if verb == "regenerate":
+                    return self._send(200, promo.regenerate(task_id, action_id, self._promotion_model()))
+                if verb == "edit":
+                    promo.edit(task_id, action_id, payload.get("title"), payload.get("body"))
+                    return self._send(200, {"ok": True})
+                if verb == "preflight":
+                    return self._send(200, promo.preflight(task_id, action_id))
+                if verb == "review":  # "Technical review complete" for exactly this draft
+                    return self._send(200, promo.mark_reviewed(task_id, action_id, payload.get("sha256")))
+                if verb == "approve":
+                    approved = promo.approve(task_id, action_id, payload.get("category"), payload.get("sha256"),
+                                             payload.get("review_override"))
+                    return self._send(200, {"ok": True, "status": "approved", "approved_sha256": approved})
+                if verb == "publish":
+                    return self._send(200, promo.publish(task_id, action_id, payload.get("sha256")))
+                if verb == "bluesky_approve":
+                    return self._send(200, promo.bluesky_approve(task_id, action_id, payload.get("sha256"),
+                                                                 payload.get("review_override")))
+                if verb == "bluesky_publish":
+                    return self._send(200, promo.bluesky_publish(task_id, action_id, payload.get("sha256")))
+                if verb == "bluesky_reconcile":
+                    return self._send(200, promo.bluesky_reconcile(task_id, action_id))
+                if verb == "bluesky_verify":
+                    return self._send(200, promo.bluesky_verify(task_id, action_id))
+                if verb == "devto_approve":
+                    return self._send(200, promo.devto_approve(task_id, action_id, payload.get("sha256"),
+                                                               payload.get("review_override")))
+                if verb == "devto_create_draft":
+                    return self._send(200, promo.devto_create_draft(task_id, action_id, payload.get("sha256")))
+                if verb == "devto_publish":
+                    return self._send(200, promo.devto_publish(task_id, action_id, payload.get("sha256")))
+                if verb == "devto_reconcile":
+                    return self._send(200, promo.devto_reconcile(task_id, action_id))
+                if verb == "devto_verify":
+                    return self._send(200, promo.devto_verify(task_id, action_id))
+                if verb == "record_publication":
+                    return self._send(200, promo.record_manual_publication(
+                        task_id, action_id, payload.get("url"), payload.get("confirmed"), payload.get("sha256")))
+                if verb == "verify_publication":
+                    return self._send(200, promo.verify_manual_publication(task_id, action_id))
+                if verb == "reconcile":
+                    return self._send(200, promo.reconcile(task_id, action_id))
+                if verb == "monitor":
+                    return self._send(200, promo.monitor(task_id, action_id))
+                return self._send(404, {"error": "Not found."})
+            except (ToolError, SettingsError) as exc:
+                # Our own fixed messages (repository names, permission facts); never credentials.
+                return self._send(400, {"error": str(exc)[:300]})
 
         def _discard_body(self) -> None:
             # Consume a small unread request body before replying, so Windows
@@ -418,14 +725,17 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 self._discard_body()
                 return self._send(403, {"error": "Unauthorized."})
             try:
+                path = urlsplit(self.path).path
+                limit = MAX_PROMOTION_REQUEST_BYTES if path.startswith("/api/promotion/") else MAX_REQUEST_BYTES
                 n = int(self.headers.get("Content-Length", "0"))
-                if n < 2 or n > MAX_REQUEST_BYTES:
+                if n < 2 or n > limit:
                     self._discard_body()
                     return self._send(413, {"error": "Invalid request size."})
                 payload = json.loads(self.rfile.read(n))
                 if not isinstance(payload, dict):
                     return self._send(400, {"error": "Expected a JSON object."})
-                path = urlsplit(self.path).path
+                if path.startswith("/api/promotion/"):
+                    return self._promotion_post(path, payload)
                 if path == "/api/settings":
                     if settings is None:
                         return self._send(503, {"error": "Settings storage unavailable."})
@@ -486,11 +796,18 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
 
 
 def main() -> int:
+    from .bluesky import BlueskyCredentials
+    from .devto import DevCredentials
+    from .promotion import PromotionCredentials, PromotionService, PromotionStore
     journal = Journal(data_directory() / "work.sqlite3")
-    service = WorkService(journal)
+    credentials = PromotionCredentials(data_directory())
+    promotion = PromotionService(journal, PromotionStore(data_directory() / "work.sqlite3"), credentials,
+                                 BlueskyCredentials(data_directory()),  # its own DPAPI file
+                                 DevCredentials(data_directory()))      # its own DPAPI file (devto.dpapi)
+    service = WorkService(journal, promotion)
     settings = EncryptedSettings(data_directory())
     nonce = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_factory(service, nonce, settings, credentials))
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"GitHub Community Agent Work Center: {url}")
     webbrowser.open(url)
