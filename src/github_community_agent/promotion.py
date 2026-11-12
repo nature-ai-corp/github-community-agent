@@ -63,6 +63,7 @@ import difflib
 import httpx
 
 from . import bluesky as bs
+from . import devto as dv
 from . import github_readonly as gh
 from .encrypted_settings import SettingsError
 from .errors import ToolError
@@ -348,6 +349,61 @@ def research(repository: str) -> dict:
             "readme_excerpt": readme, "releases": releases, "untrusted": gh.UNTRUSTED}
 
 
+DOC_PATH = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}\.md")
+DOC_REF = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]{0,99}")
+MAX_BRIEF_DOCUMENTS = 4
+MAX_DOCUMENT_CHARS = 12000
+
+
+def parse_brief(brief) -> dict:
+    """DEV Community Task brief: optional article topic and up to four repository Markdown
+    documents ("path" or "path@branch") used as primary, cited evidence."""
+    if brief in (None, "", {}):
+        return {"topic": "", "documents": []}
+    if not isinstance(brief, dict):
+        raise ToolError("Invalid article brief.")
+    topic = brief.get("topic") or ""
+    if not isinstance(topic, str) or len(topic.strip()) > 160 or any(ord(c) < 32 for c in topic):
+        raise ToolError("The article topic must be one line of at most 160 characters.")
+    raw = brief.get("documents") or []
+    if isinstance(raw, str):
+        raw = [line for line in raw.splitlines() if line.strip()]
+    if not isinstance(raw, list) or len(raw) > MAX_BRIEF_DOCUMENTS:
+        raise ToolError(f"List at most {MAX_BRIEF_DOCUMENTS} source documents.")
+    documents = []
+    for item in raw:
+        path, _, ref = str(item).strip().partition("@")
+        path, ref = path.strip().lstrip("/"), ref.strip()
+        if not DOC_PATH.fullmatch(path) or ".." in path.split("/") or (ref and (not DOC_REF.fullmatch(ref)
+                                                                                 or ".." in ref)):
+            raise ToolError("Source documents must be repository Markdown paths, optionally with @branch "
+                            "(for example docs/DESIGN.md@main).")
+        documents.append({"path": path, "ref": ref})
+    return {"topic": topic.strip(), "documents": documents}
+
+
+def research_documents(repository: str, documents: list) -> list:
+    """Read each named document once, pinned to the commit it was read at (public, read-only)."""
+    repo, root, out = _repo(repository), gh.html_root(repository), []
+    for doc in documents:
+        ref = doc["ref"] or "HEAD"
+        commit = _get_public(f"/repos/{repo}/commits/{quote(ref, safe='')}", "commit")
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ToolError(f"Source document branch not found: {doc['ref'] or 'default branch'}.")
+        raw = _get_public(f"/repos/{repo}/contents/{quote(doc['path'])}", "document", {"ref": sha})
+        if not (isinstance(raw, dict) and raw.get("encoding") == "base64" and isinstance(raw.get("content"), str)):
+            raise ToolError(f"Source document not found: {doc['path']}.")
+        try:
+            text = base64.b64decode(raw["content"]).decode("utf-8", "replace")
+        except (ValueError, TypeError):
+            raise ToolError(f"Source document unreadable: {doc['path']}.") from None
+        out.append({"path": doc["path"], "ref": doc["ref"] or "default branch", "commit": sha,
+                    "url": f"{root}/blob/{sha}/{quote(doc['path'])}", "excerpt": text[:MAX_DOCUMENT_CHARS],
+                    "truncated": len(text) > MAX_DOCUMENT_CHARS})
+    return out
+
+
 def check_publish_permission(repository: str, token: str) -> dict:
     """Fresh, read-only check of everything a publication needs. Writes nothing."""
     repo = _repo(repository)
@@ -448,6 +504,25 @@ TECHNICAL_ARTICLE_INSTRUCTION = (
     "('Disclosure: I maintain …'). Explain the problem, the approach, a getting-started walkthrough using "
     "only steps documented in the evidence, limitations and current status, with source links. "
     + _FORMAT.format(w=650))
+
+DEV_COMMUNITY_INSTRUCTION = (
+    "Write ONE original, educational technical article for DEV Community (dev.to) that this application "
+    "will publish from the project's own DEV account after the maintainer approves the exact article. "
+    + _SHARED_RULES +
+    " The article teaches something useful (a design, an architecture, an implementation technique or a "
+    "documented lesson); it is NOT an advertisement: no sales language, no calls to buy, sign up, try, "
+    "download or star, no superlatives, no invented benchmarks, numbers, users, capabilities or personal "
+    "experiences. Use ONLY facts from the evidence; the documents under 'documents' are the primary "
+    "evidence: cite them with their links. Describe unreleased or development work as such. If "
+    "'article_brief' names a topic, write about that topic. The first paragraph must state the author's "
+    "affiliation truthfully ('I maintain <repository> …'); the last paragraph must state that the article "
+    "was written with the help of AI and reviewed and approved by the maintainer before publication. "
+    "Markdown only: '## ' section headings (at least three), fenced code blocks only for code or "
+    "configuration that appears in the evidence, https links only, no front matter, no Liquid tags, no "
+    "HTML, no @mentions. Length 900 to 1800 words. TITLE at most 100 characters. The BODY must be exactly "
+    "in this form:\nDESCRIPTION: <one sentence, at most 160 characters>\nTAGS: <2 to 4 lowercase "
+    "alphanumeric tags, comma-separated>\nARTICLE:\n<the Markdown article>\n"
+    "Reply in exactly this format:\nTITLE: <one line>\nBODY:\n<the body described above>")
 
 BLUESKY_INSTRUCTION = (
     "Write ONE Bluesky post that this application will publish, after the maintainer approves the exact "
@@ -574,6 +649,21 @@ WORK_TYPES = {wt.definition_id: wt for wt in (
                  "The Agent publishes it once from that account, then verifies it from the public "
                  "Bluesky index. Do not tag people or organizations; no repeated posting."),
              max_tokens=800, body_max=600, disclosure=True),
+    WorkType("promote_dev_community", "DEV Community", "dev_community", True,
+             "Selected Work Type: DEV Community — ONE original, educational technical article that this "
+             "application publishes on dev.to from the project's connected DEV account: first as a private "
+             "draft that is read back and compared, then published after the maintainer's separate "
+             "confirmation. Plan only this article; do not plan any GitHub Discussion or other channel.",
+             DEV_COMMUNITY_INSTRUCTION, (
+                 "Connect the project's own DEV account (API key) in Settings → Promotion → Promotion "
+                 "Platform: DEV Community.",
+                 "The article must teach, not advertise (DEV Terms §11 and DEV's AI-assisted article "
+                 "guidelines); keep the affiliation and AI-assistance disclosures.",
+                 "Approve the exact article: account, title, description, tags, full body and publishing "
+                 "settings. Any edit cancels the approval.",
+                 "The Agent creates a private draft and compares it; you confirm publishing separately; the "
+                 "public article is then verified."),
+             max_tokens=7000, body_max=21000, disclosure=False),
     # Legacy (kept only so existing Tasks keep their Work Type and history): the former generic
     # Social Media drafts. Not offered in New Task, cannot be started, has no publisher.
     WorkType("promote_social_media", "Social Media", "social_media", False,
@@ -608,8 +698,9 @@ RELEASE_VERIFIED_WORK_TYPES = frozenset({
 DEV_WORK_TYPES_ENV = "GCA_PROMOTION_DEV_WORK_TYPES"
 # Historical Work Types: existing Tasks stay viewable (and, in development, editable as the
 # drafts they always were), but New Task never offers them and they cannot be started.
-LEGACY_WORK_TYPES = frozenset({"promote_social_media"})
+LEGACY_WORK_TYPES = frozenset({"promote_social_media", "promote_technical_articles"})
 BLUESKY_WORK_TYPE = "promote_bluesky"
+DEV_WORK_TYPE = "promote_dev_community"
 
 
 def development_mode() -> bool:
@@ -778,6 +869,8 @@ def check_draft(work_type: WorkType, title: str, body: str, evidence: dict) -> l
             if not _DISCLOSURE.search(title + "\n" + part[:600]):
                 issues.append("Affiliation disclosure ('I maintain …') is missing near the start.")
                 break
+    if work_type.channel == "dev_community":  # DEV's limits, format and content rules
+        issues += dv.article_issues(title, dv.parse_article(body))
     if work_type.channel == "bluesky":  # the exact text that will be published: Lexicon limits
         issues += bs.text_issues(body)
         if not bs.link_facets(body):
@@ -1219,7 +1312,8 @@ class PromotionStore:
     def edit(self, action_id, task_id, title, body, status="draft", error=None) -> bool:
         # Any edit invalidates a previous approval; content is re-checked by the caller.
         return self._transition(action_id, task_id, ("draft", "approved", "failed", "ready_manual", "incomplete",
-                                                     "bluesky_approved", "bluesky_failed"),
+                                                     "bluesky_approved", "bluesky_failed",
+                                                     "dev_approved", "dev_failed", "dev_draft_mismatch"),
                                 "draft_edited", title=title, body=body, status=status, approved_sha256=None,
                                 category=None, error=error)
 
@@ -1313,6 +1407,8 @@ class PromotionStore:
                 a["post_id"] = ((a["published_node_id"] or "").removeprefix("t3_") or None
                                 if a["channel"] == "reddit" else None)
                 a["verification"] = json.loads(a["verification_json"]) if a.get("verification_json") else None
+            if a["channel"] == "dev_community":  # DEV article id (draft, then published)
+                a["dev_article_id"] = a["published_node_id"] if a["status"].startswith("dev_") else None
             if a["channel"] == "bluesky":  # Bluesky record identity (AT-URI and CID)
                 a["bluesky_uri"] = a["published_node_id"] if a["status"].startswith("bluesky_") else None
             a.pop("verification_json", None)
@@ -1327,25 +1423,32 @@ class PromotionStore:
 class PromotionService:
     """research -> plan -> draft -> approve -> publish -> monitor -> improve, for ANY repository."""
 
-    def __init__(self, journal, store: PromotionStore, credentials: PromotionCredentials, bluesky=None):
+    def __init__(self, journal, store: PromotionStore, credentials: PromotionCredentials, bluesky=None,
+                 devto=None):
         self.journal = journal
         self.store = store
         self.credentials = credentials
         self.bluesky = bluesky  # bluesky.BlueskyCredentials: its own DPAPI file, never the GitHub tokens
+        self.devto = devto      # devto.DevCredentials: its own DPAPI file (devto.dpapi)
         self._applying: set[int] = set()
         self._applying_lock = threading.RLock()
 
     # Task creation binds the repository; the AI model comes from the shared app settings.
-    def start(self, model, definition_id: str = DEFINITION_ID) -> int:
+    def start(self, model, definition_id: str = DEFINITION_ID, brief=None) -> int:
         work_type = WORK_TYPES.get(definition_id)
         if work_type is None:
             raise ToolError("Unknown Promotion Work Type.")
         _require_enabled(definition_id)
         if definition_id in LEGACY_WORK_TYPES:
-            raise ToolError("Social Media is no longer a Work Type; choose a platform Work Type such as Bluesky.")
+            raise ToolError(f"{work_type.label} is no longer a Work Type; choose a platform Work Type such as "
+                            "Bluesky or DEV Community.")
+        if brief not in (None, "", {}) and definition_id != DEV_WORK_TYPE:
+            raise ToolError("Only DEV Community Tasks take an article brief.")
+        brief = parse_brief(brief) if definition_id == DEV_WORK_TYPE else None
         repository = _repo(self.credentials.selected())
         task_id = self.journal.create(definition_id, repository)
-        threading.Thread(target=self._run, args=(task_id, repository, model, work_type), daemon=True).start()
+        threading.Thread(target=self._run, args=(task_id, repository, model, work_type, brief),
+                         daemon=True).start()
         return task_id
 
     @staticmethod
@@ -1386,14 +1489,19 @@ class PromotionService:
         if "draft" not in parsed:
             parsed["draft"] = parse_draft(raw)  # unusable format even after the retry: the Task fails
         issues = plan_issues + draft_issues
-        return {"plan": plan, "title": parsed["draft"][0], "body": parsed["draft"][1][:MAX_BODY * 3],
+        return {"plan": plan, "title": parsed["draft"][0],
+                "body": parsed["draft"][1][:max(MAX_BODY * 3, work_type.body_max + 2000)],
                 "facts": facts, "quality": {"passed": not issues, "plan_issues": plan_issues,
                                             "draft_issues": draft_issues}}
 
-    def _run(self, task_id: int, repository: str, model, work_type: WorkType) -> None:
+    def _run(self, task_id: int, repository: str, model, work_type: WorkType, brief=None) -> None:
         try:
             # Shared research and planning; drafting runs ONLY this Task's Work Type.
             evidence = research(repository)
+            if brief is not None:  # DEV Community: owner-named topic and cited repository documents
+                evidence["article_brief"] = {"topic": brief["topic"]}
+                evidence["documents"] = research_documents(repository, brief["documents"])
+                evidence["source_urls"] = evidence["source_urls"] + [d["url"] for d in evidence["documents"]]
             g = self._plan_and_draft(model, work_type, evidence)
             plan, quality = g["plan"], g["quality"]
             if work_type.channel == "repository_optimization":
@@ -1402,7 +1510,10 @@ class PromotionService:
             self.store.add_draft(task_id, repository, g["title"], g["body"], work_type.channel,
                                  status="draft" if not issues else "incomplete",
                                  error=("Not ready: " + " ".join(issues))[:300] if issues else None)
-            next_step = ("Review and edit the post, connect the project's Bluesky account, approve the exact "
+            next_step = ("Review and edit the article, connect the project's DEV account, approve the exact "
+                         "article, create the private DEV draft (it is read back and compared), confirm "
+                         "publishing, then verify it." if work_type.channel == "dev_community" else
+                         "Review and edit the post, connect the project's Bluesky account, approve the exact "
                          "post, then publish it from this application and verify it." if work_type.channel == "bluesky"
                          else "Review and edit the draft, check publishing permission, choose a Discussion category, "
                          "approve the exact text, then publish." if work_type.automated_publishing else
@@ -1435,6 +1546,8 @@ class PromotionService:
         action = self._bound(task_id, action_id)
         if action["channel"] == "bluesky":
             raise ToolError("Bluesky posts are approved and published with the Bluesky actions.")
+        if action["channel"] == "dev_community":
+            raise ToolError("DEV articles are approved and published with the DEV Community actions.")
         if action["channel"] != CHANNEL:
             label = next(w.label for w in WORK_TYPES.values() if w.channel == action["channel"])
             raise ToolError(f"{label} is draft/manual-publication only. This application does not publish "
@@ -1464,6 +1577,14 @@ class PromotionService:
             out["bluesky_available"], out["bluesky_account"] = account["available"], account
             for a in out["actions"]:
                 a["bluesky"] = self._bluesky_view(task["repository"], a, account)
+        if work_type.channel == "dev_community":
+            account = self.devto_account()
+            out["devto_available"], out["devto_account"] = account["available"], account
+            out["article_brief"] = (self._evidence(task_id).get("article_brief") or {})
+            out["documents"] = [{k: d[k] for k in ("path", "ref", "commit", "url")}
+                                for d in self._evidence(task_id).get("documents") or []]
+            for a in out["actions"]:
+                a["devto"] = self._devto_view(task["repository"], a, account)
         return out
 
     def edit(self, task_id, action_id, title, body) -> None:
@@ -1471,8 +1592,9 @@ class PromotionService:
         if not isinstance(title, str) or not isinstance(body, str):
             raise ToolError("Title and body are required.")
         title, body = title.strip(), body.strip()
-        if not title or not body or len(title) > MAX_TITLE or len(body) > MAX_BODY:
-            raise ToolError(f"Title (max {MAX_TITLE}) and body (max {MAX_BODY} characters) are required.")
+        body_limit = max(MAX_BODY, self._work_type(task_id).body_max)
+        if not title or not body or len(title) > MAX_TITLE or len(body) > body_limit:
+            raise ToolError(f"Title (max {MAX_TITLE}) and body (max {body_limit} characters) are required.")
         issues = check_draft(self._work_type(task_id), title, body, self._evidence(task_id))
         if not self.store.edit(action_id, task_id, title, body, "draft" if not issues else "incomplete",
                                ("Not ready: " + " ".join(issues))[:300] if issues else None):
@@ -1811,6 +1933,8 @@ class PromotionService:
         action = self._bound(task_id, action_id)
         if action["channel"] == "bluesky":
             raise ToolError("Approve Bluesky posts with \u201cApprove this exact Bluesky post\u201d.")
+        if action["channel"] == "dev_community":
+            raise ToolError("Approve DEV articles with \u201cApprove this exact DEV article\u201d.")
         self._ready_content(task_id, action)
         if action["channel"] != CHANNEL:
             # Draft/manual-publication: approve the exact text; nothing is sent, no token is used.
@@ -2092,6 +2216,331 @@ class PromotionService:
                               "bluesky_verified" if verified else f"bluesky_verify_failed:{outcome}")
         return {"status": status, "verified": verified, "outcome": outcome, "checks": checks,
                 "checked_utc": checked}
+
+    # -- DEV Community (development only until real-world acceptance) -------------------
+    # ONE article in the connected project account, in two writes with a check in between:
+    # create a PRIVATE draft -> read it back and compare -> separate confirmation -> publish it.
+    # Approval binds account (id + username), title, description, tags, full body and the fixed
+    # publishing settings. Uncertain writes are reconciled from the account's own articles.
+
+    def devto_account(self) -> dict:
+        if self.devto is None or DEV_WORK_TYPE not in enabled_work_types():
+            return {"available": False, "connected": False}
+        try:
+            return {"available": True, **self.devto.public()}
+        except SettingsError:
+            return {"available": True, "connected": False, "error": "Stored DEV credentials cannot be read."}
+
+    def _devto_enabled(self) -> None:
+        if self.devto is None or DEV_WORK_TYPE not in enabled_work_types():
+            raise ToolError("DEV Community is not available in this release: it has not passed real-world "
+                            "acceptance.")
+
+    def devto_connect(self, api_key) -> dict:
+        self._devto_enabled()
+        return {"available": True, **self.devto.connect(api_key)}
+
+    def devto_disconnect(self) -> dict:
+        self._devto_enabled()
+        return {"available": True, **self.devto.remove()}
+
+    @staticmethod
+    def _devto_identity(action) -> tuple:
+        raw = (action["category"] or "").removeprefix("devto:")
+        uid, _, name = raw.partition(":")
+        return (int(uid), name) if uid.isdigit() and dv.USERNAME.fullmatch(name or "") else (None, "")
+
+    def _devto_expected(self, action) -> dict:
+        uid, name = self._devto_identity(action)
+        art = dv.parse_article(action["body"])
+        node = action["published_node_id"]
+        return {"id": int(node) if node and str(node).isdigit() else None, "user_id": uid, "username": name,
+                "title": action["title"], **art}
+
+    def _devto_view(self, repository: str, a: dict, account: dict) -> dict:
+        art = dv.parse_article(a["body"])
+        issues = dv.article_issues(a["title"], art)
+        uid = account.get("user_id") if account.get("connected") else None
+        approved_uid, approved_name = (self._devto_identity(a) if a["status"].startswith("dev_")
+                                       else (None, ""))
+        verification = None
+        if a.get("verification") and a["status"].startswith("dev_"):
+            verification = a["verification"]
+        return {"title": a["title"], "description": art["description"], "tags": art["tags"],
+                "words": len(re.findall(r"\b\w+\b", dv._prose(art["markdown"]))), "chars": len(art["markdown"]),
+                "issues": issues, "account_user_id": uid, "account_username": account.get("username"),
+                "approval_sha256": (dv.approval_sha256(repository, uid, account.get("username"), a["title"], art)
+                                    if uid is not None and not issues else None),
+                "approved_user_id": approved_uid, "approved_username": approved_name or None,
+                "article_id": a.get("dev_article_id"),
+                "url": a.get("published_url") if a["status"].startswith("dev_") else None,
+                "settings": dv.PUBLISH_SETTINGS, "check": verification}
+
+    def _devto_action(self, task_id, action_id) -> dict:
+        action = self._bound(task_id, action_id)
+        if action["channel"] != "dev_community":
+            raise ToolError("DEV publishing is available for the DEV Community Work Type only.")
+        self._devto_enabled()
+        return action
+
+    def _devto_refuse(self, task_id, action_id, step, exc):
+        self._action_activity(task_id, action_id, f"dev_{step}_refused:{exc.code}", store=True)
+        raise exc
+
+    def _devto_checked_account(self, action) -> dict:
+        """Fresh users/me with the stored key; it must be the approved account."""
+        uid, _ = self._devto_identity(action)
+        account = self.devto.checked()
+        if account["user_id"] != uid:
+            raise dv.DevError("The connected DEV account is not the approved account; nothing was sent.",
+                              "account_mismatch")
+        return account
+
+    def _devto_current_sha(self, action) -> tuple:
+        uid, name = self._devto_identity(action)
+        art = dv.parse_article(action["body"])
+        return art, dv.approval_sha256(action["repository"], uid, name, action["title"], art)
+
+    def devto_approve(self, task_id, action_id, sha) -> dict:
+        """Approve ONE exact DEV action (nothing is sent)."""
+        action = self._devto_action(task_id, action_id)
+        try:
+            if action["status"] not in ("draft", "dev_failed", "dev_draft_mismatch"):
+                raise dv.DevError("Only an unapproved draft or a failed DEV attempt can be approved.", "state")
+            try:
+                self._ready_content(task_id, action)
+            except ToolError as exc:
+                raise dv.DevError(str(exc), "content") from None
+            account = self.devto.account()
+            if not account:
+                raise dv.DevError("Connect the project's DEV account in Settings \u2192 Promotion first.",
+                                  "no_account")
+            if account["api_key"] in action["title"] or account["api_key"] in action["body"]:
+                raise dv.DevError("The article contains a credential.", "credential")
+            art = dv.parse_article(action["body"])
+            expected = dv.approval_sha256(action["repository"], account["user_id"], account["username"],
+                                          action["title"], art)
+            if sha != expected:
+                raise dv.DevError("The approval does not match the current article, tags or account; review it "
+                                  "again.", "approval_mismatch")
+            if not self.store._transition(action_id, task_id, ("draft", "dev_failed", "dev_draft_mismatch"),
+                                          "dev_approved", status="dev_approved",
+                                          category=f"devto:{account['user_id']}:{account['username']}",
+                                          approved_sha256=expected, error=None, idempotency_key=None,
+                                          published_node_id=None, published_url=None, published_cid=None,
+                                          verification_json=None):
+                raise dv.DevError("This draft changed meanwhile; reload it.", "state")
+        except dv.DevError as exc:
+            self._devto_refuse(task_id, action_id, "approve", exc)
+        self._action_activity(task_id, action_id, "dev_approved")
+        return {"status": "dev_approved", "approved_sha256": expected, "user_id": account["user_id"],
+                "username": account["username"]}
+
+    def _devto_draft_facts(self, expected, found, created=None) -> tuple:
+        checks = dv.compare(found, expected, published=False)
+        facts = {"checked_utc": _utc(), "phase": "draft", "article_id": expected["id"],
+                 "outcome": "matched" if all(checks.values()) else ("not_found" if found is None else "mismatch"),
+                 "checks": checks}
+        if created is not None:  # does production DEV accept the AI-disclosure metadata?
+            level = created.get("ai_disclosure_level")
+            facts["ai_disclosure_requested"] = dv.AI_DISCLOSURE_LEVEL
+            facts["ai_disclosure_returned"] = level if isinstance(level, str) else None
+            facts["ai_disclosure_metadata"] = ("accepted" if level == dv.AI_DISCLOSURE_LEVEL else
+                                               "not_reported" if level is None else "not_accepted")
+        return facts, all(checks.values())
+
+    def _devto_settle_draft(self, task_id, action_id, expected, found, created=None, *, event_prefix="dev"):
+        facts, matched = self._devto_draft_facts(expected, found, created)
+        url = found.get("url") if isinstance(found, dict) and isinstance(found.get("url"), str) else None
+        if matched:
+            self.store._transition(action_id, task_id, ("dev_drafting", "dev_uncertain"), "dev_draft_verified",
+                                   status="dev_draft_ready", published_node_id=str(expected["id"]),
+                                   published_url=url, verification_json=json.dumps(facts), error=None)
+            self._action_activity(task_id, action_id, f"{event_prefix}_draft_verified")
+            return {"status": "dev_draft_ready", "article_id": expected["id"], "checks": facts["checks"],
+                    "ai_disclosure_metadata": facts.get("ai_disclosure_metadata")}
+        failed = [k for k, ok in facts["checks"].items() if not ok]
+        self.store._transition(action_id, task_id, ("dev_drafting", "dev_uncertain"), "dev_draft_mismatch",
+                               status="dev_draft_mismatch", published_node_id=str(expected["id"]),
+                               published_url=url, verification_json=json.dumps(facts),
+                               error=("The saved DEV draft differs from the approved article (" + ", ".join(failed)
+                                      + "). It was NOT published. Review or delete the private draft on DEV.")[:300])
+        self._action_activity(task_id, action_id, f"{event_prefix}_draft_mismatch")
+        return {"status": "dev_draft_mismatch", "article_id": expected["id"], "checks": facts["checks"]}
+
+    def devto_create_draft(self, task_id, action_id, sha) -> dict:
+        """WRITE 1 of 2: create the approved article as a PRIVATE draft, then read it back."""
+        action = self._devto_action(task_id, action_id)
+        try:
+            if action["status"] != "dev_approved":
+                raise dv.DevError("Only an action approved for DEV can be saved as a draft.",
+                                  "duplicate" if action["status"] == "dev_drafting" else "not_approved")
+            art, expected_sha = self._devto_current_sha(action)
+            if sha != expected_sha or action["approved_sha256"] != expected_sha:
+                raise dv.DevError("Refused: this is not the approved article.", "approval_mismatch")
+            account = self._devto_checked_account(action)
+            same = [a for a in dv.my_articles(account["api_key"]) if a.get("title") == action["title"]]
+            if same:
+                raise dv.DevError(f"An article with this exact title already exists on DEV (id {same[0].get('id')}); "
+                                  "nothing was sent. Change the title or remove that article first.",
+                                  "duplicate_title")
+        except dv.DevError as exc:
+            self._devto_refuse(task_id, action_id, "draft", exc)
+        if not self.store._transition(action_id, task_id, ("dev_approved",), "dev_draft_requested",
+                                      status="dev_drafting", published_node_id=None, published_url=None):
+            self._action_activity(task_id, action_id, "dev_draft_refused:duplicate", store=True)
+            raise ToolError("This action is already being saved on DEV.")
+        self._action_activity(task_id, action_id, "dev_draft_requested")
+        try:
+            created = dv.create_draft(account["api_key"], action["title"], art)
+        except dv.DevUncertain:
+            self.store._transition(action_id, task_id, ("dev_drafting",), "dev_uncertain", status="dev_uncertain",
+                                   error="Draft creation outcome uncertain; check DEV before any new attempt.")
+            self._action_activity(task_id, action_id, "dev_uncertain:draft")
+            return {"status": "dev_uncertain"}
+        except dv.DevError as exc:
+            self.store._transition(action_id, task_id, ("dev_drafting",), "dev_failed", status="dev_failed",
+                                   error=str(exc)[:300])
+            self._action_activity(task_id, action_id, f"dev_draft_failed:{exc.code}")
+            return {"status": "dev_failed", "error": str(exc)[:300]}
+        expected = {**self._devto_expected(action), "id": created["id"]}
+        if created.get("published") is True or created.get("published_at"):
+            # Should never happen (published=false was sent): record it as published, never hide it.
+            self.store._transition(action_id, task_id, ("dev_drafting",), "dev_published_unexpectedly",
+                                   status="dev_published", published_node_id=str(created["id"]),
+                                   published_url=created.get("url") if isinstance(created.get("url"), str) else None,
+                                   error="DEV published the article immediately; verify it.")
+            self._action_activity(task_id, action_id, "dev_published_unexpectedly")
+            return {"status": "dev_published", "article_id": created["id"]}
+        try:
+            found = next((a for a in dv.my_articles(account["api_key"], "unpublished")
+                          if a.get("id") == created["id"]), None)
+        except dv.DevError:
+            self.store._transition(action_id, task_id, ("dev_drafting",), "dev_uncertain", status="dev_uncertain",
+                                   published_node_id=str(created["id"]),
+                                   error="The draft was created but could not be read back yet; check it.")
+            self._action_activity(task_id, action_id, "dev_uncertain:draft_check")
+            return {"status": "dev_uncertain", "article_id": created["id"]}
+        return self._devto_settle_draft(task_id, action_id, expected, found, created)
+
+    def devto_publish(self, task_id, action_id, sha) -> dict:
+        """WRITE 2 of 2 (separate confirmation): publish exactly the verified private draft."""
+        action = self._devto_action(task_id, action_id)
+        try:
+            if action["status"] != "dev_draft_ready":
+                code = "duplicate" if action["status"] == "dev_publishing" else (
+                    "already_published" if action["status"] in ("dev_published", "dev_verified") else "no_draft")
+                raise dv.DevError("Only a verified private DEV draft can be published.", code)
+            art, expected_sha = self._devto_current_sha(action)
+            if sha != expected_sha or action["approved_sha256"] != expected_sha:
+                raise dv.DevError("Publication refused: this is not the approved article.", "approval_mismatch")
+            account = self._devto_checked_account(action)
+            expected = self._devto_expected(action)
+            found = next((a for a in dv.my_articles(account["api_key"], "unpublished")
+                          if a.get("id") == expected["id"]), None)
+            facts, matched = self._devto_draft_facts(expected, found)
+            if not matched:  # the draft changed on DEV after it was checked
+                self.store._transition(action_id, task_id, ("dev_draft_ready",), "dev_draft_mismatch",
+                                       status="dev_draft_mismatch", verification_json=json.dumps(facts),
+                                       error="The DEV draft changed after it was checked; it was NOT published.")
+                raise dv.DevError("The DEV draft no longer matches the approved article; nothing was published.",
+                                  "draft_changed")
+        except dv.DevError as exc:
+            self._devto_refuse(task_id, action_id, "publish", exc)
+        if not self.store._transition(action_id, task_id, ("dev_draft_ready",), "dev_publish_requested",
+                                      status="dev_publishing"):
+            self._action_activity(task_id, action_id, "dev_publish_refused:duplicate", store=True)
+            raise ToolError("This article is already being published.")
+        self._action_activity(task_id, action_id, "dev_publish_requested")
+        try:
+            data = dv.publish(account["api_key"], expected["id"])
+        except dv.DevUncertain:
+            self.store._transition(action_id, task_id, ("dev_publishing",), "dev_uncertain", status="dev_uncertain",
+                                   error="Publication outcome uncertain; check DEV before any new attempt.")
+            self._action_activity(task_id, action_id, "dev_uncertain:publish")
+            return {"status": "dev_uncertain", "article_id": expected["id"]}
+        except dv.DevError as exc:
+            self.store._transition(action_id, task_id, ("dev_publishing",), "dev_publish_failed",
+                                   status="dev_draft_ready", error=str(exc)[:300])
+            self._action_activity(task_id, action_id, f"dev_publish_failed:{exc.code}")
+            return {"status": "dev_draft_ready", "error": str(exc)[:300]}
+        url = data.get("url") if isinstance(data.get("url"), str) and data["url"].startswith(
+            f"{dv.HOST}/{expected['username']}/") else None
+        self.store._transition(action_id, task_id, ("dev_publishing",), "dev_published", status="dev_published",
+                               published_url=url, error=None)
+        self._action_activity(task_id, action_id, "dev_published")
+        return {"status": "dev_published", "article_id": expected["id"], "url": url, "verified": False}
+
+    def devto_reconcile(self, task_id, action_id) -> dict:
+        """Uncertain outcome: read the account's own articles; never send the write again."""
+        action = self._devto_action(task_id, action_id)
+        if action["status"] != "dev_uncertain":
+            raise ToolError("Only an uncertain DEV outcome needs this check.")
+        try:
+            account = self._devto_checked_account(action)
+            mine = dv.my_articles(account["api_key"])
+        except dv.DevError as exc:
+            self._action_activity(task_id, action_id, f"dev_reconcile_unavailable:{exc.code}")
+            raise ToolError(f"{exc} The outcome stays uncertain.") from None
+        expected = self._devto_expected(action)
+        if expected["id"] is not None:
+            found = next((a for a in mine if a.get("id") == expected["id"]), None)
+        else:
+            found = next((a for a in mine if a.get("title") == expected["title"]
+                          and dv._norm_body(a.get("body_markdown")) == dv._norm_body(expected["markdown"])), None)
+        if found is None:
+            self.store._transition(action_id, task_id, ("dev_uncertain",), "dev_reconciled_not_found",
+                                   status="dev_failed", published_node_id=None, published_url=None,
+                                   error="Not found on DEV; approve again to make a new attempt.")
+            self._action_activity(task_id, action_id, "dev_reconciled_not_found")
+            return {"status": "dev_failed"}
+        expected["id"] = found.get("id")
+        if found.get("published") is True:
+            url = found.get("url") if isinstance(found.get("url"), str) else None
+            self.store._transition(action_id, task_id, ("dev_uncertain",), "dev_reconciled_published",
+                                   status="dev_published", published_node_id=str(found.get("id")),
+                                   published_url=url, error=None)
+            self._action_activity(task_id, action_id, "dev_reconciled_published")
+            return {"status": "dev_published", "article_id": found.get("id"), "url": url}
+        return self._devto_settle_draft(task_id, action_id, expected, found, event_prefix="dev_reconciled")
+
+    def devto_verify(self, task_id, action_id) -> dict:
+        """Independent read-back via the public article API (no key)."""
+        action = self._devto_action(task_id, action_id)
+        expected = self._devto_expected(action)
+        if action["status"] not in ("dev_published", "dev_verified") or expected["id"] is None:
+            self._action_activity(task_id, action_id, "dev_verify_refused:not_published", store=True)
+            raise ToolError("Only a published DEV article can be verified.")
+        checked = _utc()
+        try:
+            found = dv.public_article(expected["id"])
+        except dv.DevError as exc:
+            facts = {"checked_utc": checked, "phase": "public", "outcome": "unavailable", "reason": exc.code}
+            self.store._transition(action_id, task_id, (action["status"],), "dev_check:unavailable",
+                                   verification_json=json.dumps(facts))
+            self._action_activity(task_id, action_id, f"dev_verify_unavailable:{exc.code}")
+            return {"status": action["status"], "verified": action["status"] == "dev_verified",
+                    "outcome": "unavailable", "reason": str(exc)}
+        checks = dv.compare(found, expected, published=True)
+        verified = all(checks.values())
+        outcome = "verified" if verified else ("not_found" if found is None else "mismatch")
+        facts = {"checked_utc": checked, "phase": "public", "outcome": outcome, "checks": checks,
+                 "article_id": expected["id"]}
+        if found is not None:
+            for k in ("url", "published_at", "ai_disclosure_level", "ai_disclosure_label"):
+                if isinstance(found.get(k), str):
+                    facts[k] = found[k][:300]
+            for k in ("public_reactions_count", "comments_count", "reading_time_minutes"):
+                if type(found.get(k)) is int:
+                    facts[k] = found[k]
+        url = facts.get("url") if str(facts.get("url", "")).startswith(f"{dv.HOST}/{expected['username']}/") else None
+        status = "dev_verified" if verified else "dev_published"
+        self.store._transition(action_id, task_id, ("dev_published", "dev_verified"), f"dev_check:{outcome}",
+                               status=status, verification_json=json.dumps(facts),
+                               **({"published_url": url} if url else {}))
+        self._action_activity(task_id, action_id, "dev_verified" if verified else f"dev_verify_failed:{outcome}")
+        return {"status": status, "verified": verified, "outcome": outcome, "checks": checks, "checked_utc": checked,
+                "url": url}
 
     # -- Record Manual Publication (Reddit) --------------------------------------------
     # Separate from approval: approval fixes the exact text and subreddit BEFORE posting;

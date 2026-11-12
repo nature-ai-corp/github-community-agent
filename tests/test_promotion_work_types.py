@@ -172,7 +172,7 @@ def test_work_type_tasks_stay_bound_to_their_repository(env):
 
 def test_manual_approval_covers_the_exact_text_and_edits_cancel_it(env):
     _, _, creds, service, _ = env
-    task_id, a = _start_type(service, creds, REPO_A, FakeModel(), "promote_technical_articles")
+    task_id, a = _start_type(service, creds, REPO_A, FakeModel(), "promote_developer_forums")
     with pytest.raises(ToolError, match="does not match"):
         service.approve(task_id, a["id"], "", "0" * 64)
     with pytest.raises(ToolError, match="no Discussion category"):

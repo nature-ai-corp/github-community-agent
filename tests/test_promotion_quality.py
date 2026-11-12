@@ -109,13 +109,13 @@ def test_cut_off_draft_is_retried_once_then_marked_incomplete(env):
     _, journal, creds, service, _ = env
     cut = Completion("TITLE: T\nBODY:\nDisclosure: I maintain it. Half an artic", False, "length")
     model = ScriptedModel(drafts=[cut, cut])
-    task_id, a = _run(service, creds, "promote_technical_articles", model)
+    task_id, a = _run(service, creds, "promote_developer_forums", model)
     assert a["status"] == "incomplete" and "cut off" in a["error"]
     result = journal.get(task_id)["result"]
     assert result["quality"]["passed"] is False
     assert any("cut off" in i for i in result["quality"]["draft_issues"])
-    assert sum(i.startswith(WT["promote_technical_articles"].draft_instruction) for i in model.inputs) == 2
-    assert model.budgets[-1] == WT["promote_technical_articles"].max_tokens == 3500
+    assert sum(i.startswith(WT["promote_developer_forums"].draft_instruction) for i in model.inputs) == 2
+    assert model.budgets[-1] == WT["promote_developer_forums"].max_tokens == 1800
     with pytest.raises(ToolError, match="incomplete"):
         service.approve(task_id, a["id"], "", a["draft_sha256"])
     events = [e["event"] for e in service.detail(task_id)["events"]]
@@ -178,8 +178,8 @@ def test_plan_proposing_a_discussion_for_another_work_type_is_corrected(env, def
 def test_plan_that_stays_out_of_scope_blocks_the_draft(env):
     _, journal, creds, service, _ = env
     bad = Completion("Publish the article as a GitHub Discussion (Proposed). Audience (Verified).", True)
-    task_id, a = _run(service, creds, "promote_technical_articles", ScriptedModel(plans=[bad, bad]))
-    assert a["status"] == "incomplete" and "outside the Technical Articles" in a["error"]
+    task_id, a = _run(service, creds, "promote_developer_forums", ScriptedModel(plans=[bad, bad]))
+    assert a["status"] == "incomplete" and "outside the Developer Forums" in a["error"]
 
 
 def test_github_discussions_plan_may_plan_a_discussion():

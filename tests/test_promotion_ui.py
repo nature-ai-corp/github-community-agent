@@ -168,7 +168,7 @@ def test_promotion_work_type_dropdown_lists_platform_work_types_and_selects_only
     assert r["label"] == "Promotion — Work Type"
     assert [label for _, label in r["options"]] == [
         "GitHub Discussions", "Repository Optimization", "Reddit Promotion",
-        "Developer Forums", "Technical Articles", "Bluesky"]  # no generic "Social Media"
+        "Developer Forums", "Bluesky", "DEV Community"]  # no generic "Social Media" / "Technical Articles"
     assert r["first"] == "promote_repository" and "automated publishing" in r["note"]
     r = _route("domain", "promote_reddit")
     assert r["selected"] == "promote_reddit" and r["title"] == "Reddit Promotion"
@@ -552,3 +552,111 @@ def test_each_platform_panel_holds_only_its_own_credentials():
     assert "/api/promotion/bluesky" in save_bs and "promo-token" not in save_bs and "/api/promotion/settings" not in save_bs
     # The selector itself never saves or removes anything.
     assert "postJSON" not in SELECTOR_JS and "getJSON" not in SELECTOR_JS
+
+
+# -- DEV Community Work Type ------------------------------------------------------------------
+
+DEVTO_JS = (HTML[HTML.index("const ACTION_EVENTS="):HTML.index("function renderActivity(")]
+            + HTML[HTML.index("const DEVTO_LOCKED="):HTML.index("function renderPromotionPanel(")]
+            + _function("function devtoStatusText("))
+DEVTO_D = '{devto_available:true,devto_account:{available:true,connected:true,username:"natureai",user_id:1234567}}'
+DEVTO_A = ('{id:9,channel:"dev_community",status:"draft",title:"Designing Approval-Gated AI Agents",approved_sha256:null,'
+           'devto:{title:"T",description:"How it works",tags:["ai","security"],words:950,chars:6400,issues:[],'
+           'account_user_id:1234567,account_username:"natureai",approval_sha256:"s1",approved_user_id:null,'
+           'approved_username:null,article_id:null,url:null,settings:{ai_disclosure_level:"some_ai"},check:null}}')
+
+
+def _devto(script: str) -> dict:
+    return _run(PRELUDE + DEVTO_JS + "\n(async()=>{const d=" + DEVTO_D + ";const a=" + DEVTO_A + ";const out={};"
+                + script + "console.log(JSON.stringify(out));})();")
+
+
+def test_devto_card_shows_the_exact_article_settings_and_account_before_approval():
+    r = _devto("""out.html=devtoHTML(a,d);out.none=devtoHTML(a,{...d,devto_available:false});
+out.noacct=devtoHTML({...a,devto:{...a.devto,approval_sha256:null}},{...d,devto_account:{available:true,connected:false}});""")
+    assert "950 words" in r["html"] and "tags: ai, security" in r["html"] and "natureai (ID 1234567)" in r["html"]
+    assert "no organization, no series, no canonical URL, no cover image" in r["html"] and "devto-approve" in r["html"]
+    assert "devto-draft" not in r["html"] and "devto-publish" not in r["html"] and r["none"] == ""
+    assert "No DEV account connected" in r["noacct"] and 'devto-approve" disabled' in r["noacct"]
+
+
+def test_devto_states_offer_exactly_one_next_step():
+    r = _devto("""
+const st=s=>devtoHTML({...a,status:s,approved_sha256:"abc",devto:{...a.devto,article_id:3000001,approved_username:"natureai",
+  url:"https://dev.to/natureai/designing-3000001",check:{phase:"draft",checked_utc:"t",outcome:"matched",checks:{body:true},ai_disclosure_metadata:"accepted"}}},d);
+for(const s of ["dev_approved","dev_draft_ready","dev_draft_mismatch","dev_uncertain","dev_published","dev_verified"])out[s]=st(s);""")
+    assert "devto-draft" in r["dev_approved"] and "devto-publish" not in r["dev_approved"]
+    assert "PRIVATE draft" in r["dev_approved"]
+    assert "devto-publish" in r["dev_draft_ready"] and "matches the approved article" in r["dev_draft_ready"]
+    assert "AI-disclosure metadata: accepted" in r["dev_draft_ready"]
+    assert "devto-approve" in r["dev_draft_mismatch"] and "devto-publish" not in r["dev_draft_mismatch"]
+    assert "devto-reconcile" in r["dev_uncertain"] and "Do not approve or publish again" in r["dev_uncertain"]
+    assert "NOT independently verified yet" in r["dev_published"] and "devto-verify" in r["dev_published"]
+    assert "Independently verified on DEV" in r["dev_verified"]
+    assert "https://dev.to/natureai/designing-3000001" in r["dev_verified"]
+
+
+def test_devto_flows_confirm_each_step_and_report_only_server_results():
+    r = _devto("""
+const calls=[];const deps=(ok,res)=>({confirm:m=>{out.lastConfirm=m;return ok},call:async(v,x)=>{calls.push([v,x]);return res}});
+out.cancel=await devtoApproveFlow(a,d,deps(false,{}));
+out.approve=await devtoApproveFlow(a,d,deps(true,{status:"dev_approved"}));
+out.approveConfirm=out.lastConfirm;
+const ap={...a,status:"dev_approved",approved_sha256:"abc",devto:{...a.devto,approved_username:"natureai",article_id:3000001}};
+out.draftCancel=await devtoDraftFlow(ap,deps(false,{}));
+out.draft=await devtoDraftFlow(ap,deps(true,{status:"dev_draft_ready",article_id:3000001,ai_disclosure_metadata:"accepted"}));
+out.draftConfirm=out.lastConfirm;
+out.mismatch=await devtoDraftFlow(ap,deps(true,{status:"dev_draft_mismatch"}));
+out.pub=await devtoPublishFlow(ap,deps(true,{status:"dev_published",url:"https://dev.to/natureai/x"}));
+out.pubConfirm=out.lastConfirm;
+out.unc=await devtoPublishFlow(ap,deps(true,{status:"dev_uncertain"}));
+out.calls=calls;
+out.v=[devtoVerifyMessage({outcome:"verified"}),devtoVerifyMessage({outcome:"mismatch"}),devtoVerifyMessage({outcome:"unavailable",reason:"network"})];""")
+    assert r["cancel"] == "Cancelled. Nothing was approved." and r["approve"] == "Approved for DEV. Nothing was sent."
+    for part in ("natureai (ID 1234567)", "Tags: ai, security", "Description: How it works", "950 words",
+                 "no organization/series/canonical/cover"):
+        assert part in r["approveConfirm"]
+    assert r["draftCancel"] == "Cancelled. Nothing was sent." and "PRIVATE draft" in r["draftConfirm"]
+    assert "NOT published" in r["draft"] and "AI-disclosure metadata: accepted" in r["draft"]
+    assert "DIFFERS" in r["mismatch"] and "publicly" in r["pubConfirm"] and "3000001" in r["pubConfirm"]
+    assert "NOT independently verified yet" in r["pub"] and "Do not publish again" in r["unc"]
+    assert [c[0] for c in r["calls"]] == ["devto_approve", "devto_create_draft", "devto_create_draft",
+                                          "devto_publish", "devto_publish"]
+    assert r["calls"][0][1] == {"sha256": "s1"} and r["calls"][1][1] == {"sha256": "abc"}
+    assert r["v"][0].startswith("Independently verified") and r["v"][1].startswith("NOT verified")
+
+
+def test_devto_task_card_and_settings_keep_credentials_separate():
+    start = HTML.index("if(devto){")
+    block = HTML[start:HTML.index("continue;", start)]
+    assert "Title (published)" in block and "published exactly as approved" in block and "devtoHTML(a,d)" in block
+    for manual in ("promo-approve-manual", "manual publication", "yourself", "promo-preflight", "promo-publish"):
+        assert manual not in block
+    panel = HTML[HTML.index('<div id="devto-settings"'):HTML.index("</details>", HTML.index('<div id="devto-settings"'))]
+    assert 'type="password" id="devto-key"' in panel and "hidden" in panel
+    assert "bsky-" not in panel and "promo-token" not in panel
+    save = _function("async function saveDevto(")
+    assert "/api/promotion/devto" in save and "bsky" not in save and "promo-token" not in save
+    load = _function("async function loadDevtoSettings(")
+    assert '$("devto-key").value=""' in load and "api_key" not in load
+    assert '$("devto-key").value=""' in _function("function closeSettings(")
+
+
+def test_platform_selector_offers_dev_only_when_available():
+    r = _selector("""
+state.promotionPlatforms={bluesky:true,devto:false}; renderPromotionPlatforms(); out.off=$("promo-platform").innerHTML;
+state.promotionPlatforms={bluesky:true,devto:true}; renderPromotionPlatforms(); out.on=$("promo-platform").innerHTML;
+selectPromotionPlatform("devto"); out.panels=[$("promo-github-settings").hidden,$("bluesky-settings").hidden,$("devto-settings").hidden];""")
+    assert "devto" not in r["off"] and 'value="devto"' in r["on"] and "DEV Community (development)" in r["on"]
+    assert r["panels"] == [True, True, False]
+
+
+def test_new_dev_task_shows_the_brief_and_says_the_agent_publishes_after_confirmation():
+    r = _route("domain", "promote_dev_community")
+    assert r["selected"] == "promote_dev_community" and r["title"] == "DEV Community"
+    assert "PRIVATE draft" in r["note"] and "separate confirmation" in r["note"] and "yourself" not in r["note"]
+    released = _route("domain", development=False)
+    assert "DEV Community" not in [label for _, label in released["options"]]
+    assert 'id="dev-topic"' in HTML and 'id="dev-docs"' in HTML
+    start = _function("async function startTask(")
+    assert 'd.id==="promote_dev_community"' in start and "data.brief={topic,documents:docs}" in start

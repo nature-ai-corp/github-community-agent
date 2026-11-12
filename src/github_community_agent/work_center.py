@@ -57,8 +57,9 @@ DEFINITIONS = (
     TaskDefinition("promote_repository_optimization", "Repository Optimization", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_reddit", "Reddit Promotion", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_developer_forums", "Developer Forums", "", "Promotion", "promotion", "V2", True),
-    TaskDefinition("promote_technical_articles", "Technical Articles", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_technical_articles", "Technical Articles (legacy)", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_bluesky", "Bluesky", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_dev_community", "DEV Community", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_social_media", "Social Media (legacy)", "", "Promotion", "promotion", "V2", True),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
@@ -179,7 +180,7 @@ TASK_DETAILS = {
         "limitations": "Draft / manual publication only: no forum integration; nothing is posted to any forum."
     },
     "promote_technical_articles": {
-        "goal": "Prepare a technical article (tutorial or deep dive) about the product.",
+        "goal": "Legacy: technical article drafts created before platform Work Types. Existing Tasks only.",
         "steps": ["Research the repository's real README, releases and public facts, with source links.",
                   "Plan this Work Type only (audience, value, approach, schedule, objectives).",
                   "Draft one article grounded in the documented steps, with source links.",
@@ -189,7 +190,8 @@ TASK_DETAILS = {
         "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
                     "token or channel account is used.",
         "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
-        "limitations": "Draft / manual publication only: nothing is published to any blog or publication."
+        "limitations": "Legacy draft only: no publisher, cannot be started. Use a platform Work Type "
+                       "(DEV Community) instead."
     },
     "promote_bluesky": {
         "goal": "Publish ONE short, factual, disclosed post about the product from the project's own "
@@ -209,6 +211,30 @@ TASK_DETAILS = {
                   "separate confirmation. Any edit cancels the approval.",
         "limitations": "One post per approval, from the one connected project account; an uncertain outcome "
                        "is checked, never retried blindly. Bluesky-hosted accounts only."
+    },
+    "promote_dev_community": {
+        "goal": "Publish ONE original, educational technical article on DEV Community (dev.to) from the "
+                "project's own DEV account, after you approve the exact article.",
+        "steps": ["Research the repository's README, releases and the source documents you name, with links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one complete Markdown article on your topic, with affiliation and AI-assistance "
+                  "disclosures, a description and up to 4 tags.",
+                  "You review and edit it, then approve the exact article: account, title, description, tags, "
+                  "full body and publishing settings.",
+                  "The Agent saves it on DEV as a PRIVATE draft and compares the saved draft with your "
+                  "approved version.",
+                  "After your separate confirmation, the Agent publishes that draft and verifies the public "
+                  "article."],
+        "output": "One DEV article published by the Agent, with its article ID, public URL and the draft and "
+                  "public verification results in the Task.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key, and the "
+                    "project's DEV account connected with a DEV API key (Settings → Promotion → Promotion "
+                    "Platform: DEV Community). No GitHub token is used.",
+        "review": "Explicit approval of the exact article, bound to the DEV account; saving the private draft "
+                  "and publishing are separate confirmations. Any edit cancels the approval.",
+        "limitations": "Development only: not released until a real article passes draft check, publication "
+                       "and public read-back. Educational content only (DEV Terms §11, DEV's AI-assisted "
+                       "article guidelines). Uncertain outcomes are checked, never retried blindly."
     },
     "promote_social_media": {
         "goal": "Legacy: social media post drafts created before platform Work Types. Existing Tasks only.",
@@ -423,7 +449,10 @@ class WorkService:
             if not isinstance(model_key, str) or not model_key:
                 raise ToolError("Model API key must be provided for this run.")
             settings = ModelSettings(payload.get("provider"), payload.get("model_name"))
-            return self.promotion.start(ChatCompletionsModel(settings, api_key=lambda: model_key), definition.id)
+            model = ChatCompletionsModel(settings, api_key=lambda: model_key)
+            if payload.get("brief") not in (None, "", {}):
+                return self.promotion.start(model, definition.id, brief=payload.get("brief"))
+            return self.promotion.start(model, definition.id)
         repository = payload.get("repository", "")
         provider = payload.get("provider")
         model_name = payload.get("model_name")
@@ -564,6 +593,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                         return self._send(200, promotion_credentials.public())
                     if path == "/api/promotion/bluesky":  # public account facts only; never the app password
                         return self._send(200, service.promotion.bluesky_account())
+                    if path == "/api/promotion/devto":  # account id and username only; never the API key
+                        return self._send(200, service.promotion.devto_account())
                     route = _promotion_route(path)
                     if route and route[1] is None and route[2] == "detail":
                         return self._send(200, service.promotion.detail(route[0]))
@@ -593,6 +624,10 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     if payload.get("remove") is True:
                         return self._send(200, promo.bluesky_disconnect())
                     return self._send(200, promo.bluesky_connect(payload.get("handle"), payload.get("app_password")))
+                if path == "/api/promotion/devto":
+                    if payload.get("remove") is True:
+                        return self._send(200, promo.devto_disconnect())
+                    return self._send(200, promo.devto_connect(payload.get("api_key")))
                 change = _change_route(path)
                 if change:
                     task_id, change_id, verb = change
@@ -638,6 +673,16 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, promo.bluesky_reconcile(task_id, action_id))
                 if verb == "bluesky_verify":
                     return self._send(200, promo.bluesky_verify(task_id, action_id))
+                if verb == "devto_approve":
+                    return self._send(200, promo.devto_approve(task_id, action_id, payload.get("sha256")))
+                if verb == "devto_create_draft":
+                    return self._send(200, promo.devto_create_draft(task_id, action_id, payload.get("sha256")))
+                if verb == "devto_publish":
+                    return self._send(200, promo.devto_publish(task_id, action_id, payload.get("sha256")))
+                if verb == "devto_reconcile":
+                    return self._send(200, promo.devto_reconcile(task_id, action_id))
+                if verb == "devto_verify":
+                    return self._send(200, promo.devto_verify(task_id, action_id))
                 if verb == "record_publication":
                     return self._send(200, promo.record_manual_publication(
                         task_id, action_id, payload.get("url"), payload.get("confirmed"), payload.get("sha256")))
@@ -747,11 +792,13 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
 
 def main() -> int:
     from .bluesky import BlueskyCredentials
+    from .devto import DevCredentials
     from .promotion import PromotionCredentials, PromotionService, PromotionStore
     journal = Journal(data_directory() / "work.sqlite3")
     credentials = PromotionCredentials(data_directory())
     promotion = PromotionService(journal, PromotionStore(data_directory() / "work.sqlite3"), credentials,
-                                 BlueskyCredentials(data_directory()))  # its own DPAPI file
+                                 BlueskyCredentials(data_directory()),  # its own DPAPI file
+                                 DevCredentials(data_directory()))      # its own DPAPI file (devto.dpapi)
     service = WorkService(journal, promotion)
     settings = EncryptedSettings(data_directory())
     nonce = secrets.token_urlsafe(24)

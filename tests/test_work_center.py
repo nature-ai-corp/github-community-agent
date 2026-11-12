@@ -21,7 +21,7 @@ def test_new_task_alternative_routes_use_product_defined_taxonomies():
     domains = {d.domain for d in w.DEFINITIONS if d.domain}
     assert domains == {"Promotion"}
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
-    assert len(v2) == 7 and all(d.enabled and d.workflow == "promotion" for d in v2)
+    assert len(v2) == 8 and all(d.enabled and d.workflow == "promotion" for d in v2)
     for retired in ("promote_self", "promote_worker", "promote_other"):
         assert retired not in w.BY_ID
     assert not w.task_choices("domain", "Issues")

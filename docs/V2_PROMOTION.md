@@ -39,12 +39,13 @@ viewable, read-only.
 | Repository Optimization (**released: VERIFIED**) | `promote_repository_optimization` | Exact proposed changes with live before/after: Description, Topics, README (diff) | **Owner-approved apply, per change**: README only via a new branch + pull request into the default branch (never merged, never pushed to it); Description and Topics each by separate exact-action approval (ADMIN); every result read back from GitHub |
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
-| Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
+| Technical Articles (legacy) | `promote_technical_articles` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 | Bluesky (**released: VERIFIED**, Task #22) | `promote_bluesky` | One post (Bluesky limits: 300 graphemes, 3000 bytes) with the repository link | **Agent publishes** from the connected project account after exact approval; public read-back verification |
+| DEV Community (development: NOT VERIFIED) | `promote_dev_community` | One original, educational Markdown article on dev.to, from an optional topic and cited repository documents | **Agent publishes** from the connected DEV account: private draft, read-back comparison, separate confirmation, publish, public read-back |
 | Social Media (legacy) | `promote_social_media` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 
-GitHub Discussions and Bluesky have real publishers. Reddit,
-Developer Forums and Technical Articles have **no** integration, and no fake one:
+GitHub Discussions and Bluesky have real publishers, and DEV Community has one in development.
+Reddit and Developer Forums have **no** integration, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read
 the community's rules, keep the affiliation disclosure, post once, never as an
@@ -92,7 +93,8 @@ channel focus, so a plan covers only the selected Work Type.
 | Title at most 120 characters; body within the Work Type's limit (4000–5500) | Drafts |
 | At most 300 grapheme clusters and 3000 UTF-8 bytes (Bluesky Lexicon); must contain the https repository link | Bluesky |
 | `Current (verified):` and `Proposed:` labels | Repository Optimization |
-| Affiliation disclosure ("I maintain …") at the start of each post | Reddit, Developer Forums, Technical Articles, Bluesky |
+| Affiliation disclosure ("I maintain …") at the start of each post | Reddit, Developer Forums, Bluesky, DEV Community |
+| DEV: title ≤ 128, ≤ 4 lowercase alphanumeric tags, no front matter / Liquid / unsafe HTML, https links, ≥ 500 words and two `##` sections, AI-assistance disclosure, no advertising language or @mentions | DEV Community |
 | No claim that no release or installer exists when a release is published; no description of unread Issues; no engagement bait, incentives or testimonials | All |
 
 Generation budgets are per Work Type (1,500–3,500 completion tokens, 120-second timeout;

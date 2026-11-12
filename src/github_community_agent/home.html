@@ -36,6 +36,8 @@
 <div class="card task-start"><h2 id="selected-title" class="section-title">Select a Task</h2>
 <div id="task-details" class="task-details" aria-live="polite"><p class="muted small">Choose a Task above to see its purpose, what it will do, expected output, and required review.</p></div>
 <div class="field"><label class="field-label" for="target-repo">Target public repository</label><input id="target-repo" placeholder="Configure repository in Settings → Advanced" readonly></div>
+<div id="dev-brief" class="hid"><div class="field"><label class="field-label" for="dev-topic">Article topic (optional)</label><input id="dev-topic" maxlength="160" placeholder="e.g. Designing Approval-Gated AI Agents for External Publishing"></div>
+<div class="field"><label class="field-label" for="dev-docs">Source documents (optional, up to 4 repository Markdown files, one per line: path or path@branch)</label><textarea id="dev-docs" rows="3" placeholder="docs/V2_PROMOTION.md@feature/v2-promotion"></textarea></div></div>
 <div class="field" id="number-field"><label class="field-label" for="number">Issue / Discussion number</label><input id="number" type="number" min="1"></div>
 <p class="muted small" id="planned-note">V1 uses real GitHub and AI models. V2 Promotion publishes nothing without your explicit approval.</p>
 <div class="form-actions"><span class="spacer"></span><button class="primary" id="start" disabled>Create &amp; Run Task</button></div>
@@ -78,6 +80,14 @@
 <p class="muted small" id="bsky-status"></p>
 <div class="dialog-actions"><button type="button" id="bsky-remove">Disconnect Bluesky</button><span class="spacer"></span><button type="button" id="bsky-connect">Connect Bluesky account</button></div>
 <div id="bsky-message" role="status"></div>
+</div>
+<div id="devto-settings" data-platform="devto" hidden>
+<h4>DEV Community project account (development — not a released platform)</h4>
+<p class="muted small">Use the dedicated project account. Create an API key on DEV (Settings → Extensions → DEV Community API Keys). It is checked once with DEV, then stored encrypted for this Windows account in its own file, separately from GitHub tokens, Bluesky credentials and AI keys, and used only for an article you approved. A DEV API key has full account access: revoke it on DEV when you no longer need it.</p>
+<label>DEV API key<input type="password" id="devto-key" autocomplete="off" placeholder="DEV API key"></label>
+<p class="muted small" id="devto-status"></p>
+<div class="dialog-actions"><button type="button" id="devto-remove">Disconnect DEV</button><span class="spacer"></span><button type="button" id="devto-connect">Connect DEV account</button></div>
+<div id="devto-message" role="status"></div>
 </div>
 </details>
 <div id="settings-message" role="status"></div>
@@ -131,6 +141,7 @@ $("settings-promotion").open=false;$("promo-settings-message").textContent="";
 renderPromotionSettings();
 renderPromotionPlatforms();
 loadBlueskySettings();
+loadDevtoSettings();
 $("settings-overlay").classList.remove("hid");
 $("provider").focus();
 }
@@ -138,7 +149,8 @@ $("provider").focus();
 // switching shows one panel and hides the others. It never saves, removes or sends anything
 // and never changes a Task (a Task's platform is fixed by its own Work Type and approval).
 const PROMOTION_PLATFORMS=[{id:"github",label:"GitHub",panel:"promo-github-settings"},
-  {id:"bluesky",label:"Bluesky",panel:"bluesky-settings"}];
+  {id:"bluesky",label:"Bluesky",panel:"bluesky-settings"},
+  {id:"devto",label:"DEV Community (development)",panel:"devto-settings"}];
 function promotionPlatforms(avail){return PROMOTION_PLATFORMS.filter(p=>p.id==="github"||avail[p.id]===true)}
 function renderPromotionPlatforms(){
 const list=promotionPlatforms(state.promotionPlatforms||{}), sel=$("promo-platform");
@@ -174,6 +186,29 @@ $("bsky-status").textContent=blueskyStatusText(b);
 $("bsky-message").textContent=remove?"Bluesky account disconnected.":"Connected and verified with one Bluesky login. Nothing was posted.";
 }catch(e){$("bsky-message").textContent="Not connected: "+e.message}
 finally{$("bsky-password").value=""}
+}
+// DEV Community project account (development only). The API key is sent once to connect and
+// never returned; the page only ever shows the username and numeric account id.
+function devtoStatusText(b){
+if(!b||!b.available)return "";
+if(b.error)return b.error;
+return b.connected?"Connected: "+b.username+" (DEV account "+b.user_id+"). The API key is stored encrypted.":"No DEV account connected.";
+}
+async function loadDevtoSettings(){
+let b={available:false};
+try{b=await getJSON("/api/promotion/devto")}catch(e){}
+state.promotionPlatforms={...(state.promotionPlatforms||{}),devto:b.available===true};renderPromotionPlatforms();
+$("devto-key").value="";$("devto-message").textContent="";
+$("devto-status").textContent=devtoStatusText(b);
+}
+async function saveDevto(remove){
+if(remove&&!window.confirm("Disconnect the DEV account? The stored API key is deleted from this PC. Revoke the key on DEV as well."))return;
+try{
+const b=await postJSON("/api/promotion/devto",remove?{remove:true}:{api_key:$("devto-key").value},45000);
+$("devto-status").textContent=devtoStatusText(b);
+$("devto-message").textContent=remove?"DEV account disconnected.":"Connected and checked with DEV (users/me). Nothing was posted.";
+}catch(e){$("devto-message").textContent="Not connected: "+e.message}
+finally{$("devto-key").value=""}
 }
 function promotionState(p){
 return {available:true,selected:p.selected,repositories:p.repositories||[],selectedHasToken:p.selected_has_token===true};
@@ -218,7 +253,7 @@ return false;
 }
 }
 function closeSettings(){
-$("model-key").value="";$("read-key").value="";$("promo-token").value="";$("bsky-password").value="";
+$("model-key").value="";$("read-key").value="";$("promo-token").value="";$("bsky-password").value="";$("devto-key").value="";
 $("settings-overlay").classList.add("hid");
 }
 function settingsDraft(){
@@ -300,9 +335,10 @@ const d=state.definition;
 $("selected-title").textContent=d?d.title:"Select a Task";
 const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
+$("dev-brief").classList.toggle("hid",!(d&&d.id==="promote_dev_community"));
 $("start").disabled=!d||!d.enabled;
 const promo=d?.workflow==="promotion";
-$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky: research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
+$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_dev_community"?"V2 Promotion — DEV Community (development, not released): research, plan and one complete technical article draft run for the repository below, using the source documents you name. After you approve the exact article, the Agent saves it as a PRIVATE draft on the connected DEV account and compares it; it publishes only after your separate confirmation, then verifies it. Nothing is posted until you approve and confirm.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky: research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
 $("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
@@ -324,6 +360,8 @@ const d=state.definition;
 const n=Number($("number").value);
 const st=state.settings;
 const data={route:state.route,selection:d[state.route],definition_id:d.id,number:d.workflow==="draft_replies"?n:null};
+if(d.id==="promote_dev_community"){const topic=$("dev-topic").value.trim(),docs=$("dev-docs").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  if(topic||docs.length)data.brief={topic,documents:docs};}
 $("start").disabled=true;
 try{const res=await postJSON("/api/tasks",data);error("");state.selectedTask=res.id;await refresh();page("all")}
 catch(e){error(e.message)}
@@ -685,7 +723,17 @@ const ACTION_EVENTS={approved_manual:"approved for manual publication",
   bluesky_failed:"Bluesky publication failed — nothing was posted",bluesky_reconciled_published:"uncertain outcome resolved: published",
   bluesky_reconciled_not_found:"uncertain outcome resolved: not created",bluesky_reconcile_unavailable:"Bluesky check unavailable — still uncertain",
   bluesky_verified:"independently verified on Bluesky",bluesky_verify_failed:"Bluesky check: NOT verified",
-  bluesky_verify_unavailable:"Bluesky could not be read — not verified",bluesky_verify_refused:"Bluesky verify refused"};
+  bluesky_verify_unavailable:"Bluesky could not be read — not verified",bluesky_verify_refused:"Bluesky verify refused",
+  dev_approved:"approved for DEV",dev_approve_refused:"DEV approval refused",dev_draft_requested:"private DEV draft requested",
+  dev_draft_refused:"DEV draft refused — nothing was sent",dev_draft_verified:"private DEV draft saved and matches",
+  dev_draft_mismatch:"saved DEV draft differs — not published",dev_draft_failed:"DEV draft failed — nothing was created",
+  dev_uncertain:"DEV outcome uncertain",dev_publish_requested:"DEV publish requested",dev_publish_refused:"DEV publish refused — nothing was published",
+  dev_publish_failed:"DEV publish failed — still a private draft",dev_published:"published on DEV (not yet verified)",
+  dev_published_unexpectedly:"DEV published immediately (unexpected)",dev_reconciled_not_found:"uncertain outcome resolved: not created",
+  dev_reconciled_published:"uncertain outcome resolved: published",dev_reconciled_draft_verified:"uncertain outcome resolved: draft matches",
+  dev_reconciled_draft_mismatch:"uncertain outcome resolved: draft differs",dev_reconcile_unavailable:"DEV check unavailable — still uncertain",
+  dev_verified:"independently verified on DEV",dev_verify_failed:"DEV check: NOT verified",
+  dev_verify_unavailable:"DEV could not be read — not verified",dev_verify_refused:"DEV verify refused"};
 const MANUAL_REASONS={subreddit_mismatch:"post is in a different subreddit",url_invalid:"not a Reddit post URL",
   url_share_link:"short or share link",not_confirmed:"publication not confirmed",not_approved:"not approved",
   approval_mismatch:"approval does not match",already_recorded:"already recorded",
@@ -695,7 +743,9 @@ const MANUAL_REASONS={subreddit_mismatch:"post is in a different subreddit",url_
   unavailable_format:"unexpected response",invalid_post_id:"invalid post ID",
   no_account:"no Bluesky account connected",account_mismatch:"different Bluesky account",text_limits:"text exceeds Bluesky limits",
   content:"draft not ready",state:"wrong state",already_published:"already published",credential:"contains a credential",
-  not_published:"not published",network:"network error",format:"unexpected response",uncertain:"uncertain"};
+  not_published:"not published",network:"network error",format:"unexpected response",uncertain:"uncertain",
+  no_draft:"no verified draft",duplicate_title:"same title already on DEV",draft_changed:"draft changed on DEV",
+  rate_limited:"DEV rate limit",unauthorized:"API key refused",draft:"draft",draft_check:"draft check",publish:"publish"};
 function manualReason(code){const h=/^unavailable_http_(\d+)$/.exec(code||"");return h?"HTTP "+h[1]:(MANUAL_REASONS[code]||code)}
 function actionEventLabel(name){
   const m=/^action#(\d+):([a-z_]+)(?::([a-z0-9_]+))?$/.exec(String(name));
@@ -969,14 +1019,94 @@ function blueskyVerifyMessage(res){
   if(res.outcome==="not_found")return "Not found by the public Bluesky index yet (it can take a moment). NOT verified.";
   return "NOT verified: the public post differs from the approved action.";
 }
+// DEV Community Work Type (development only). One exact action: ONE article in the connected
+// project account — private draft, read back and compared, then published after a SEPARATE
+// confirmation. "verified" only after the public article API matched.
+const DEVTO_LOCKED=["dev_drafting","dev_draft_ready","dev_publishing","dev_published","dev_verified","dev_uncertain"];
+const DEVTO_STATUS={dev_approved:"approved for DEV — nothing sent",dev_drafting:"saving the private DEV draft…",
+  dev_draft_ready:"private DEV draft saved and matches — NOT published",dev_draft_mismatch:"saved DEV draft DIFFERS — not published",
+  dev_publishing:"publishing on DEV…",dev_published:"published on DEV — NOT independently verified yet",
+  dev_verified:"published on DEV — independently verified",dev_uncertain:"DEV outcome UNCERTAIN — check before any new attempt",
+  dev_failed:"DEV attempt failed — nothing was published"};
+const DEVTO_CHECKS={found:"article found",id:"article ID",account:"DEV account",title:"title",description:"description",
+  tags:"tags",body:"full body",no_organization:"no organization",state:"publication state",url:"public URL"};
+function devtoCheckHTML(v){
+  if(!v)return "";
+  const failed=Object.entries(v.checks||{}).filter(([,ok])=>!ok).map(([k])=>DEVTO_CHECKS[k]||k);
+  return '<p class="note">'+(v.phase==="draft"?"Draft check ":"Public check ")+escapeHTML(v.checked_utc||"")+': '+escapeHTML(v.outcome)+
+    (v.reason?' ('+escapeHTML(v.reason)+')':'')+(failed.length?' · failed: '+escapeHTML(failed.join(", ")):'')+
+    (v.ai_disclosure_metadata?' · AI-disclosure metadata: '+escapeHTML(v.ai_disclosure_metadata):'')+
+    (v.ai_disclosure_level?' · DEV AI disclosure: '+escapeHTML(v.ai_disclosure_level):'')+'</p>';
+}
+function devtoHTML(a,d){
+  const v=a.devto; if(!v||!d.devto_available)return "";
+  const acct=d.devto_account||{};
+  const out=['<div class="manual-record devto-box"><h5>DEV Community (development — not a released platform)</h5>',
+    '<p class="note">Exact article: '+escapeHTML(v.words)+' words · '+escapeHTML(v.chars)+' characters · tags: '+escapeHTML((v.tags||[]).join(", ")||"none")+
+    ' · description: '+escapeHTML(v.description||"none")+'</p>',
+    '<p class="note">Publishing settings: personal account, no organization, no series, no canonical URL, no cover image, AI disclosure “'+escapeHTML(v.settings&&v.settings.ai_disclosure_level||"")+'”.</p>'];
+  if(v.issues.length)out.push('<p class="note"><strong>Not publishable on DEV: '+escapeHTML(v.issues.join(" "))+'</strong></p>');
+  out.push('<p class="note">'+(acct.connected?'Connected DEV account: '+escapeHTML(acct.username)+' (ID '+escapeHTML(acct.user_id)+')':'No DEV account connected (Settings → Promotion).')+'</p>');
+  if(["draft","dev_failed","dev_draft_mismatch"].includes(a.status))
+    out.push('<div class="form-actions"><button type="button" class="primary devto-approve"'+(v.approval_sha256?'':' disabled')+'>Approve this exact DEV article</button></div>');
+  if(a.status==="dev_approved")out.push('<p class="note">Approved for '+escapeHTML(v.approved_username||"")+' · fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Step 1 saves it as a PRIVATE draft on DEV and compares it; nothing becomes public.</p><div class="form-actions"><button type="button" class="primary devto-draft">Save as private DEV draft</button></div>');
+  if(a.status==="dev_draft_ready")out.push('<p class="note">Private draft ID '+escapeHTML(v.article_id||"")+' matches the approved article. Step 2 publishes exactly this draft.</p><div class="form-actions"><button type="button" class="primary devto-publish">Publish on DEV</button></div>');
+  if(a.status==="dev_uncertain")out.push('<p class="note">Do not approve or publish again. Check what DEV has saved.</p><div class="form-actions"><button type="button" class="devto-reconcile">Check DEV</button></div>');
+  if(["dev_published","dev_verified"].includes(a.status)){
+    const url=String(v.url||"").startsWith("https://dev.to/")?v.url:"";
+    out.push('<p class="manual-state manual-state-'+(a.status==="dev_verified"?'verified':'confirmed')+'"><strong>'+(a.status==="dev_verified"?'Independently verified on DEV':'Published — NOT independently verified yet')+'</strong></p>',
+      '<p>Article: '+(url?'<a href="'+escapeHTML(url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(url)+'</a>':'(URL not recorded yet — verify)')+' · ID '+escapeHTML(v.article_id||"")+'</p>',
+      '<div class="form-actions"><button type="button" class="devto-verify">Verify on DEV</button></div>');
+  }
+  out.push(devtoCheckHTML(v.check));
+  return out.join("")+'</div>';
+}
+// deps: {confirm, call}. Messages never report success the server did not return.
+async function devtoApproveFlow(a,d,deps){
+  const v=a.devto, acct=d.devto_account||{};
+  if(!v||!v.approval_sha256)return "Not ready for DEV approval.";
+  if(!deps.confirm("Approve this exact DEV article?\n\nPlatform: DEV Community (dev.to)\nAccount: "+acct.username+" (ID "+acct.user_id+")\nTitle: "+a.title+"\nTags: "+v.tags.join(", ")+"\nDescription: "+v.description+"\nBody: "+v.words+" words (the full text above)\nSettings: personal account, no organization/series/canonical/cover, AI disclosure\n\nNothing is sent until you save the private draft."))return "Cancelled. Nothing was approved.";
+  await deps.call("devto_approve",{sha256:v.approval_sha256});
+  return "Approved for DEV. Nothing was sent.";
+}
+async function devtoDraftFlow(a,deps){
+  if(!deps.confirm("Save this approved article as a PRIVATE draft on DEV?\n\nTitle: "+a.title+"\n\nIt is not published. The saved draft is read back and compared with the approved version."))return "Cancelled. Nothing was sent.";
+  const res=await deps.call("devto_create_draft",{sha256:a.approved_sha256});
+  if(res.status==="dev_draft_ready")return "Private DEV draft saved (ID "+res.article_id+") and it matches the approved article. NOT published. AI-disclosure metadata: "+(res.ai_disclosure_metadata||"unknown")+".";
+  if(res.status==="dev_draft_mismatch")return "The saved DEV draft DIFFERS from the approved article. It was NOT published.";
+  if(res.status==="dev_uncertain")return "Outcome uncertain. Do not try again; use “Check DEV”.";
+  return "Not saved; nothing was published: "+(res.error||"see details");
+}
+async function devtoPublishFlow(a,deps){
+  const v=a.devto||{};
+  if(!deps.confirm("Publish this article publicly on DEV now?\n\nAccount: "+v.approved_username+"\nDraft ID: "+v.article_id+"\nTitle: "+a.title+"\n\nThe draft is compared again right before publishing."))return "Cancelled. Nothing was published.";
+  const res=await deps.call("devto_publish",{sha256:a.approved_sha256});
+  if(res.status==="dev_published")return "Published on DEV"+(res.url?": "+res.url:"")+" — NOT independently verified yet; use “Verify on DEV”.";
+  if(res.status==="dev_uncertain")return "Outcome uncertain. Do not publish again; use “Check DEV”.";
+  return "Not published: "+(res.error||"see details");
+}
+function devtoVerifyMessage(res){
+  if(res.outcome==="verified")return "Independently verified on DEV: same account, article, title, description, tags and full body.";
+  if(res.outcome==="unavailable")return "DEV could not be read ("+(res.reason||"")+"). The record is unchanged.";
+  if(res.outcome==="not_found")return "Not found by the public DEV API yet. NOT verified.";
+  return "NOT verified: the public article differs from the approved action.";
+}
 function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
   for(const a of d.actions){
-    const manual=a.channel!=="github_discussion", bsky=a.channel==="bluesky";
-    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(bsky?'Post #':manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||BLUESKY_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(bsky?'Destination: Bluesky — the Agent publishes this exact post from the connected project account after your approval':manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
-    if(manual&&(MANUAL_PUBLISHED.includes(a.status)||BLUESKY_LOCKED.includes(a.status))){
-      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+blueskyHTML(a,d)+'</section>');
+    const manual=a.channel!=="github_discussion", bsky=a.channel==="bluesky", devto=a.channel==="dev_community";
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(bsky?'Post #':devto?'Article #':manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||BLUESKY_STATUS[a.status]||DEVTO_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(bsky?'Destination: Bluesky — the Agent publishes this exact post from the connected project account after your approval':devto?'Destination: DEV Community — the Agent saves this exact article as a private draft, compares it, and publishes it only after your separate confirmation':manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    if(manual&&(MANUAL_PUBLISHED.includes(a.status)||BLUESKY_LOCKED.includes(a.status)||DEVTO_LOCKED.includes(a.status))){
+      parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+blueskyHTML(a,d)+devtoHTML(a,d)+(a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+'</section>');
+      continue;
+    }
+    if(devto){
+      parts.push('<label class="field-label">Title (published)<input class="promo-title" maxlength="128" value="'+escapeHTML(a.title)+'"></label>'+
+        '<label class="field-label">Article — DESCRIPTION, TAGS and ARTICLE (Markdown), published exactly as approved<textarea class="promo-body" rows="18" maxlength="22000">'+escapeHTML(a.body)+'</textarea></label>'+
+        '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="dev_approved"?' (cancels approval)':'')+'</button>'+
+        (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+'</div>'+
+        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+devtoHTML(a,d)+'</section>');
       continue;
     }
     if(bsky){
@@ -1060,6 +1190,12 @@ function renderPromotionPanel(t,d){
     on(".bsky-publish",async()=>{msg(await blueskyPublishFlow(a,d,bdeps));await reopen(t)});
     on(".bsky-reconcile",async()=>{const res=await call("bluesky_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="bluesky_published"?"Found on Bluesky: "+res.url+" — verify it next.":"Not created on Bluesky. You may approve and publish again.");await reopen(t)});
     on(".bsky-verify",async()=>{msg("Reading the post from the public Bluesky index…");msg(blueskyVerifyMessage(await call("bluesky_verify",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
+    const ddeps={confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data,PREFLIGHT_TIMEOUT_MS)};
+    on(".devto-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}msg(await devtoApproveFlow(a,d,ddeps));await reopen(t)});
+    on(".devto-draft",async()=>{msg(await devtoDraftFlow(a,ddeps));await reopen(t)});
+    on(".devto-publish",async()=>{msg(await devtoPublishFlow(a,ddeps));await reopen(t)});
+    on(".devto-reconcile",async()=>{const res=await call("devto_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="dev_published"?"Found published on DEV — verify it next.":res.status==="dev_draft_ready"?"Found the private draft; it matches. Not published.":res.status==="dev_draft_mismatch"?"Found the draft, but it differs. Not published.":"Not created on DEV. You may approve again.");await reopen(t)});
+    on(".devto-verify",async()=>{msg("Reading the article from the public DEV API…");msg(devtoVerifyMessage(await call("devto_verify",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".promo-verify-post",async()=>{msg("Reading the public post on Reddit once…");msg(verifyMessage(await call("verify_publication",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".promo-copy",async()=>{
       const text=el.querySelector(".promo-title").value+"\n\n"+el.querySelector(".promo-body").value;
@@ -1110,6 +1246,8 @@ $("promo-remove").addEventListener("click",()=>savePromotion(true));
 $("promo-platform").onchange=e=>selectPromotionPlatform(e.target.value);
 $("bsky-connect").addEventListener("click",()=>saveBluesky(false));
 $("bsky-remove").addEventListener("click",()=>saveBluesky(true));
+$("devto-connect").addEventListener("click",()=>saveDevto(false));
+$("devto-remove").addEventListener("click",()=>saveDevto(true));
 $("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("settings-overlay").classList.contains("hid"))closeSettings()});
 $("filter-key").addEventListener("change",()=>{state.filterKey=$("filter-key").value;state.filterValue="";renderWork()});
