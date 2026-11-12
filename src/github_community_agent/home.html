@@ -71,7 +71,7 @@
 <div id="promo-settings-message" role="status"></div>
 </div>
 <div id="bluesky-settings" data-platform="bluesky" hidden>
-<h4>Bluesky project account (development — not a released platform)</h4>
+<h4>Bluesky project account</h4>
 <p class="muted small">Use the dedicated project account and an APP password (Bluesky → Settings → Privacy and security → App passwords), never the account password. It is stored encrypted for this Windows account, separately from GitHub tokens and AI keys, and used only to publish a post you approved.</p>
 <label>Bluesky handle<input id="bsky-handle" placeholder="project.bsky.social" autocomplete="off"></label>
 <label>App password<input type="password" id="bsky-password" autocomplete="off" placeholder="xxxx-xxxx-xxxx-xxxx"></label>
@@ -138,7 +138,7 @@ $("provider").focus();
 // switching shows one panel and hides the others. It never saves, removes or sends anything
 // and never changes a Task (a Task's platform is fixed by its own Work Type and approval).
 const PROMOTION_PLATFORMS=[{id:"github",label:"GitHub",panel:"promo-github-settings"},
-  {id:"bluesky",label:"Bluesky (development)",panel:"bluesky-settings"}];
+  {id:"bluesky",label:"Bluesky",panel:"bluesky-settings"}];
 function promotionPlatforms(avail){return PROMOTION_PLATFORMS.filter(p=>p.id==="github"||avail[p.id]===true)}
 function renderPromotionPlatforms(){
 const list=promotionPlatforms(state.promotionPlatforms||{}), sel=$("promo-platform");
@@ -151,7 +151,7 @@ function selectPromotionPlatform(id){
 state.promotionPlatform=id;
 renderPromotionPlatforms();
 }
-// Bluesky project account (development only). The app password is sent once to connect
+// Bluesky project account. The app password is sent once to connect
 // and never returned; the page only ever shows the handle and DID.
 function blueskyStatusText(b){
 if(!b||!b.available)return "";
@@ -302,7 +302,7 @@ const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
 $("start").disabled=!d||!d.enabled;
 const promo=d?.workflow==="promotion";
-$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky (development, not released): research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
+$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky: research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
 $("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
@@ -911,7 +911,7 @@ function verifyMessage(res){
   if(res.outcome==="unavailable")return "Reddit could not be read"+(res.reason?" ("+res.reason+")":"")+". The record is unchanged; nothing new was verified.";
   return (VERIFY_OUTCOMES[res.outcome]||"NOT verified")+". The publication remains user-confirmed only.";
 }
-// Bluesky Work Type (development only). One exact action: ONE post in the connected
+// Bluesky Work Type. One exact action: ONE post in the connected
 // project account. Approval binds account DID, exact text and link facets; publishing is a
 // separate confirmed click; "verified" only after the public read-back matched.
 const BLUESKY_LOCKED=["bluesky_publishing","bluesky_published","bluesky_verified","bluesky_uncertain"];
@@ -922,7 +922,7 @@ const BLUESKY_CHECKS={found:"post found",uri:"record URI",cid:"record CID",autho
 function blueskyHTML(a,d){
   const b=a.bluesky; if(!b||!d.bluesky_available)return "";
   const acct=d.bluesky_account||{};
-  const out=['<div class="manual-record bluesky-box"><h5>Bluesky (development — not a released platform)</h5>',
+  const out=['<div class="manual-record bluesky-box"><h5>Bluesky</h5>',
     '<p class="note">Exact post text: '+escapeHTML(b.graphemes)+'/300 characters · '+escapeHTML(b.bytes)+'/3000 bytes · '+escapeHTML(b.facets.length)+' link(s)</p>',
     '<div class="draft-reply-text bluesky-text">'+escapeHTML(b.text)+'</div>'];
   if(b.issues.length)out.push('<p class="note"><strong>Not publishable on Bluesky: '+escapeHTML(b.issues.join(" "))+'</strong></p>');

@@ -27,7 +27,7 @@ publishing, monitoring and improvement.
 **Release gate.** Only Work Types with real-world acceptance evidence are offered in a
 release build (`RELEASE_VERIFIED_WORK_TYPES` in `promotion.py`; evidence in
 [V2_PROMOTION_RELEASE_GATE.md](testing/V2_PROMOTION_RELEASE_GATE.md)). Today that is
-**GitHub Discussions and Repository Optimization**. The others are development code: they are hidden from
+**GitHub Discussions, Repository Optimization and Bluesky**. The others are development code: they are hidden from
 New Work, refused by the backend API and service (create and every action), and can be
 enabled only when running from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`. A packaged
 (frozen) build ignores that variable. Existing Tasks of an excluded Work Type stay
@@ -40,16 +40,16 @@ viewable, read-only.
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
-| Bluesky (development: NOT VERIFIED) | `promote_bluesky` | One post (Bluesky limits: 300 graphemes, 3000 bytes) with the repository link | **Agent publishes** from the connected project account after exact approval; public read-back verification |
+| Bluesky (**released: VERIFIED**, Task #22) | `promote_bluesky` | One post (Bluesky limits: 300 graphemes, 3000 bytes) with the repository link | **Agent publishes** from the connected project account after exact approval; public read-back verification |
 | Social Media (legacy) | `promote_social_media` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 
-GitHub Discussions has a real publisher, and Bluesky has one in development. Reddit,
+GitHub Discussions and Bluesky have real publishers. Reddit,
 Developer Forums and Technical Articles have **no** integration, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read
 the community's rules, keep the affiliation disclosure, post once, never as an
 answer to someone else's question). Each social platform is its own Work Type; the
-first is **Bluesky** (development only): the post is approved as one exact action
+first is **Bluesky** (released after Task #22's real-world acceptance): the post is approved as one exact action
 (account DID, text, link facets), published with one `createRecord` from the
 connected project account (app password, own DPAPI file) and verified through the
 public AppView. Platforms are released one by one after real-world acceptance.

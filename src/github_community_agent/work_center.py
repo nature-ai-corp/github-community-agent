@@ -207,8 +207,8 @@ TASK_DETAILS = {
                     "Promotion Platform: Bluesky). No GitHub token is used.",
         "review": "Explicit approval of the exact post, bound to the account and links; publishing is a "
                   "separate confirmation. Any edit cancels the approval.",
-        "limitations": "Development only: not released until a real post passes publication and public "
-                       "read-back. One post per approval; never retried blindly."
+        "limitations": "One post per approval, from the one connected project account; an uncertain outcome "
+                       "is checked, never retried blindly. Bluesky-hosted accounts only."
     },
     "promote_social_media": {
         "goal": "Legacy: social media post drafts created before platform Work Types. Existing Tasks only.",

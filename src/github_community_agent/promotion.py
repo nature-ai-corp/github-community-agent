@@ -37,7 +37,7 @@ Work Types
   exact changes. Reddit Promotion can afterwards record the URL of the hand-made
   post ("user-confirmed") and check it with one public read ("independently
   verified" only if subreddit, title and body match); it never posts.
-* Each social platform is its own Work Type. ``Bluesky`` (development only) publishes
+* Each social platform is its own Work Type. ``Bluesky`` (released: verified with Task #22) publishes
   ONE exact, approved post from the connected project account and verifies it from
   the public index. The former generic ``Social Media`` Work Type is legacy: its
   existing Tasks stay as they were (draft only), New Task no longer offers it.
@@ -600,6 +600,10 @@ RELEASE_VERIFIED_WORK_TYPES = frozenset({
     # Repository Optimization: Task #20 (2026-11-11) applied and verified the owner-approved
     # Description and Topics, and README PR #15 (Agent-created, owner-merged).
     "promote_repository_optimization",
+    # Bluesky: Task #22 (2026-11-12) — owner-approved exact post published by the Agent from the
+    # project account @natureai.bsky.social (one createRecord, 01:34:37Z) and independently
+    # verified from the public AppView (URI, CID, author DID, record type, text, facets; 01:37:42Z).
+    "promote_bluesky",
 })
 DEV_WORK_TYPES_ENV = "GCA_PROMOTION_DEV_WORK_TYPES"
 # Historical Work Types: existing Tasks stay viewable (and, in development, editable as the
@@ -1873,7 +1877,7 @@ class PromotionService:
         self.store.mark_published(action_id, task_id, url, node_id)
         return {"status": "published", "url": url}
 
-    # -- Social Media: Bluesky (development only until real-world acceptance) -----------
+    # -- Bluesky Work Type (released: verified by real-world acceptance, Task #22) -------
     # One exact action: create ONE app.bsky.feed.post in the connected project account.
     # Approval binds platform, account DID, collection, exact SHORT POST text and link facets.
 

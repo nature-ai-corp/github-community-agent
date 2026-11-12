@@ -1,4 +1,4 @@
-"""Bluesky: the first Social Media platform of the V2 Promotion Agent (development only).
+"""Bluesky: the first social platform Work Type of the V2 Promotion Agent (verified, Task #22).
 
 Scope is deliberately small: ONE post (``app.bsky.feed.post``) in the connected project
 account, created by ONE ``com.atproto.repo.createRecord`` call after the owner approved the

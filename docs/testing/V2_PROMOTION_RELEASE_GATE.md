@@ -13,10 +13,10 @@
 | Reddit Promotion | **NOT VERIFIED** | Draft only (Task #15); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Developer Forums | **NOT VERIFIED** | Draft only (Task #16); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Technical Articles | **NOT VERIFIED** | Draft only (Task #17); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
-| Bluesky | **NOT VERIFIED** | Publisher implemented (development only, offline-tested); no real post yet | API-driven publication by the Agent after exact approval (`createRecord` + public read-back) | **No** — excluded |
+| Bluesky | **VERIFIED** | Task #22 (2026-11-12): owner-approved exact post published by the Agent from the project account @natureai.bsky.social ([post](https://bsky.app/profile/did:plc:c3nlceuqshyilc3zeps4vwlq/post/3n23dccbqbt3h), `createRecord` 01:34:37Z) and independently verified from the public AppView at 01:37:42Z — URI, CID, author DID, record type, text and link facets all match; approval fingerprint re-computed and re-read independently | API-driven publication by the Agent after exact approval (`createRecord` + public read-back) | **Yes** |
 | Social Media (legacy) | — | Former generic Work Type; existing drafts (Tasks #8, #13, #18) keep it; New Task no longer offers it and it cannot be started | none (draft only) | **No** — never offered |
 
-No Work Type is FAILED: the remaining four were not attempted in the real world, because that needs the owner's approval of exact content and destination and the owner's own accounts, which this work must not invent.
+No Work Type is FAILED: the remaining three (Reddit Promotion, Developer Forums, Technical Articles) were not attempted in the real world, because that needs the owner's approval of exact content and destination and the owner's own accounts, which this work must not invent.
 
 ## How exclusion is enforced
 
@@ -28,9 +28,11 @@ No Work Type is FAILED: the remaining four were not attempted in the real world,
 - **Packaged build check (two verified Work Types):** see *Packaged build check* below.
 - Earlier check (GitHub Discussions only): a frozen bundle (`build/release-bundle-v2-gate2`) run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` set: 10/10 PASS.
 
-### Packaged build check (two verified Work Types)
+### Packaged build checks
 
 A frozen V2 bundle built with `scripts/windows-build-release-bundle.ps1` from this branch (unsigned, still labelled 1.0.0rc1, for gate validation only; frozen self-check PASS) was run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` deliberately set: **10/10 PASS**. UI served; `/api/definitions` = the five V1 Work Types + GitHub Discussions + Repository Optimization only; the development switch is ignored; `POST /api/tasks` is refused for Reddit Promotion, Developer Forums, Technical Articles and Social Media; no Task created; Promotion settings available.
+
+**Packaged-build check after Bluesky's acceptance (2026-11-12):** a new frozen bundle built from this branch (unsigned, still labelled 1.0.0rc1, frozen self-check PASS) was run with isolated data and `GCA_PROMOTION_DEV_WORK_TYPES=1` deliberately set: **12/12 PASS** — New Task offers exactly GitHub Discussions, Repository Optimization and Bluesky (plus the five V1 Work Types); the development switch is ignored; the API refuses Reddit Promotion, Developer Forums, Technical Articles and legacy Social Media (no Task created); Settings → Promotion offers the Bluesky platform (available, not connected in the isolated data) and the GitHub promotion settings.
 
 ## Acceptance contracts
 
@@ -94,16 +96,32 @@ Social Media is no longer one Work Type. Each supported platform is its own Prom
 - **Security and approval:** Owner approval of text and account; no tagging without consent; no repeated or automated posting.
 - **Needed to verify:** Owner chooses the platform and an account they control; approves the corrected posts; publishes; post URL verified.
 
-### Bluesky (development, NOT VERIFIED)
+### Bluesky (VERIFIED — released)
 
-- **Work Type:** `promote_bluesky` (channel `bluesky`). The Agent publishes ONE post after exact approval; not a manual-publication Work Type. Hidden in packaged builds (not in `RELEASE_VERIFIED_WORK_TYPES`).
+- **Work Type:** `promote_bluesky` (channel `bluesky`). The Agent publishes ONE post after exact approval; not a manual-publication Work Type. Released: in `RELEASE_VERIFIED_WORK_TYPES` since Task #22's real-world acceptance (below).
   - *Account:* a dedicated NATURE AI project account, connected in Settings → Promotion (Promotion Platform: Bluesky; the selector shows one platform's settings at a time and lists only supported platforms) with an **app password** only (`xxxx-xxxx-xxxx-xxxx`). One login checks it; handle, DID, PDS host and app password are stored in their own DPAPI file `bluesky.dpapi` (never with GitHub tokens or AI keys, never in the database, never sent to the AI model). Only Bluesky-hosted accounts (`bsky.social` / `*.bsky.network` PDS).
   - *Text:* the Task's post text (the whole body; the title is an unpublished label), checked when drafted and again at approval against the `app.bsky.feed.post` Lexicon (≤ 300 grapheme clusters per UAX #29, ≤ 3000 UTF-8 bytes); https links become `app.bsky.richtext.facet#link` facets with UTF-8 byte offsets.
   - *Approval:* one exact action — platform, account DID, collection, exact text and link facets in one fingerprint; any edit cancels it.
   - *Publish:* fresh login, refused unless the session DID is the approved DID; durable outbox (record key — a valid AT Protocol TID, unique and strictly increasing even with a coarse, frozen or backward clock — chosen and stored first); ONE `com.atproto.repo.createRecord`. Uncertain outcome → `bluesky_uncertain`, reconciled by `com.atproto.repo.getRecord` of exactly that record (after 60 s), never retried blindly.
   - *Recorded:* AT-URI, CID, public URL (`https://bsky.app/profile/<did>/post/<rkey>`), outcome and verification facts; every step and refusal in Task Activity History.
   - *Verify:* public, unauthenticated `app.bsky.feed.getPosts` on `public.api.bsky.app`; `bluesky_verified` only if URI, CID, author DID, record type, text and facets all match. Unreadable index never changes the status.
-  - *Acceptance still required:* the owner approves one exact post; the Agent publishes it from the project account; the public read-back verifies it; evidence recorded here. Only then is `promote_bluesky` added to `RELEASE_VERIFIED_WORK_TYPES`.
+  - *Real-world acceptance (PASS):* see **Bluesky — Task #22** below; `promote_bluesky` was then added to `RELEASE_VERIFIED_WORK_TYPES`.
+
+#### Bluesky — Task #22 (VERIFIED, 2026-11-12)
+
+| Item | Evidence |
+|---|---|
+| Task | #22, Work Type `promote_bluesky`, repository `nature-ai-corp/github-community-agent`, created 01:28:24Z |
+| Account | @natureai.bsky.social — DID `did:plc:c3nlceuqshyilc3zeps4vwlq` (dedicated project account, connected by the owner with an app password) |
+| Approved text (exact, 258 graphemes / 258 bytes, 1 link facet) | "We maintain GitHub Community Agent, an open-source Windows app for AI-assisted GitHub Issue & Discussion reviews, reply drafts, and community reports.⏎⏎V1 is read-only toward GitHub. Feedback welcome!⏎⏎https://github.com/nature-ai-corp/github-community-agent" |
+| Approval | Owner approval 01:33:37Z, bound to account DID, text and facets: fingerprint `b3013151eeafd94a74cdc485dca131c7b86decb03aa033e80232a276f845b074` (re-computed from the stored text and DID: matches) |
+| Publication (by the Agent) | ONE `com.atproto.repo.createRecord`, 01:34:37Z; record key `3n23dccbqbt3h` (valid TID) |
+| Record | URI `at://did:plc:c3nlceuqshyilc3zeps4vwlq/app.bsky.feed.post/3n23dccbqbt3h`, CID `bafyreigcouq5aasgb24u6t5wm236thacsqamsrchf5fh6idsxkx2nc4iky` |
+| Public URL | https://bsky.app/profile/did:plc:c3nlceuqshyilc3zeps4vwlq/post/3n23dccbqbt3h |
+| Agent verification | `bluesky_verified` at 01:37:42Z via public `app.bsky.feed.getPosts`: found, URI, CID, author DID, record type, text, facets — all true (indexed 01:34:38.271Z; 0 likes/replies/reposts/quotes) |
+| Independent re-check (this review) | A separate unauthenticated `getPosts` read of the public AppView returned HTTP 200 with the same URI, CID, author DID (handle natureai.bsky.social), `app.bsky.feed.post` type, byte-identical text and identical link facets; createdAt 2026-11-12T01:34:37.046Z |
+| Activity History | `draft_incomplete` 01:28:32 → `draft_edited` 01:31:49 (owner edit) → `bluesky_approved` 01:33:37 → `bluesky_publishing` / `bluesky_published` 01:34:37 → `bluesky_check:verified` 01:37:42 |
+| Who did what | Owner: connected the account, edited and approved the exact post, confirmed publishing. Agent: one `createRecord`, record/URI/CID/URL recording, public read-back verification. No retries, no uncertain outcome. |
 
 ## Quality defects from the first acceptance report — fixed and re-tested
 

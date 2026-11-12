@@ -186,7 +186,7 @@ def test_promotion_work_types_share_one_agent():
     assert pr.LEGACY_WORK_TYPES == {"promote_social_media"}
     # GitHub Discussions keeps the original id and channel (existing Tasks and evidence).
     assert pr.WORK_TYPES[pr.DEFINITION_ID].channel == pr.CHANNEL == "github_discussion"
-    # Publishers: GitHub Discussions (released) and Bluesky (development only); the rest are manual.
+    # Publishers: GitHub Discussions and Bluesky (both released); the rest are manual.
     assert [k for k, wt in pr.WORK_TYPES.items() if wt.automated_publishing] == [pr.DEFINITION_ID,
                                                                                  "promote_bluesky"]
     assert len({wt.channel for wt in pr.WORK_TYPES.values()}) == 7

@@ -1,4 +1,4 @@
-"""Social Media -> Bluesky (development only): one exact, approved post; verified read-back.
+"""Bluesky Work Type (released after Task #22): one exact, approved post; verified read-back.
 
 Offline: a mock of the bsky.social entryway, the account's PDS and the public AppView.
 Covers Lexicon text limits (graphemes, UTF-8 bytes), link facets with UTF-8 byte offsets,
@@ -495,12 +495,26 @@ def test_credentials_never_reach_the_database_the_api_the_model_or_github(sky):
     assert [r.url.path for r in authed] == ["/xrpc/com.atproto.repo.createRecord"]
 
 
-def test_bluesky_is_development_only_until_real_world_acceptance(sky, monkeypatch):
+def test_bluesky_is_released_after_real_world_acceptance(sky, monkeypatch):
+    """Task #22 (2026-11-12) verified Bluesky: a packaged build offers and runs it."""
+    fake, _, _, creds, service, _ = sky
+    assert "promote_bluesky" in pr.RELEASE_VERIFIED_WORK_TYPES
+    assert "promote_social_media" not in pr.RELEASE_VERIFIED_WORK_TYPES
+    monkeypatch.delenv(pr.DEV_WORK_TYPES_ENV)
+    monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build: release configuration
+    assert service.bluesky_account() == {"available": True, "connected": False}
+    task_id, a = _approved(sky)
+    out = service.bluesky_publish(task_id, a["id"], a["approved_sha256"])
+    assert out["status"] == "bluesky_published" and len(fake.creates()) == 1
+    assert service.bluesky_verify(task_id, a["id"])["outcome"] == "verified"
+
+
+def test_bluesky_is_still_gated_by_the_release_allowlist(sky, monkeypatch):
+    """Exposure follows RELEASE_VERIFIED_WORK_TYPES: without it, a packaged build refuses Bluesky."""
     fake, _, _, creds, service, _ = sky
     task_id, a = _approved(sky)
-    assert "promote_bluesky" not in pr.RELEASE_VERIFIED_WORK_TYPES
-    assert "promote_social_media" not in pr.RELEASE_VERIFIED_WORK_TYPES
-    monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build: dev switch ignored
+    monkeypatch.setattr(pr, "RELEASE_VERIFIED_WORK_TYPES", pr.RELEASE_VERIFIED_WORK_TYPES - {"promote_bluesky"})
+    monkeypatch.setattr(pr.sys, "frozen", True, raising=False)
     assert service.bluesky_account() == {"available": False, "connected": False}
     for call in (lambda: service.bluesky_connect(HANDLE, APP_PW),
                  lambda: service.bluesky_publish(task_id, a["id"], a["approved_sha256"])):

@@ -180,8 +180,9 @@ def test_bluesky_new_task_says_the_agent_publishes_after_exact_approval():
     assert r["selected"] == "promote_bluesky" and r["title"] == "Bluesky" and r["start_disabled"] is False
     assert "the Agent publishes it from the connected project Bluesky account" in r["note"]
     assert "yourself" not in r["note"] and "manual" not in r["note"]
-    released = _route("domain", development=False)
-    assert "Bluesky" not in [label for _, label in released["options"]]  # unverified: hidden in releases
+    released = _route("domain", development=False)  # verified (Task #22): offered in releases
+    assert [label for _, label in released["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky"]
+    assert "development" not in r["note"] and "not released" not in r["note"]
 
 
 def test_bluesky_task_card_has_no_manual_publication_controls():
@@ -208,7 +209,7 @@ def test_community_management_work_types_are_unchanged():
 
 def test_release_build_promotion_dropdown_lists_only_verified_work_types():
     r = _route("domain", development=False)
-    assert [label for _, label in r["options"]] == ["GitHub Discussions", "Repository Optimization"]
+    assert [label for _, label in r["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky"]
     assert r["first"] == "promote_repository"
 
 
@@ -502,7 +503,7 @@ state.promotionPlatforms={bluesky:false}; renderPromotionPlatforms(); out.off=$(
 state.promotionPlatforms={bluesky:true,mastodon:true,linkedin:true}; renderPromotionPlatforms(); out.on=$("promo-platform").innerHTML;
 """)
     assert 'value="github"' in r["off"] and "bluesky" not in r["off"]
-    assert 'value="github"' in r["on"] and 'value="bluesky"' in r["on"] and "Bluesky (development)" in r["on"]
+    assert 'value="github"' in r["on"] and 'value="bluesky"' in r["on"] and ">Bluesky<" in r["on"]
     for unsupported in ("mastodon", "linkedin", "reddit", "x\""):
         assert unsupported not in r["on"].lower()
 
