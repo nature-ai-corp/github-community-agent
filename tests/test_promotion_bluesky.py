@@ -657,3 +657,14 @@ def test_legacy_social_media_tasks_keep_their_work_type_and_get_no_destination(s
     service.edit(task_id, action_id, "Launch", body.replace("is out", "is available"))
     assert service.detail(task_id)["actions"][0]["status"] == "draft"
     assert fake.creates() == []
+
+
+def test_app_password_revoked_after_approval_refuses_publishing_and_sends_nothing(sky, monkeypatch):
+    fake, _, journal, _, service, _ = sky
+    task_id, a = _approved(sky)
+    monkeypatch.setitem(globals(), "APP_PW", "revoked-on-bluesky")   # Bluesky now rejects the stored password
+    with pytest.raises(bs.BlueskyError) as exc:
+        service.bluesky_publish(task_id, a["id"], a["approved_sha256"])
+    assert exc.value.code == "authenticationrequired" and fake.creates() == []
+    assert service.detail(task_id)["actions"][0]["status"] == "bluesky_approved"   # still approved, nothing sent
+    assert _activity(journal, task_id)[-1] == "bluesky_publish_refused:authenticationrequired"

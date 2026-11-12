@@ -99,6 +99,7 @@ NATIVE_COMPONENTS = {
     "tcl86t.dll": "tcl-tk",
     "tk86t.dll": "tcl-tk",
     "vcruntime140.dll": "msvc-runtime",
+    "vcruntime140_1.dll": "msvc-runtime",  # same PSF CPython runtime files; needed by _wmi.pyd
     "zlib1.dll": "zlib",
 }
 TCL_DATA_DIRS = {"_tcl_data": "tcl/tcl8.6", "_tk_data": "tcl/tk8.6", "tcl8": "tcl/tcl8"}
@@ -129,7 +130,7 @@ NATIVE_SBOM = [
     ("xz", "liblzma from XZ Utils (statically linked in _lzma)", "5.2.5",
      "LicenseRef-public-domain", ["THIRD_PARTY_NOTICES.txt (public domain)"],
      "pkg:generic/xz@5.2.5"),
-    ("msvc-runtime", "Microsoft Visual C++ runtime (VCRUNTIME140.dll)", VCRUNTIME_VERSION,
+    ("msvc-runtime", "Microsoft Visual C++ runtime (VCRUNTIME140.dll, VCRUNTIME140_1.dll)", VCRUNTIME_VERSION,
      "LicenseRef-Microsoft-Distributable-Code",
      [WIN_LICENSE + " (Additional Conditions for this Windows binary build)"],
      f"pkg:generic/microsoft/vcruntime140@{VCRUNTIME_VERSION}"),
@@ -454,8 +455,9 @@ def _notices(analysis: dict, texts: dict[str, bytes]) -> str:
         "",
         "Microsoft Visual C++ runtime",
         "----------------------------",
-        "VCRUNTIME140.dll is Microsoft Distributable Code redistributed as part of",
-        "the CPython Windows binary build. The conditions that apply are stated in",
+        "VCRUNTIME140.dll and VCRUNTIME140_1.dll are Microsoft Distributable Code",
+        "redistributed unmodified as part of the CPython Windows binary build. The",
+        "conditions that apply are stated in",
         f"{WIN_LICENSE} under \"Additional Conditions for this Windows binary build\".",
         "",
         "Independence from GitHub",

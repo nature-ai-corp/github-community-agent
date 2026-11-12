@@ -8,8 +8,8 @@ under its own license. The full license texts follow this list and are
 also provided as separate files in this third-party-licenses directory.
 
 Frozen application: GitHubCommunityAgent.exe
-SHA256: 0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89
-Bundle files: 958. Machine-readable SBOM: sbom.cdx.json
+SHA256: 806f404dc6116c5279a36ae28da39a659803f0ba5866b27c5e953160b5f0a3c1
+Bundle files: 961. Machine-readable SBOM: sbom.cdx.json
 
 Components
 ----------
@@ -64,7 +64,7 @@ Components
 * liblzma from XZ Utils (statically linked in _lzma) 5.2.5
     License: LicenseRef-public-domain
     Text: THIRD_PARTY_NOTICES.txt (public domain)
-* Microsoft Visual C++ runtime (VCRUNTIME140.dll) 14.51.36247.0
+* Microsoft Visual C++ runtime (VCRUNTIME140.dll, VCRUNTIME140_1.dll) 14.51.36247.0
     License: LicenseRef-Microsoft-Distributable-Code
     Text: cpython-3.13.17/LICENSE.txt (Additional Conditions for this Windows binary build)
 * PyInstaller bootloader and loader 6.22.3
@@ -108,8 +108,9 @@ liblzma from XZ Utils 5.2.5 (statically linked in _lzma.pyd): liblzma
 
 Microsoft Visual C++ runtime
 ----------------------------
-VCRUNTIME140.dll is Microsoft Distributable Code redistributed as part of
-the CPython Windows binary build. The conditions that apply are stated in
+VCRUNTIME140.dll and VCRUNTIME140_1.dll are Microsoft Distributable Code
+redistributed unmodified as part of the CPython Windows binary build. The
+conditions that apply are stated in
 cpython-3.13.17/LICENSE.txt under "Additional Conditions for this Windows binary build".
 
 Independence from GitHub

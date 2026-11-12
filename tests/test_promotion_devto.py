@@ -646,3 +646,21 @@ def test_devto_routes_over_http_never_return_the_key(dev):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_api_key_revoked_after_approval_refuses_both_writes_and_sends_nothing(dev):
+    fake, _, journal, _, service, _ = dev
+    task_id, a = _approved(dev)
+    del fake.users[KEY]                                   # the key was revoked on DEV
+    with pytest.raises(dv.DevError) as exc:
+        service.devto_create_draft(task_id, a["id"], a["approved_sha256"])
+    assert exc.value.code == "unauthorized" and fake.writes() == []
+    assert service.detail(task_id)["actions"][0]["status"] == "dev_approved"
+    fake.users[KEY] = (USER_ID, USERNAME)
+    task_id2, a2, _ = _drafted(dev, title="Second article title")
+    del fake.users[KEY]                                   # revoked between draft and publish
+    with pytest.raises(dv.DevError) as exc:
+        service.devto_publish(task_id2, a2["id"], a2["approved_sha256"])
+    assert exc.value.code == "unauthorized" and fake.writes("PUT") == []
+    assert service.detail(task_id2)["actions"][0]["status"] == "dev_draft_ready"
+    assert _activity(journal, task_id2)[-1] == "dev_publish_refused:unauthorized"

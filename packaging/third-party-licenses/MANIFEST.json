@@ -1,17 +1,17 @@
 {
   "bundle": {
     "embedded_module_counts": {
-      "first_party": 12,
+      "first_party": 15,
       "pyinstaller_loader": 5,
       "pyinstaller_rthooks": 4,
-      "stdlib": 228
+      "stdlib": 231
     },
-    "exe_sha256": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89",
-    "file_count": 958
+    "exe_sha256": "806f404dc6116c5279a36ae28da39a659803f0ba5866b27c5e953160b5f0a3c1",
+    "file_count": 961
   },
   "evidence_note": "Automated provenance and packaging checks of the bundled third-party components. Not legal advice.",
   "files": {
-    "THIRD_PARTY_NOTICES.txt": "f438d6fece2b9426952fc052cf43e532157292a454656d3acbf5f706e996dc83",
+    "THIRD_PARTY_NOTICES.txt": "fe76ea829919c41f6f0e03917fc073067fc2a6d0c04c0c50325e821096e1f5c4",
     "certifi-2026.10.23/MPL-2.0.txt": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
     "certifi-2026.10.23/source/certifi-2026.10.23.tar.gz": "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
     "cpython-3.13.17/LICENSE.txt": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
@@ -24,7 +24,7 @@
     "python-packages/httpx-0.28.1/LICENSE.md": "4ec59d544f12b5f539a3a716fd321ac58ccd8030b465221f2c880200cdf28d8d",
     "python-packages/idna-3.20/LICENSE.md": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04",
     "python-packages/typing-extensions-4.16.0/LICENSE": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
-    "sbom.cdx.json": "b4dd6c5a48ce67426e89a0a97bbe9912e01dc0000bf711bb6fb74233da2d89a2",
+    "sbom.cdx.json": "b79d391de8d35ca6919d4d6cdb12aeabecdd004f78e85566d99d6848f207d22b",
     "tcl-tk-8.6.15/license.terms": "0d1e4405f6273f091732764ed89b57066be63ce64869be6c71ea337dc4f2f9b5"
   },
   "generator": "scripts/third_party_notices.py",
