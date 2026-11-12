@@ -149,6 +149,33 @@ def content_sha256(repository: str, category: str, title: str, body: str, channe
     return _sha([repository, channel, category, title, body])
 
 
+# -- technical review (M1) ----------------------------------------------------------------
+#
+# "Technical review complete" records the exact draft (fingerprint, title and body) a person
+# reviewed. Approval compares the draft presented for approval with that record: if it was
+# never reviewed or changed since, approval is refused by default and the diff is shown. An
+# explicit override is accepted only for the exact diff that was displayed (its fingerprint)
+# and is recorded. Review records are insert-only (database triggers refuse UPDATE/DELETE).
+
+REVIEWABLE_STATUSES = ("draft", "incomplete", "failed", "bluesky_failed", "dev_failed", "dev_draft_mismatch")
+MAX_REVIEW_DIFF = 30000
+
+
+class ReviewRequired(ToolError):
+    """Approval refused: the draft was not technically reviewed or changed since the review."""
+
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.code = code
+
+
+def review_diff(reviewed: dict | None, title: str, body: str) -> str:
+    old = [] if reviewed is None else ["TITLE: " + (reviewed.get("title") or "")] + (reviewed.get("body") or "").splitlines()
+    new = ["TITLE: " + title] + body.splitlines()
+    return "\n".join(difflib.unified_diff(old, new, "technically reviewed" if reviewed else "(never reviewed)",
+                                          "presented for approval", lineterm=""))
+
+
 # -- per-repository credentials ----------------------------------------------------------
 
 
@@ -1227,6 +1254,15 @@ class PromotionStore:
             con.execute("""CREATE TABLE IF NOT EXISTS promotion_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL,
                 action_id INTEGER, event TEXT NOT NULL, happened_utc TEXT NOT NULL)""")
+            # Technical reviews and review overrides: insert-only records (M1).
+            con.execute("""CREATE TABLE IF NOT EXISTS promotion_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, action_id INTEGER NOT NULL,
+                kind TEXT NOT NULL, draft_sha256 TEXT NOT NULL, reviewed_sha256 TEXT, diff_sha256 TEXT,
+                title TEXT, body TEXT, created_utc TEXT NOT NULL)""")
+            for op in ("UPDATE", "DELETE"):
+                con.execute(f"CREATE TRIGGER IF NOT EXISTS promotion_reviews_no_{op.lower()} BEFORE {op} ON "
+                            "promotion_reviews BEGIN SELECT RAISE(ABORT, 'technical review records are "
+                            "immutable'); END")
             # Additive migration (existing rows untouched): last independent publication check.
             columns = {r[1] for r in con.execute("PRAGMA table_info(promotion_actions)")}
             if "verification_json" not in columns:
@@ -1356,6 +1392,22 @@ class PromotionStore:
     def set_verification(self, action_id, task_id, facts: dict, status: str) -> bool:
         return self._transition(action_id, task_id, MANUAL_PUBLISHED, f"manual_check:{facts['outcome']}",
                                 status=status, verification_json=json.dumps(facts, ensure_ascii=False))
+
+    def add_review(self, task_id, action_id, kind, draft_sha, *, title=None, body=None, reviewed_sha=None,
+                   diff_sha=None) -> int:
+        with self._connect() as con:
+            cur = con.execute("INSERT INTO promotion_reviews(task_id,action_id,kind,draft_sha256,reviewed_sha256,"
+                              "diff_sha256,title,body,created_utc) VALUES (?,?,?,?,?,?,?,?,?)",
+                              (task_id, action_id, kind, draft_sha, reviewed_sha, diff_sha, title, body, _utc()))
+            self._event(con, task_id, action_id, "technical_review" if kind == "review" else "review_override")
+            return cur.lastrowid
+
+    def latest_review(self, action_id) -> dict | None:
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute("SELECT * FROM promotion_reviews WHERE action_id=? AND kind='review' "
+                              "ORDER BY id DESC LIMIT 1", (action_id,)).fetchone()
+        return dict(row) if row else None
 
     def add_action_event(self, task_id, action_id, event) -> None:
         with self._connect() as con:
@@ -1537,6 +1589,54 @@ class PromotionService:
         except Exception:
             self.journal.finish(task_id, "failed", error="Promotion research or drafting failed.")
 
+    # -- technical review (M1) -------------------------------------------------------
+    def _review_view(self, action: dict) -> dict:
+        current = draft_sha256(action["repository"], action["title"], action["body"], action["channel"])
+        reviewed = self.store.latest_review(action["id"])
+        if reviewed and reviewed["draft_sha256"] == current:
+            state, diff = "current", ""
+        else:
+            state = "changed" if reviewed else "not_reviewed"
+            diff = review_diff(reviewed, action["title"], action["body"])
+        return {"state": state, "current_sha256": current,
+                "reviewed_sha256": reviewed["draft_sha256"] if reviewed else None,
+                "reviewed_utc": reviewed["created_utc"] if reviewed else None,
+                "diff": diff[:MAX_REVIEW_DIFF], "diff_truncated": len(diff) > MAX_REVIEW_DIFF,
+                "diff_sha256": _sha([diff]) if diff else None}
+
+    def mark_reviewed(self, task_id, action_id, sha) -> dict:
+        """Record that a person completed the technical review of exactly this draft."""
+        action = self._bound(task_id, action_id)
+        if action["status"] not in REVIEWABLE_STATUSES:
+            raise ToolError("Only an unapproved draft can be marked as technically reviewed.")
+        current = draft_sha256(action["repository"], action["title"], action["body"], action["channel"])
+        if sha != current:
+            raise ToolError("The reviewed version is not the current draft; reload it and review again.")
+        self.store.add_review(task_id, action_id, "review", current, title=action["title"], body=action["body"])
+        self._action_activity(task_id, action_id, "technical_review_complete")
+        return {"state": "current", "reviewed_sha256": current}
+
+    def _review_check(self, action: dict, override, error_cls=None) -> dict:
+        """Refuse approval of a draft that was not reviewed or changed since, unless the owner
+        explicitly overrides for the exact diff that was displayed."""
+        view = self._review_view(action)
+        if view["state"] == "current":
+            return {**view, "override": None}
+        code = "review_required" if view["state"] == "not_reviewed" else "changed_since_review"
+        if isinstance(override, dict) and override.get("acknowledged") is True \
+                and override.get("diff_sha256") == view["diff_sha256"]:
+            return {**view, "override": code}
+        message = ("Technical review required: mark the technical review of this exact draft complete before "
+                   "approving." if code == "review_required" else
+                   "The draft changed after its technical review; review it again before approving.")
+        raise (error_cls or ReviewRequired)(message, code)
+
+    def _review_record(self, task_id: int, action: dict, review: dict) -> None:
+        if review and review.get("override"):
+            self.store.add_review(task_id, action["id"], "override", review["current_sha256"],
+                                  reviewed_sha=review["reviewed_sha256"], diff_sha=review["diff_sha256"])
+            self._action_activity(task_id, action["id"], f"approved_over_review:{review['override']}")
+
     def _bound(self, task_id: int, action_id: int) -> dict:
         task = self.journal.get(task_id)
         action = self.store.get(action_id)
@@ -1578,6 +1678,8 @@ class PromotionService:
                "changes": [self._public_change({**c, "branch": f"gca/readme-t{task_id}-c{c['id']}"
                                                 if c["kind"] == "readme" else None})
                            for c in self.store.changes_for(task_id)]}
+        for a in out["actions"]:
+            a["review"] = self._review_view(a)
         if work_type.channel == "bluesky":
             account = self.bluesky_account()
             out["bluesky_available"], out["bluesky_account"] = account["available"], account
@@ -1934,13 +2036,21 @@ class PromotionService:
         action = self._automated(task_id, action_id)
         return public_permission(check_publish_permission(action["repository"], self._token(action["repository"])))
 
-    def approve(self, task_id, action_id, category, sha) -> str:
+    def approve(self, task_id, action_id, category, sha, review_override=None) -> str:
         """Approve exactly the draft the user saw (``sha`` = its draft_sha256) for one category."""
         action = self._bound(task_id, action_id)
         if action["channel"] == "bluesky":
             raise ToolError("Approve Bluesky posts with \u201cApprove this exact Bluesky post\u201d.")
         if action["channel"] == "dev_community":
             raise ToolError("Approve DEV articles with \u201cApprove this exact DEV article\u201d.")
+        if action["status"] in ("draft", "failed"):
+            try:
+                review = self._review_check(action, review_override)
+            except ReviewRequired as exc:
+                self._action_activity(task_id, action_id, f"approve_refused:{exc.code}", store=True)
+                raise
+        else:
+            review = None
         self._ready_content(task_id, action)
         if action["channel"] != CHANNEL:
             # Draft/manual-publication: approve the exact text; nothing is sent, no token is used.
@@ -1955,6 +2065,7 @@ class PromotionService:
                                       action["channel"])
             if not self.store.approve_manual(action_id, task_id, approved, category or None):
                 raise ToolError("This action cannot be approved in its current state.")
+            self._review_record(task_id, action, review)
             self._action_activity(task_id, action_id, "approved_manual")
             return approved
         if not isinstance(category, str) or not category or len(category) > 80:
@@ -1964,6 +2075,7 @@ class PromotionService:
         approved = content_sha256(action["repository"], category, action["title"], action["body"])
         if not self.store.approve(action_id, task_id, category, approved):
             raise ToolError("This action cannot be approved in its current state.")
+        self._review_record(task_id, action, review)
         return approved
 
     def publish(self, task_id, action_id, sha) -> dict:
@@ -2061,13 +2173,14 @@ class PromotionService:
             raise bs.BlueskyError("Not publishable on Bluesky: " + " ".join(issues), "text_limits")
         return text, bs.link_facets(text)
 
-    def bluesky_approve(self, task_id, action_id, sha) -> dict:
+    def bluesky_approve(self, task_id, action_id, sha, review_override=None) -> dict:
         """Approve ONE exact Bluesky action (nothing is sent)."""
         action = self._bluesky_action(task_id, action_id)
         try:
             if action["status"] not in ("draft", "bluesky_failed"):
                 raise bs.BlueskyError("Only an unapproved draft, or a failed Bluesky attempt, can be approved "
                                       "for Bluesky.", "state")
+            review = self._review_check(action, review_override, bs.BlueskyError)
             try:
                 self._ready_content(task_id, action)
             except ToolError as exc:
@@ -2092,6 +2205,7 @@ class PromotionService:
         except bs.BlueskyError as exc:
             self._action_activity(task_id, action_id, f"bluesky_approve_refused:{exc.code}", store=True)
             raise
+        self._review_record(task_id, action, review)
         self._action_activity(task_id, action_id, "bluesky_approved")
         return {"status": "bluesky_approved", "approved_sha256": expected, "did": account["did"],
                 "handle": account["handle"]}
@@ -2307,12 +2421,13 @@ class PromotionService:
         art = dv.parse_article(action["body"])
         return art, dv.approval_sha256(action["repository"], uid, name, action["title"], art)
 
-    def devto_approve(self, task_id, action_id, sha) -> dict:
+    def devto_approve(self, task_id, action_id, sha, review_override=None) -> dict:
         """Approve ONE exact DEV action (nothing is sent)."""
         action = self._devto_action(task_id, action_id)
         try:
             if action["status"] not in ("draft", "dev_failed", "dev_draft_mismatch"):
                 raise dv.DevError("Only an unapproved draft or a failed DEV attempt can be approved.", "state")
+            review = self._review_check(action, review_override, dv.DevError)
             try:
                 self._ready_content(task_id, action)
             except ToolError as exc:
@@ -2338,6 +2453,7 @@ class PromotionService:
                 raise dv.DevError("This draft changed meanwhile; reload it.", "state")
         except dv.DevError as exc:
             self._devto_refuse(task_id, action_id, "approve", exc)
+        self._review_record(task_id, action, review)
         self._action_activity(task_id, action_id, "dev_approved")
         return {"status": "dev_approved", "approved_sha256": expected, "user_id": account["user_id"],
                 "username": account["username"]}

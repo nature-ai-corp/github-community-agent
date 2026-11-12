@@ -411,7 +411,7 @@ def test_monitor_and_improve_without_any_new_publication(env):
     assert detail["actions"][0]["metrics"][0]["reactions"] == 7
     assert len(fake.mutations) == 1
     events = [e["event"] for e in detail["events"]]
-    assert events == ["draft_created", "approved", "publishing", "published",
+    assert events == ["draft_created", "technical_review", "approved", "publishing", "published",
                       "metrics_observed", "improvement_suggested"]
     assert TOKEN_A not in json.dumps(detail)
 

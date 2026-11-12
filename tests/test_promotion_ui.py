@@ -663,3 +663,55 @@ def test_new_dev_task_shows_the_brief_and_says_the_agent_publishes_after_confirm
     assert 'id="dev-topic"' in HTML and 'id="dev-docs"' in HTML
     start = _function("async function startTask(")
     assert 'd.id==="promote_dev_community"' in start and "data.brief={topic,documents:docs}" in start
+
+
+# -- M1: technical review gate -------------------------------------------------------------------
+
+def _review(script: str) -> dict:
+    return _run(PRELUDE + HTML[HTML.index("const REVIEW_LABEL="):HTML.index("function reviewGate(")]
+                + _function("function reviewGate(") + "\nconst out={};" + script + "console.log(JSON.stringify(out));")
+
+
+def test_review_box_shows_state_diff_and_override_only_when_needed():
+    r = _review("""
+const base={status:"draft",review:{state:"current",reviewed_utc:"2026-11-12T08:00:00Z",reviewed_sha256:"abcdef1234567890",diff:""}};
+out.current=reviewHTML(base);
+out.changed=reviewHTML({...base,review:{state:"changed",reviewed_utc:"t",reviewed_sha256:"abc",diff:"--- technically reviewed\\n+++ presented\\n-old line\\n+new line",diff_sha256:"d1"}});
+out.never=reviewHTML({...base,review:{state:"not_reviewed",diff:"+TITLE: T",diff_sha256:"d0"}});
+out.locked=reviewHTML({...base,status:"approved",review:{state:"changed",diff:"+x",diff_sha256:"d"}});""")
+    assert "Technical review complete for this exact draft" in r["current"]
+    assert "review-complete" not in r["current"] and "review-override-ack" not in r["current"]
+    assert "CHANGED since the technical review" in r["changed"] and "-old line" in r["changed"] and "+new line" in r["changed"]
+    assert "review-complete" in r["changed"] and "review-override-ack" in r["changed"]
+    assert "This owner decision is recorded" in r["changed"]
+    assert "Not technically reviewed yet" in r["never"] and "Full draft (never reviewed)" in r["never"]
+    assert r["locked"] == ""  # approved/published: nothing to review or override
+
+
+def test_review_gate_refuses_by_default_and_overrides_only_the_shown_diff():
+    r = _review("""
+const errs=[];
+for(const a of [{review:{state:"changed",diff_sha256:"d1"}},{review:{state:"not_reviewed",diff_sha256:"d0"}}]){
+  try{reviewGate(a,false);errs.push("no error")}catch(e){errs.push(e.message)}}
+out.errs=errs;
+out.current=reviewGate({review:{state:"current"}},false);
+out.override=reviewGate({review:{state:"changed",diff_sha256:"d1"}},true);""")
+    assert r["errs"][0].startswith("The draft changed after its technical review")
+    assert r["errs"][1].startswith("Technical review required")
+    assert r["current"] == {}
+    assert r["override"] == {"review_override": {"acknowledged": True, "diff_sha256": "d1"}}
+
+
+def test_every_approval_handler_passes_through_the_review_gate():
+    panel = _function("function renderPromotionPanel(")
+    for sel in ('on(".promo-approve-manual"', 'on(".bsky-approve"', 'on(".devto-approve"', 'on(".promo-approve",'):
+        start = panel.index(sel)
+        handler = panel[start:panel.index("});", start)]
+        assert "gate()" in handler and "confirmOverride(g)" in handler, sel
+    assert '...g}' in panel and 'call("review",{sha256:a.draft_sha256})' in panel
+    for branch in ("if(devto){", "if(bsky){", "if(manual){"):
+        start = panel.index(branch)
+        assert "reviewHTML(a)" in panel[start:panel.index("continue;", start)], branch
+    assert "parts.push(reviewHTML(a));" in panel   # GitHub Discussions card
+    assert 'technical_review_complete:"technical review complete"' in HTML
+    assert 'approved_over_review:"approved WITHOUT a current technical review (owner override)"' in HTML

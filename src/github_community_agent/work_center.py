@@ -660,13 +660,17 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, {"ok": True})
                 if verb == "preflight":
                     return self._send(200, promo.preflight(task_id, action_id))
+                if verb == "review":  # "Technical review complete" for exactly this draft
+                    return self._send(200, promo.mark_reviewed(task_id, action_id, payload.get("sha256")))
                 if verb == "approve":
-                    approved = promo.approve(task_id, action_id, payload.get("category"), payload.get("sha256"))
+                    approved = promo.approve(task_id, action_id, payload.get("category"), payload.get("sha256"),
+                                             payload.get("review_override"))
                     return self._send(200, {"ok": True, "status": "approved", "approved_sha256": approved})
                 if verb == "publish":
                     return self._send(200, promo.publish(task_id, action_id, payload.get("sha256")))
                 if verb == "bluesky_approve":
-                    return self._send(200, promo.bluesky_approve(task_id, action_id, payload.get("sha256")))
+                    return self._send(200, promo.bluesky_approve(task_id, action_id, payload.get("sha256"),
+                                                                 payload.get("review_override")))
                 if verb == "bluesky_publish":
                     return self._send(200, promo.bluesky_publish(task_id, action_id, payload.get("sha256")))
                 if verb == "bluesky_reconcile":
@@ -674,7 +678,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                 if verb == "bluesky_verify":
                     return self._send(200, promo.bluesky_verify(task_id, action_id))
                 if verb == "devto_approve":
-                    return self._send(200, promo.devto_approve(task_id, action_id, payload.get("sha256")))
+                    return self._send(200, promo.devto_approve(task_id, action_id, payload.get("sha256"),
+                                                               payload.get("review_override")))
                 if verb == "devto_create_draft":
                     return self._send(200, promo.devto_create_draft(task_id, action_id, payload.get("sha256")))
                 if verb == "devto_publish":

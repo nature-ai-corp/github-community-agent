@@ -712,7 +712,9 @@ function changeEventLabel(name){
   return "Change #"+m[1]+": "+CHANGE_EVENTS[m[2]]+(m[3]?" ("+(REFUSAL_REASONS[m[3]]||m[3])+")":"");
 }
 // Manual publication (Reddit) events ("action#5:manual_record_refused:subreddit_mismatch").
-const ACTION_EVENTS={approved_manual:"approved for manual publication",
+const ACTION_EVENTS={technical_review_complete:"technical review complete",approve_refused:"approval refused",
+  approved_over_review:"approved WITHOUT a current technical review (owner override)",
+  approved_manual:"approved for manual publication",
   manual_recorded_user_confirmed:"publication recorded — user-confirmed, not independently verified",
   manual_record_refused:"publication not recorded",manual_verified:"independently verified on Reddit",
   manual_verify_failed:"Reddit check: NOT verified",manual_verify_unavailable:"Reddit could not be read — not verified",
@@ -734,7 +736,7 @@ const ACTION_EVENTS={approved_manual:"approved for manual publication",
   dev_reconciled_draft_mismatch:"uncertain outcome resolved: draft differs",dev_reconcile_unavailable:"DEV check unavailable — still uncertain",
   dev_verified:"independently verified on DEV",dev_verify_failed:"DEV check: NOT verified",
   dev_verify_unavailable:"DEV could not be read — not verified",dev_verify_refused:"DEV verify refused"};
-const MANUAL_REASONS={subreddit_mismatch:"post is in a different subreddit",url_invalid:"not a Reddit post URL",
+const MANUAL_REASONS={review_required:"no technical review",changed_since_review:"changed since technical review",subreddit_mismatch:"post is in a different subreddit",url_invalid:"not a Reddit post URL",
   url_share_link:"short or share link",not_confirmed:"publication not confirmed",not_approved:"not approved",
   approval_mismatch:"approval does not match",already_recorded:"already recorded",
   duplicate_post:"post already recorded for another draft",duplicate:"draft changed meanwhile",
@@ -1091,6 +1093,37 @@ function devtoVerifyMessage(res){
   if(res.outcome==="not_found")return "Not found by the public DEV API yet. NOT verified.";
   return "NOT verified: the public article differs from the approved action.";
 }
+// Technical review (M1). Approval needs a recorded technical review of EXACTLY the draft
+// presented for approval. A draft that was never reviewed or changed since shows its diff;
+// approving it anyway needs an explicit, recorded owner override of exactly that diff.
+const REVIEW_LABEL={current:"Technical review complete for this exact draft",
+  changed:"CHANGED since the technical review: re-review required before approval",
+  not_reviewed:"Not technically reviewed yet: review required before approval"};
+const REVIEW_APPROVABLE=["draft","failed","bluesky_failed","dev_failed","dev_draft_mismatch"];
+function reviewHTML(a){
+  const r=a.review;
+  if(!r||!(REVIEW_APPROVABLE.includes(a.status)||a.status==="incomplete"))return "";
+  const approvable=REVIEW_APPROVABLE.includes(a.status);
+  const out=['<div class="manual-record review-box"><h5>Technical review</h5><p class="manual-state manual-state-'+
+    (r.state==="current"?'verified':'confirmed')+'"><strong>'+escapeHTML(REVIEW_LABEL[r.state]||r.state)+'</strong>'+
+    (r.reviewed_utc?' · last review '+escapeHTML(r.reviewed_utc)+' · fingerprint '+escapeHTML(String(r.reviewed_sha256||"").slice(0,12))+'…':'')+'</p>'];
+  if(r.state!=="current"&&approvable)out.push('<div class="form-actions"><button type="button" class="review-complete">Mark technical review complete</button></div>');
+  if(r.state!=="current"&&r.diff){
+    out.push('<p class="note">'+(r.state==="changed"?'Changes since the technical review (reviewed → presented for approval):':'Full draft (never reviewed):')+'</p>'+
+      '<pre class="review-diff">'+escapeHTML(r.diff)+'</pre>'+(r.diff_truncated?'<p class="note">Diff truncated for display.</p>':''));
+    if(approvable)out.push('<label class="check-label"><input type="checkbox" class="review-override-ack"> Approve without re-review: I have read the diff above. This owner decision is recorded.</label>');
+  }
+  return out.join("")+'</div>';
+}
+// Returns extra approval data, or throws when approval must not be requested.
+function reviewGate(a,acknowledged){
+  const r=a.review||{};
+  if(r.state==="current")return {};
+  if(!acknowledged)throw new Error(r.state==="changed"
+    ?"The draft changed after its technical review. Review it again, or explicitly approve without re-review below the diff."
+    :"Technical review required: mark the technical review complete, or explicitly approve without review below the diff.");
+  return {review_override:{acknowledged:true,diff_sha256:r.diff_sha256}};
+}
 function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
@@ -1106,7 +1139,7 @@ function renderPromotionPanel(t,d){
         '<label class="field-label">Article — DESCRIPTION, TAGS and ARTICLE (Markdown), published exactly as approved<textarea class="promo-body" rows="18" maxlength="22000">'+escapeHTML(a.body)+'</textarea></label>'+
         '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="dev_approved"?' (cancels approval)':'')+'</button>'+
         (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+'</div>'+
-        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+devtoHTML(a,d)+'</section>');
+        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+reviewHTML(a)+devtoHTML(a,d)+'</section>');
       continue;
     }
     if(bsky){
@@ -1114,7 +1147,7 @@ function renderPromotionPanel(t,d){
         '<label class="field-label">Post text (published exactly as approved)<textarea class="promo-body" rows="5" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
         '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="bluesky_approved"?' (cancels approval)':'')+'</button>'+
         (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+'</div>'+
-        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+blueskyHTML(a,d)+'</section>');
+        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+reviewHTML(a)+blueskyHTML(a,d)+'</section>');
       continue;
     }
     if(manual){
@@ -1127,7 +1160,7 @@ function renderPromotionPanel(t,d){
         (a.status!=="incomplete"?'<button type="button" class="promo-copy">Copy text</button>':'')+'</div>'+
         (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+
         '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p>'+
-        (a.channel==="reddit"?manualPublicationHTML(a):'')+'</section>');
+        reviewHTML(a)+(a.channel==="reddit"?manualPublicationHTML(a):'')+'</section>');
       continue;
     }
     if(["draft","approved","failed","incomplete"].includes(a.status)){
@@ -1139,6 +1172,7 @@ function renderPromotionPanel(t,d){
       parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>');
     }
     if(a.error)parts.push('<p class="note">'+escapeHTML(a.error)+'</p>');
+    parts.push(reviewHTML(a));
     if(a.status==="draft"||a.status==="failed"){
       parts.push('<div class="form-actions"><button type="button" class="promo-preflight">Check publishing permission</button>'+
         '<select class="promo-category" aria-label="Discussion category" disabled><option value="">Category (check permission first)</option></select>'+
@@ -1173,12 +1207,20 @@ function renderPromotionPanel(t,d){
     });
     on(".promo-preflight",()=>runPreflight(a.repository,el.querySelector(".promo-check"),
       el.querySelector(".promo-category"),el.querySelector(".promo-approve"),()=>call("preflight",undefined,PREFLIGHT_TIMEOUT_MS)));
+    const gate=()=>{const ack=el.querySelector(".review-override-ack");return reviewGate(a,!!(ack&&ack.checked))};
+    const confirmOverride=g=>!g.review_override||window.confirm("Approve WITHOUT a current technical review?\n\nThe diff shown on the card is recorded together with this decision.");
+    on(".review-complete",async()=>{
+      if(edited()){msg("Save your edits before marking the technical review complete.");return}
+      if(!window.confirm("Mark the technical review of this exact draft complete?\n\nTitle: "+a.title+"\nDraft fingerprint: "+String(a.draft_sha256).slice(0,12)+"…\n\nAny later change requires a new review before approval."))return;
+      await call("review",{sha256:a.draft_sha256});msg("Technical review recorded for this exact draft.");await reopen(t);
+    });
     on(".promo-approve-manual",async()=>{
       if(edited()){msg("Save your edits before approving.");return}
       const subEl=el.querySelector(".promo-subreddit"), sub=subEl?subEl.value.trim():"";
       if(subEl&&!sub){msg("Enter the target subreddit first.");return}
+      const g=gate();if(!confirmOverride(g))return;
       if(!window.confirm("Approve this exact text for manual publication?\n\nWork Type: "+(d.work_type||a.channel)+(sub?"\nSubreddit: "+sub:"")+"\nTitle: "+a.title+"\n\nThis application does not post it; you publish it yourself."))return;
-      await call("approve",{category:sub,sha256:a.draft_sha256});msg("Approved for manual publication. Copy it and follow the checklist.");await reopen(t);
+      await call("approve",{category:sub,sha256:a.draft_sha256,...g});msg("Approved for manual publication. Copy it and follow the checklist.");await reopen(t);
     });
     on(".promo-record",async()=>{
       msg(await recordPublicationFlow(a,el.querySelector(".promo-post-url").value,el.querySelector(".promo-post-confirm").checked,
@@ -1186,12 +1228,12 @@ function renderPromotionPanel(t,d){
       await reopen(t);
     });
     const bdeps={confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data,PREFLIGHT_TIMEOUT_MS)};
-    on(".bsky-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}msg(await blueskyApproveFlow(a,d,bdeps));await reopen(t)});
+    on(".bsky-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}const g=gate();if(!confirmOverride(g))return;msg(await blueskyApproveFlow(a,d,{...bdeps,call:(v,x)=>bdeps.call(v,{...x,...g})}));await reopen(t)});
     on(".bsky-publish",async()=>{msg(await blueskyPublishFlow(a,d,bdeps));await reopen(t)});
     on(".bsky-reconcile",async()=>{const res=await call("bluesky_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="bluesky_published"?"Found on Bluesky: "+res.url+" — verify it next.":"Not created on Bluesky. You may approve and publish again.");await reopen(t)});
     on(".bsky-verify",async()=>{msg("Reading the post from the public Bluesky index…");msg(blueskyVerifyMessage(await call("bluesky_verify",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     const ddeps={confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data,PREFLIGHT_TIMEOUT_MS)};
-    on(".devto-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}msg(await devtoApproveFlow(a,d,ddeps));await reopen(t)});
+    on(".devto-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}const g=gate();if(!confirmOverride(g))return;msg(await devtoApproveFlow(a,d,{...ddeps,call:(v,x)=>ddeps.call(v,{...x,...g})}));await reopen(t)});
     on(".devto-draft",async()=>{msg(await devtoDraftFlow(a,ddeps));await reopen(t)});
     on(".devto-publish",async()=>{msg(await devtoPublishFlow(a,ddeps));await reopen(t)});
     on(".devto-reconcile",async()=>{const res=await call("devto_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="dev_published"?"Found published on DEV — verify it next.":res.status==="dev_draft_ready"?"Found the private draft; it matches. Not published.":res.status==="dev_draft_mismatch"?"Found the draft, but it differs. Not published.":"Not created on DEV. You may approve again.");await reopen(t)});
@@ -1204,8 +1246,9 @@ function renderPromotionPanel(t,d){
     on(".promo-approve",async()=>{
       if(edited()){msg("Save your edits before approving.");return}
       const category=el.querySelector(".promo-category").value;
+      const g=gate();if(!confirmOverride(g))return;
       if(!window.confirm("Approve this exact announcement?\n\nRepository: "+a.repository+"\nCategory: "+category+"\nTitle: "+a.title+"\n\nNothing is posted until you publish."))return;
-      await call("approve",{category,sha256:a.draft_sha256});msg("Approved. Publish when ready.");await loadPromotionPanel(t);
+      await call("approve",{category,sha256:a.draft_sha256,...g});msg("Approved. Publish when ready.");await loadPromotionPanel(t);
     });
     on(".promo-publish",async()=>{
       if(edited()){msg("You changed the text; save it and approve again.");return}

@@ -118,6 +118,7 @@
 .manual-record{margin:10px 0 0;padding:8px 10px;border:1px solid var(--border,#d0d7de);border-radius:6px}
 .manual-record h5{margin:0 0 6px}
 .check-label{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
+.review-diff{max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;padding:8px;border:1px solid var(--line, #ccc);border-radius:6px}
 .manual-state{margin:0 0 6px;padding:6px 9px;border-radius:6px;border-left:3px solid #a05f15;background:var(--surface)}
 .manual-state-verified{border-left-color:var(--ok)}
 .promo-diff{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;font-size:12px;

@@ -44,6 +44,8 @@ viewable, read-only.
 | DEV Community (**released: VERIFIED**, Task #23) | `promote_dev_community` | One original, educational Markdown article on dev.to, from an optional topic and cited repository documents | **Agent publishes** from the connected DEV account: private draft, read-back comparison, separate confirmation, publish, public read-back |
 | Social Media (legacy) | `promote_social_media` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 
+**Technical review before approval.** Every Promotion draft must be marked "Technical review complete" for its exact text before it can be approved (GitHub Discussions, Bluesky, DEV Community and the manual Reddit/Developer Forums approvals). The review is an insert-only record (fingerprint, title and body; database triggers refuse changes). If the draft presented for approval was never reviewed or changed since its review, approval is refused and the card shows the diff; the owner may approve anyway only by explicitly acknowledging that exact diff, and that override is recorded (review table and Activity History). Existing approvals stay valid; Repository Optimization keeps its per-change approval with before/after diff.
+
 GitHub Discussions, Bluesky and DEV Community have real publishers.
 Reddit and Developer Forums have **no** integration, and no fake one:
 approving their text only records the exact version you will post or apply

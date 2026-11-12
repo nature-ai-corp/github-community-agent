@@ -195,7 +195,8 @@ def test_manual_approval_covers_the_exact_text_and_edits_cancel_it(env):
     with pytest.raises(ToolError, match="incomplete"):
         service.approve(task_id, a["id"], "", broken["draft_sha256"])
     events = [e["event"] for e in service.detail(task_id)["events"]]
-    assert events == ["draft_created", "approved_for_manual_publication", "draft_edited", "draft_edited"]
+    assert events == ["draft_created", "technical_review", "approved_for_manual_publication", "draft_edited",
+                      "draft_edited"]
 
 
 def test_github_discussions_still_requires_category_permission_and_exact_approval(env):

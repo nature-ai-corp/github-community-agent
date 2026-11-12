@@ -314,7 +314,7 @@ def test_approval_binds_account_did_text_and_facets(sky):
     # Any edit cancels the approval.
     service.edit(task_id, a["id"], a["title"], a["body"].replace("is out", "is available"))
     assert service.detail(task_id)["actions"][0]["status"] == "draft"
-    assert _activity(journal, task_id) == ["bluesky_approve_refused:no_account",
+    assert _activity(journal, task_id) == ["technical_review_complete", "bluesky_approve_refused:no_account",
                                            "bluesky_approve_refused:approval_mismatch", "bluesky_approved"]
 
 
@@ -373,7 +373,8 @@ def test_publish_creates_exactly_one_record_and_verify_reads_it_back(sky):
     assert v["verified"] is True and v["outcome"] == "verified" and all(v["checks"].values())
     rec = service.detail(task_id)["actions"][0]
     assert rec["status"] == "bluesky_verified" and rec["verification"]["likeCount"] == 2
-    assert _activity(journal, task_id) == ["bluesky_approved", "bluesky_publish_requested", "bluesky_published",
+    assert _activity(journal, task_id) == ["technical_review_complete", "bluesky_approved",
+                                           "bluesky_publish_requested", "bluesky_published",
                                            "bluesky_publish_refused:already_published", "bluesky_verified"]
     # Hosts: entryway (login), the account's PDS (write), public AppView (read). Nothing else.
     hosts = {(r.url.host, r.url.path) for r in fake.requests}

@@ -185,6 +185,7 @@ def test_record_requires_url_subreddit_and_confirmation_then_is_user_confirmed(e
     assert exc.value.code == "already_recorded"
     # Persistent Task Activity History: approval, every refusal, the record.
     assert _activity(journal, task_id) == [
+        f"action#{a['id']}:technical_review_complete",
         f"action#{a['id']}:approved_manual",
         f"action#{a['id']}:manual_record_refused:url_share_link",
         f"action#{a['id']}:manual_record_refused:subreddit_mismatch",
