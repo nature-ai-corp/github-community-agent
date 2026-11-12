@@ -161,7 +161,9 @@ def test_regeneration_is_capped(env, monkeypatch):
 # -- engine: Work-Type scope --------------------------------------------------------------
 
 
-@pytest.mark.parametrize("definition_id", [k for k, w in WT.items() if not w.automated_publishing])
+@pytest.mark.parametrize("definition_id", [k for k, w in WT.items()
+                                           if not w.automated_publishing and k not in pr.LEGACY_WORK_TYPES]
+                         + ["promote_bluesky"])
 def test_plan_proposing_a_discussion_for_another_work_type_is_corrected(env, definition_id):
     _, journal, creds, service, _ = env
     bad = Completion("Channel approach: Publish an approved GitHub Discussion (Proposed). Audience (Verified).", True)
@@ -202,6 +204,20 @@ def test_social_posts_must_fit_their_limits():
                           EVIDENCE) == []
     assert "Body is missing the 'LONG POST:' section." in pr.check_draft(
         WT["promote_social_media"], "T", "SHORT POST:\nI maintain X.", EVIDENCE)
+
+
+def test_bluesky_post_is_checked_against_the_lexicon_and_needs_the_link():
+    wt = WT["promote_bluesky"]
+    assert pr.check_draft(wt, "T", VALID_BODY["bluesky"].format(repo="o/r"), EVIDENCE) == []
+    # Exactly 300 grapheme clusters (562 code points): counted as Bluesky counts them, so allowed.
+    combining = "I maintain o/r https://github.com/o/r " + "e\u0301" * 262
+    assert not any("graphemes" in i for i in pr.check_draft(wt, "T", combining, EVIDENCE))
+    over = "I maintain o/r https://github.com/o/r " + "x" * 270
+    assert any("Bluesky allows 300" in i for i in pr.check_draft(wt, "T", over, EVIDENCE))
+    assert "The post must include the repository's https:// link." in pr.check_draft(
+        wt, "T", "I maintain o/r. The first pre-release is out.", EVIDENCE)
+    assert any("disclosure" in i for i in pr.check_draft(
+        wt, "T", "The first pre-release is out. https://github.com/o/r", EVIDENCE))
 
 
 def test_title_and_body_limits():

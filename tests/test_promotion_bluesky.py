@@ -122,10 +122,9 @@ def sky(env, monkeypatch):
 
 def _task(service, creds, short=f"I maintain GitHub Community Agent: v1.0.0-rc1 is out. {LINK}"):
     creds.update(REPO_A, TOKEN_A)
-    task_id = service.start(FakeModel(TOKEN_A), "promote_social_media")
+    task_id = service.start(FakeModel(TOKEN_A), "promote_bluesky")
     a = service.detail(task_id)["actions"][0]
-    body = f"SHORT POST:\n{short}\nLONG POST:\nI maintain GitHub Community Agent. The first pre-release is out. {LINK}"
-    service.edit(task_id, a["id"], a["title"], body)
+    service.edit(task_id, a["id"], a["title"], short)  # the Bluesky Work Type's body IS the post
     return task_id, service.detail(task_id)["actions"][0]
 
 
@@ -184,9 +183,71 @@ def test_link_facets_use_utf8_byte_offsets():
     assert bs.link_facets("https://en.wikipedia.org/wiki/Foo_(bar)")[0]["features"][0]["uri"].endswith("(bar)")
 
 
-def test_record_keys_are_tids_and_unique():
-    keys = {bs.new_rkey() for _ in range(200)}
-    assert len(keys) == 200 and all(bs.RKEY.fullmatch(k) for k in keys)
+TID = __import__("re").compile(r"^[234567abcdefghij][234567abcdefghijklmnopqrstuvwxyz]{12}$")  # AT Protocol spec
+
+
+def _tid_value(key):
+    return int("".join(f"{'234567abcdefghijklmnopqrstuvwxyz'.index(c):05b}" for c in key), 2)
+
+
+def _clock(monkeypatch, *micros):
+    """Replace bluesky.py's clock (only its own reference) with fixed microsecond readings."""
+    from types import SimpleNamespace
+    readings = iter(micros)
+    last = [micros[0]]
+
+    def time_ns():
+        last[0] = next(readings, last[0])
+        return last[0] * 1000
+    monkeypatch.setattr(bs, "time", SimpleNamespace(time_ns=time_ns))
+    monkeypatch.setattr(bs, "_tid_last_us", 0)
+
+
+def test_record_keys_are_valid_unique_increasing_tids():
+    keys = [bs.new_rkey() for _ in range(2000)]
+    assert len(set(keys)) == 2000 and keys == sorted(keys)
+    assert all(TID.fullmatch(k) and bs.RKEY.fullmatch(k) for k in keys)
+    value = _tid_value(keys[0])
+    assert value >> 63 == 0                                     # top bit is zero
+    assert abs((value >> 10) / 1e6 - __import__("time").time()) < 60  # microseconds since the epoch
+    assert len({_tid_value(k) & 1023 for k in keys}) == 1        # one clock identifier per process
+
+
+def test_record_keys_stay_unique_and_ordered_with_a_frozen_clock(monkeypatch):
+    _clock(monkeypatch, 1_762_900_000_000_000)                  # the clock never advances
+    keys = [bs.new_rkey() for _ in range(500)]
+    assert len(set(keys)) == 500 and keys == sorted(keys) and all(TID.fullmatch(k) for k in keys)
+    assert [_tid_value(k) >> 10 for k in keys[:3]] == [1_762_900_000_000_000 + i for i in range(3)]
+
+
+def test_record_keys_never_go_backwards_when_the_clock_does(monkeypatch):
+    now = 1_762_900_000_000_000
+    _clock(monkeypatch, now, now + 10, now - 5_000_000, now - 5_000_000, now + 20, now + 11)
+    keys = [bs.new_rkey() for _ in range(6)]
+    assert keys == sorted(keys) and len(set(keys)) == 6
+    assert [_tid_value(k) >> 10 for k in keys] == [now, now + 10, now + 11, now + 12, now + 20, now + 21]
+
+
+def test_record_keys_are_unique_across_threads():
+    keys, lock = [], threading.Lock()
+
+    def make():
+        mine = [bs.new_rkey() for _ in range(300)]
+        with lock:
+            keys.extend(mine)
+    threads = [threading.Thread(target=make) for _ in range(4)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    assert len(set(keys)) == 1200
+
+
+def test_record_key_refuses_an_out_of_range_clock(monkeypatch):
+    _clock(monkeypatch, 1 << 53)
+    with pytest.raises(bs.BlueskyError) as exc:
+        bs.new_rkey()
+    assert exc.value.code == "clock"
 
 
 # -- isolated credentials ---------------------------------------------------------------------
@@ -265,8 +326,8 @@ def test_text_over_the_lexicon_limit_cannot_be_approved(sky, monkeypatch):
     b = a["bluesky"]
     assert b["issues"] and b["approval_sha256"] is None
     sha = bs.approval_sha256(REPO_A, DID_A, b["text"], b["facets"])
-    # Layer 1: the Social Media draft limit (SHORT POST <= 280 code points) already marks it incomplete.
-    assert a["status"] == "incomplete"
+    # Layer 1: the Bluesky Work Type's draft check (Lexicon limits) already marks it incomplete.
+    assert a["status"] == "incomplete" and "Bluesky allows 300" in (a["error"] or "")
     with pytest.raises(bs.BlueskyError) as exc:
         service.bluesky_approve(task_id, a["id"], sha)
     assert exc.value.code == "state"
@@ -437,7 +498,7 @@ def test_credentials_never_reach_the_database_the_api_the_model_or_github(sky):
 def test_bluesky_is_development_only_until_real_world_acceptance(sky, monkeypatch):
     fake, _, _, creds, service, _ = sky
     task_id, a = _approved(sky)
-    assert pr.RELEASE_VERIFIED_SOCIAL_PLATFORMS == frozenset()
+    assert "promote_bluesky" not in pr.RELEASE_VERIFIED_WORK_TYPES
     assert "promote_social_media" not in pr.RELEASE_VERIFIED_WORK_TYPES
     monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build: dev switch ignored
     assert service.bluesky_account() == {"available": False, "connected": False}
@@ -527,3 +588,58 @@ def test_github_and_bluesky_settings_are_saved_and_removed_independently(sky):
     # The existing Task keeps its own platform and status.
     after = service.detail(task_id)["actions"][0]
     assert (after["channel"], after["status"]) == (action["channel"], action["status"])
+
+
+# -- Work Type restructuring: Bluesky is its own Work Type; Social Media is legacy ---------------
+
+
+def test_bluesky_is_its_own_work_type_published_by_the_agent(sky):
+    wt = pr.WORK_TYPES["promote_bluesky"]
+    assert (wt.label, wt.channel, wt.automated_publishing) == ("Bluesky", "bluesky", True)
+    assert wt.draft_instruction == pr.BLUESKY_INSTRUCTION and "by hand" not in pr.BLUESKY_INSTRUCTION
+    details = w.TASK_DETAILS["promote_bluesky"]
+    assert "Agent publishes" in " ".join(details["steps"]) and "yourself" not in json.dumps(details)
+    fake, _, journal, creds, service, _ = sky
+    task_id, a = _task(service, creds)
+    assert journal.get(task_id)["result"]["publication"] == "automated"
+    assert "publish it from this application" in journal.get(task_id)["result"]["next_step"]
+    # The generic manual approval is not the Bluesky approval: it never marks a Bluesky post ready_manual.
+    with pytest.raises(ToolError, match="Bluesky post"):
+        service.approve(task_id, a["id"], "", a["draft_sha256"])
+    with pytest.raises(ToolError, match="Bluesky actions"):
+        service.publish(task_id, a["id"], a["draft_sha256"])
+    assert service.detail(task_id)["actions"][0]["status"] == "draft" and fake.creates() == []
+
+
+def test_legacy_social_media_tasks_keep_their_work_type_and_get_no_destination(sky, tmp_path):
+    fake, _, journal, creds, service, _ = sky
+    _connected(sky)
+    # A Task created before the restructuring (historical identifier, SHORT/LONG POST draft).
+    creds.update(REPO_A, TOKEN_A)
+    task_id = journal.create("promote_social_media", REPO_A)
+    body = f"SHORT POST:\nI maintain it. {LINK}\nLONG POST:\nI maintain it. The first pre-release is out. {LINK}"
+    action_id = service.store.add_draft(task_id, REPO_A, "Launch", body, "social_media")
+    journal.finish(task_id, "needs_attention", result={"work_type": "Social Media", "channel": "social_media"})
+    # New Task no longer offers it and it cannot be started, from the engine or over the API.
+    assert "promote_social_media" not in [d.id for d in w.available_definitions()]
+    assert "promote_bluesky" in [d.id for d in w.available_definitions()]
+    with pytest.raises(ToolError, match="no longer a Work Type"):
+        service.start(FakeModel(TOKEN_A), "promote_social_media")
+    with pytest.raises(ToolError, match="must match"):
+        w.WorkService(journal, service).start({"route": "domain", "selection": "Promotion",
+                                               "definition_id": "promote_social_media", "model_key": "k"})
+    # The existing Task keeps its identifier, channel and text; it gets NO Bluesky destination.
+    detail = service.detail(task_id)
+    assert journal.get(task_id)["definition_id"] == "promote_social_media"
+    assert detail["channel"] == "social_media" and "bluesky_account" not in detail
+    a = detail["actions"][0]
+    assert a["body"] == body and "bluesky" not in a and w.BY_ID["promote_social_media"].title == "Social Media (legacy)"
+    sha = bs.approval_sha256(REPO_A, DID_A, f"I maintain it. {LINK}", bs.link_facets(f"I maintain it. {LINK}"))
+    for call in (lambda: service.bluesky_approve(task_id, action_id, sha),
+                 lambda: service.bluesky_publish(task_id, action_id, sha)):
+        with pytest.raises(ToolError, match="Bluesky Work Type only"):
+            call()
+    # It stays the editable, manual draft it always was.
+    service.edit(task_id, action_id, "Launch", body.replace("is out", "is available"))
+    assert service.detail(task_id)["actions"][0]["status"] == "draft"
+    assert fake.creates() == []

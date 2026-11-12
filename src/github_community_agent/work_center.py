@@ -48,24 +48,27 @@ DEFINITIONS = (
     TaskDefinition("draft_issue", "Draft Issue Reply", "Draft Issue Reply", "", "draft_replies", "V1", True),
     TaskDefinition("draft_discussion", "Draft Discussion Reply", "Draft Discussion Reply", "", "draft_replies", "V1", True),
     TaskDefinition("community_report", "Community Report", "Community Report", "", "community_report", "V1", True),
-    # V2: ONE Promotion Agent / engine with SIX independently selectable Promotion
-    # Work Types (one Task definition each). The target repository and its token
-    # are configuration. promote_repository keeps its id (existing Tasks/evidence).
+    # V2: ONE Promotion Agent / engine with independently selectable Promotion Work
+    # Types (one Task definition each; each social platform is its own Work Type).
+    # The target repository and its token are configuration. promote_repository keeps
+    # its id (existing Tasks/evidence). promote_social_media is legacy: existing Tasks
+    # keep it, New Task never offers it (promotion.LEGACY_WORK_TYPES).
     TaskDefinition("promote_repository", "GitHub Discussions", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_repository_optimization", "Repository Optimization", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_reddit", "Reddit Promotion", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_developer_forums", "Developer Forums", "", "Promotion", "promotion", "V2", True),
     TaskDefinition("promote_technical_articles", "Technical Articles", "", "Promotion", "promotion", "V2", True),
-    TaskDefinition("promote_social_media", "Social Media", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_bluesky", "Bluesky", "", "Promotion", "promotion", "V2", True),
+    TaskDefinition("promote_social_media", "Social Media (legacy)", "", "Promotion", "promotion", "V2", True),
 )
 BY_ID = {d.id: d for d in DEFINITIONS}
 
 
 def available_definitions() -> tuple:
-    """Definitions this build exposes. Promotion Work Types pass the release gate
-    (promotion.enabled_work_types); every V1 definition is always available."""
-    from .promotion import enabled_work_types
-    enabled = enabled_work_types()
+    """Definitions New Task offers. Promotion Work Types pass the release gate and are not
+    legacy (promotion.startable_work_types); every V1 definition is always available."""
+    from .promotion import startable_work_types
+    enabled = startable_work_types()
     return tuple(d for d in DEFINITIONS if d.workflow != "promotion" or d.id in enabled)
 
 # Each Task owns its own user-facing definition. The Work Center only renders
@@ -188,8 +191,27 @@ TASK_DETAILS = {
         "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
         "limitations": "Draft / manual publication only: nothing is published to any blog or publication."
     },
+    "promote_bluesky": {
+        "goal": "Publish ONE short, factual, disclosed post about the product from the project's own "
+                "Bluesky account, after you approve the exact post.",
+        "steps": ["Research the repository's real README, releases and public facts, with source links.",
+                  "Plan this Work Type only (audience, value, approach, schedule, objectives).",
+                  "Draft one Bluesky post (within Bluesky's 300-character limit) with the repository link.",
+                  "You review and edit it, then approve the exact post: account, text and links.",
+                  "The Agent publishes it once from the connected project account and verifies it from the "
+                  "public Bluesky index."],
+        "output": "One Bluesky post published by the Agent, with its record URI, CID, public URL and "
+                  "verification result in the Task.",
+        "requires": "Public repository selected in Settings → Promotion, AI model and API key, and the "
+                    "project's Bluesky account connected with an app password (Settings → Promotion → "
+                    "Promotion Platform: Bluesky). No GitHub token is used.",
+        "review": "Explicit approval of the exact post, bound to the account and links; publishing is a "
+                  "separate confirmation. Any edit cancels the approval.",
+        "limitations": "Development only: not released until a real post passes publication and public "
+                       "read-back. One post per approval; never retried blindly."
+    },
     "promote_social_media": {
-        "goal": "Prepare short, factual social media posts about the product for accounts you own.",
+        "goal": "Legacy: social media post drafts created before platform Work Types. Existing Tasks only.",
         "steps": ["Research the repository's real README, releases and public facts, with source links.",
                   "Plan this Work Type only (audience, value, approach, schedule, objectives).",
                   "Draft a short post (max 280 characters) and a longer post.",
@@ -199,7 +221,8 @@ TASK_DETAILS = {
         "requires": "Public repository selected in Settings → Promotion, AI model and API key. No GitHub "
                     "token or channel account is used.",
         "review": "Explicit approval of the exact text. Approval only marks it ready; you publish it yourself.",
-        "limitations": "Draft / manual publication only: no social network integration; nothing is posted."
+        "limitations": "Legacy draft only: no publisher, cannot be started. Use a platform Work Type "
+                       "(Bluesky) instead."
     },
 }
 

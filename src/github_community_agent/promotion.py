@@ -26,7 +26,7 @@ Security model
   draft until a person approves it.
 
 Work Types
-* Six independently selectable Promotion Work Types (``WORK_TYPES``) share this
+* Independently selectable Promotion Work Types (``WORK_TYPES``) share this
   one engine: research, plan, draft, exact-text approval, monitoring and
   improvement. Each is its own Task definition; a Task runs ONLY its own Work
   Type and its actions carry that Work Type's channel.
@@ -37,6 +37,10 @@ Work Types
   exact changes. Reddit Promotion can afterwards record the URL of the hand-made
   post ("user-confirmed") and check it with one public read ("independently
   verified" only if subreddit, title and body match); it never posts.
+* Each social platform is its own Work Type. ``Bluesky`` (development only) publishes
+  ONE exact, approved post from the connected project account and verifies it from
+  the public index. The former generic ``Social Media`` Work Type is legacy: its
+  existing Tasks stay as they were (draft only), New Task no longer offers it.
 """
 from __future__ import annotations
 
@@ -445,6 +449,16 @@ TECHNICAL_ARTICLE_INSTRUCTION = (
     "only steps documented in the evidence, limitations and current status, with source links. "
     + _FORMAT.format(w=650))
 
+BLUESKY_INSTRUCTION = (
+    "Write ONE Bluesky post that this application will publish, after the maintainer approves the exact "
+    "text, from the project's own Bluesky account. " + _SHARED_RULES +
+    " The post must disclose the affiliation at the start ('I maintain …'), be factual, include the "
+    "repository's main link (https://github.com/<owner>/<name>) written out in full, use at most two "
+    "relevant hashtags, and must not tag or mention people or organizations. It must fit in ONE Bluesky "
+    "post: at most 280 characters including the link (Bluesky's hard limit is 300). TITLE is a short "
+    "internal label that is NOT published. The BODY is exactly the post text, with no section labels.\n"
+    + _FORMAT.format(w=60))
+
 SOCIAL_MEDIA_INSTRUCTION = (
     "Write social media text the maintainer may post by hand on accounts they own. " + _SHARED_RULES +
     " Each post must disclose the affiliation ('I maintain …'), be factual, include the repository's main "
@@ -499,8 +513,9 @@ class WorkType:
     labels: tuple = ()          # labels that must appear in the body
 
 
-# ONE engine, SIX independently selectable Work Types. GitHub Discussions keeps the
-# original definition id and channel so existing Tasks and evidence stay valid.
+# ONE engine, independently selectable Work Types; each platform is its own Work Type with
+# its own instructions, checks and execution. GitHub Discussions keeps the original definition
+# id and channel so existing Tasks and evidence stay valid.
 WORK_TYPES = {wt.definition_id: wt for wt in (
     WorkType(DEFINITION_ID, "GitHub Discussions", CHANNEL, True,
              "Selected Work Type: GitHub Discussions — one announcement Discussion in the product's own "
@@ -548,6 +563,19 @@ WORK_TYPES = {wt.definition_id: wt for wt in (
                  "Verify every command and claim against the repository before publishing.",
                  "Follow the publication's guidelines on promotional content and keep the disclosure."),
              max_tokens=3500, body_max=5500, disclosure=True),
+    WorkType("promote_bluesky", "Bluesky", "bluesky", True,
+             "Selected Work Type: Bluesky — ONE post that this application publishes from the project's "
+             "connected Bluesky account after the maintainer approves the exact text, account and links. "
+             "Plan only this Bluesky post; do not plan any GitHub Discussion or other channel.",
+             BLUESKY_INSTRUCTION, (
+                 "Connect the project's own Bluesky account (app password) in Settings → Promotion → "
+                 "Promotion Platform: Bluesky.",
+                 "Approve the exact post: account, text and links. Any edit cancels the approval.",
+                 "The Agent publishes it once from that account, then verifies it from the public "
+                 "Bluesky index. Do not tag people or organizations; no repeated posting."),
+             max_tokens=800, body_max=600, disclosure=True),
+    # Legacy (kept only so existing Tasks keep their Work Type and history): the former generic
+    # Social Media drafts. Not offered in New Task, cannot be started, has no publisher.
     WorkType("promote_social_media", "Social Media", "social_media", False,
              "Selected Work Type: Social Media — one short and one longer post the maintainer publishes by "
              "hand on accounts they own. Plan only these posts; do not plan any GitHub Discussion or other "
@@ -574,6 +602,10 @@ RELEASE_VERIFIED_WORK_TYPES = frozenset({
     "promote_repository_optimization",
 })
 DEV_WORK_TYPES_ENV = "GCA_PROMOTION_DEV_WORK_TYPES"
+# Historical Work Types: existing Tasks stay viewable (and, in development, editable as the
+# drafts they always were), but New Task never offers them and they cannot be started.
+LEGACY_WORK_TYPES = frozenset({"promote_social_media"})
+BLUESKY_WORK_TYPE = "promote_bluesky"
 
 
 def development_mode() -> bool:
@@ -584,14 +616,9 @@ def enabled_work_types() -> frozenset:
     return frozenset(WORK_TYPES) if development_mode() else RELEASE_VERIFIED_WORK_TYPES
 
 
-# Social Media is ONE Work Type; each platform is added and verified individually.
-# A packaged build exposes only platforms with real-world acceptance (none yet).
-SOCIAL_PLATFORMS = frozenset({"bluesky"})
-RELEASE_VERIFIED_SOCIAL_PLATFORMS: frozenset = frozenset()
-
-
-def enabled_social_platforms() -> frozenset:
-    return SOCIAL_PLATFORMS if development_mode() else RELEASE_VERIFIED_SOCIAL_PLATFORMS
+def startable_work_types() -> frozenset:
+    """Work Types New Task may offer and start: enabled and not legacy."""
+    return enabled_work_types() - LEGACY_WORK_TYPES
 
 
 class ChangeRefused(ToolError):
@@ -747,6 +774,10 @@ def check_draft(work_type: WorkType, title: str, body: str, evidence: dict) -> l
             if not _DISCLOSURE.search(title + "\n" + part[:600]):
                 issues.append("Affiliation disclosure ('I maintain …') is missing near the start.")
                 break
+    if work_type.channel == "bluesky":  # the exact text that will be published: Lexicon limits
+        issues += bs.text_issues(body)
+        if not bs.link_facets(body):
+            issues.append("The post must include the repository's https:// link.")
     return issues + _rule_issues(title + "\n" + body, evidence,
                                  readme_quotes=work_type.channel == "repository_optimization")
 
@@ -1278,7 +1309,7 @@ class PromotionStore:
                 a["post_id"] = ((a["published_node_id"] or "").removeprefix("t3_") or None
                                 if a["channel"] == "reddit" else None)
                 a["verification"] = json.loads(a["verification_json"]) if a.get("verification_json") else None
-            if a["channel"] == "social_media":  # Bluesky record identity (AT-URI and CID)
+            if a["channel"] == "bluesky":  # Bluesky record identity (AT-URI and CID)
                 a["bluesky_uri"] = a["published_node_id"] if a["status"].startswith("bluesky_") else None
             a.pop("verification_json", None)
             a.pop("idempotency_key", None)
@@ -1306,6 +1337,8 @@ class PromotionService:
         if work_type is None:
             raise ToolError("Unknown Promotion Work Type.")
         _require_enabled(definition_id)
+        if definition_id in LEGACY_WORK_TYPES:
+            raise ToolError("Social Media is no longer a Work Type; choose a platform Work Type such as Bluesky.")
         repository = _repo(self.credentials.selected())
         task_id = self.journal.create(definition_id, repository)
         threading.Thread(target=self._run, args=(task_id, repository, model, work_type), daemon=True).start()
@@ -1365,7 +1398,9 @@ class PromotionService:
             self.store.add_draft(task_id, repository, g["title"], g["body"], work_type.channel,
                                  status="draft" if not issues else "incomplete",
                                  error=("Not ready: " + " ".join(issues))[:300] if issues else None)
-            next_step = ("Review and edit the draft, check publishing permission, choose a Discussion category, "
+            next_step = ("Review and edit the post, connect the project's Bluesky account, approve the exact "
+                         "post, then publish it from this application and verify it." if work_type.channel == "bluesky"
+                         else "Review and edit the draft, check publishing permission, choose a Discussion category, "
                          "approve the exact text, then publish." if work_type.automated_publishing else
                          "Review and edit the draft, approve the exact text, then publish or apply it yourself "
                          "following the checklist. This application does not post it.")
@@ -1394,6 +1429,8 @@ class PromotionService:
     def _automated(self, task_id: int, action_id: int) -> dict:
         """Only the GitHub Discussions Work Type has a publisher; it alone ever uses the GitHub token."""
         action = self._bound(task_id, action_id)
+        if action["channel"] == "bluesky":
+            raise ToolError("Bluesky posts are approved and published with the Bluesky actions.")
         if action["channel"] != CHANNEL:
             label = next(w.label for w in WORK_TYPES.values() if w.channel == action["channel"])
             raise ToolError(f"{label} is draft/manual-publication only. This application does not publish "
@@ -1418,7 +1455,7 @@ class PromotionService:
                "changes": [self._public_change({**c, "branch": f"gca/readme-t{task_id}-c{c['id']}"
                                                 if c["kind"] == "readme" else None})
                            for c in self.store.changes_for(task_id)]}
-        if work_type.channel == "social_media":
+        if work_type.channel == "bluesky":
             account = self.bluesky_account()
             out["bluesky_available"], out["bluesky_account"] = account["available"], account
             for a in out["actions"]:
@@ -1768,6 +1805,8 @@ class PromotionService:
     def approve(self, task_id, action_id, category, sha) -> str:
         """Approve exactly the draft the user saw (``sha`` = its draft_sha256) for one category."""
         action = self._bound(task_id, action_id)
+        if action["channel"] == "bluesky":
+            raise ToolError("Approve Bluesky posts with \u201cApprove this exact Bluesky post\u201d.")
         self._ready_content(task_id, action)
         if action["channel"] != CHANNEL:
             # Draft/manual-publication: approve the exact text; nothing is sent, no token is used.
@@ -1840,10 +1879,10 @@ class PromotionService:
 
     @staticmethod
     def _bluesky_text(body: str) -> str:
-        return (_section(body or "", "SHORT POST:", ["SHORT POST:", "LONG POST:"]) or "").strip()
+        return (body or "").strip()  # the Bluesky Work Type's body IS the exact post text
 
     def bluesky_account(self) -> dict:
-        available = self.bluesky is not None and bs.PLATFORM in enabled_social_platforms()
+        available = self.bluesky is not None and BLUESKY_WORK_TYPE in enabled_work_types()
         if not available:
             return {"available": False, "connected": False}
         try:
@@ -1852,7 +1891,7 @@ class PromotionService:
             return {"available": True, "connected": False, "error": "Stored Bluesky credentials cannot be read."}
 
     def _bluesky_enabled(self) -> None:
-        if self.bluesky is None or bs.PLATFORM not in enabled_social_platforms():
+        if self.bluesky is None or BLUESKY_WORK_TYPE not in enabled_work_types():
             raise ToolError("Bluesky is not available in this release: it has not passed real-world acceptance.")
 
     def bluesky_connect(self, handle, app_password) -> dict:
@@ -1876,8 +1915,8 @@ class PromotionService:
 
     def _bluesky_action(self, task_id, action_id) -> dict:
         action = self._bound(task_id, action_id)
-        if action["channel"] != "social_media":
-            raise ToolError("Bluesky publishing is available for the Social Media Work Type only.")
+        if action["channel"] != "bluesky":
+            raise ToolError("Bluesky publishing is available for the Bluesky Work Type only.")
         self._bluesky_enabled()
         return action
 

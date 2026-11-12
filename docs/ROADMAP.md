@@ -12,7 +12,7 @@ Complete and verify four existing partially implemented workflows:
 
 V1 priority is integration, isolation, reliable behavior, independent install and real GitHub end-to-end testing — not rewriting the existing capabilities.
 
-## V2 — Repository-based promotion (one Promotion Agent, six Work Types)
+## V2 — Repository-based promotion (one Promotion Agent, platform Work Types)
 
 There is **one** Promotion Agent and **one** Promotion Workflow. There are no
 separate self-promotion and product-promotion modes. The only configuration is:
@@ -30,7 +30,7 @@ Release rule: no real-world verification, no released Work Type. The release
 configuration offers only **GitHub Discussions** (verified with Discussion #13)
 and **Repository Optimization** (verified with Task #20 and the merged README PR #15).
 Reddit Promotion, Developer Forums, Technical Articles
-and Social Media exist as development code on the same engine and are excluded
+and Bluesky exist as development code on the same engine and are excluded
 from release builds until each passes real-world acceptance
 ([release gate](testing/V2_PROMOTION_RELEASE_GATE.md)).
 

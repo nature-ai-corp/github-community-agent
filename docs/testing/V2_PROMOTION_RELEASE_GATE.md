@@ -13,7 +13,8 @@
 | Reddit Promotion | **NOT VERIFIED** | Draft only (Task #15); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Developer Forums | **NOT VERIFIED** | Draft only (Task #16); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
 | Technical Articles | **NOT VERIFIED** | Draft only (Task #17); no owner approval, no real publication or change | Manual publication by the owner (never performed) | **No** — excluded |
-| Social Media | **NOT VERIFIED** | Draft only (Task #18). **Bluesky** publisher implemented (development only, offline-tested); no real post yet | Per platform: Bluesky via the Agent (`createRecord` + public read-back); other platforms not supported | **No** — excluded (no platform verified) |
+| Bluesky | **NOT VERIFIED** | Publisher implemented (development only, offline-tested); no real post yet | API-driven publication by the Agent after exact approval (`createRecord` + public read-back) | **No** — excluded |
+| Social Media (legacy) | — | Former generic Work Type; existing drafts (Tasks #8, #13, #18) keep it; New Task no longer offers it and it cannot be started | none (draft only) | **No** — never offered |
 
 No Work Type is FAILED: the remaining four were not attempted in the real world, because that needs the owner's approval of exact content and destination and the owner's own accounts, which this work must not invent.
 
@@ -78,7 +79,13 @@ A frozen V2 bundle built with `scripts/windows-build-release-bundle.ps1` from th
 - **Security and approval:** Owner approval of text and publication; publication's promotional-content rules.
 - **Needed to verify:** Owner chooses a publication/blog and account; approves the corrected article; publishes; URL verified.
 
-### Social Media
+### Social platforms: one Work Type per platform
+
+Social Media is no longer one Work Type. Each supported platform is its own Promotion Work Type with its own instructions, checks and execution on the same engine; New Task lists them directly. Only **Bluesky** exists. Discord, Mastodon, LinkedIn, DEV Community and others are **not implemented** and need their own feasibility review and real-world acceptance first. A platform Work Type is released only by adding it to `RELEASE_VERIFIED_WORK_TYPES` after acceptance.
+
+**Legacy `promote_social_media`:** kept only so existing Tasks keep their historical Work Type, text and history. It is not offered in New Task, cannot be started (engine or API), has no publisher, and existing Tasks get **no** Bluesky (or other) destination: they stay the editable, manual drafts they were.
+
+#### Legacy Social Media (former generic Work Type)
 
 - **Promise:** A short and a longer factual post for accounts the owner controls.
 - **Operation:** Research → plan (this channel only) → two posts with disclosure, length-checked. No social integration.
@@ -86,15 +93,17 @@ A frozen V2 bundle built with `scripts/windows-build-release-bundle.ps1` from th
 - **Real-world evidence required:** The owner-approved post published through an authorized account, and the post URL verified.
 - **Security and approval:** Owner approval of text and account; no tagging without consent; no repeated or automated posting.
 - **Needed to verify:** Owner chooses the platform and an account they control; approves the corrected posts; publishes; post URL verified.
-- **Platforms are verified individually.** `RELEASE_VERIFIED_SOCIAL_PLATFORMS` is empty: a packaged build offers no Social Media platform until one passes real-world acceptance. Mastodon, LinkedIn, X and others are not implemented and need their own feasibility review first.
-- **Bluesky (development, NOT VERIFIED):**
+
+### Bluesky (development, NOT VERIFIED)
+
+- **Work Type:** `promote_bluesky` (channel `bluesky`). The Agent publishes ONE post after exact approval; not a manual-publication Work Type. Hidden in packaged builds (not in `RELEASE_VERIFIED_WORK_TYPES`).
   - *Account:* a dedicated NATURE AI project account, connected in Settings → Promotion (Promotion Platform: Bluesky; the selector shows one platform's settings at a time and lists only supported platforms) with an **app password** only (`xxxx-xxxx-xxxx-xxxx`). One login checks it; handle, DID, PDS host and app password are stored in their own DPAPI file `bluesky.dpapi` (never with GitHub tokens or AI keys, never in the database, never sent to the AI model). Only Bluesky-hosted accounts (`bsky.social` / `*.bsky.network` PDS).
-  - *Text:* the draft's SHORT POST, checked against the `app.bsky.feed.post` Lexicon (≤ 300 grapheme clusters per UAX #29, ≤ 3000 UTF-8 bytes); https links become `app.bsky.richtext.facet#link` facets with UTF-8 byte offsets.
+  - *Text:* the Task's post text (the whole body; the title is an unpublished label), checked when drafted and again at approval against the `app.bsky.feed.post` Lexicon (≤ 300 grapheme clusters per UAX #29, ≤ 3000 UTF-8 bytes); https links become `app.bsky.richtext.facet#link` facets with UTF-8 byte offsets.
   - *Approval:* one exact action — platform, account DID, collection, exact text and link facets in one fingerprint; any edit cancels it.
-  - *Publish:* fresh login, refused unless the session DID is the approved DID; durable outbox (record key chosen and stored first); ONE `com.atproto.repo.createRecord`. Uncertain outcome → `bluesky_uncertain`, reconciled by `com.atproto.repo.getRecord` of exactly that record (after 60 s), never retried blindly.
+  - *Publish:* fresh login, refused unless the session DID is the approved DID; durable outbox (record key — a valid AT Protocol TID, unique and strictly increasing even with a coarse, frozen or backward clock — chosen and stored first); ONE `com.atproto.repo.createRecord`. Uncertain outcome → `bluesky_uncertain`, reconciled by `com.atproto.repo.getRecord` of exactly that record (after 60 s), never retried blindly.
   - *Recorded:* AT-URI, CID, public URL (`https://bsky.app/profile/<did>/post/<rkey>`), outcome and verification facts; every step and refusal in Task Activity History.
   - *Verify:* public, unauthenticated `app.bsky.feed.getPosts` on `public.api.bsky.app`; `bluesky_verified` only if URI, CID, author DID, record type, text and facets all match. Unreadable index never changes the status.
-  - *Acceptance still required:* the owner approves one exact post; the Agent publishes it from the project account; the public read-back verifies it; evidence recorded here. Only then is `bluesky` added to `RELEASE_VERIFIED_SOCIAL_PLATFORMS`.
+  - *Acceptance still required:* the owner approves one exact post; the Agent publishes it from the project account; the public read-back verifies it; evidence recorded here. Only then is `promote_bluesky` added to `RELEASE_VERIFIED_WORK_TYPES`.
 
 ## Quality defects from the first acceptance report — fixed and re-tested
 

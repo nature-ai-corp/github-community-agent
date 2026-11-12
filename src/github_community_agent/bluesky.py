@@ -178,7 +178,7 @@ def link_facets(text: str) -> list[dict]:
 def text_issues(text: str) -> list[str]:
     issues = []
     if not isinstance(text, str) or not text.strip():
-        return ["The SHORT POST text is empty."]
+        return ["The post text is empty."]
     graphemes, size = grapheme_count(text), len(text.encode("utf-8"))
     if graphemes > MAX_GRAPHEMES:
         issues.append(f"The post is {graphemes} characters (graphemes); Bluesky allows {MAX_GRAPHEMES}.")
@@ -196,12 +196,26 @@ def approval_sha256(repository: str, did: str, text: str, facets: list) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+# AT Protocol TID: 64 bits, top bit 0, then 53 bits of microseconds since the UNIX epoch and a
+# 10-bit clock identifier, written as 13 base32-sortable characters. Keys from this process are
+# unique and strictly increasing even when the clock is coarse (Windows), frozen or goes back:
+# each new key uses at least the previous microsecond + 1.
+_TID_ALPHABET = "234567abcdefghijklmnopqrstuvwxyz"
+_TID_LOCK = threading.Lock()
+_TID_CLOCK_ID = secrets.randbelow(1024)
+_tid_last_us = 0
+
+
 def new_rkey() -> str:
-    """A record key in TID format (13 chars, base32-sortable): microseconds << 10 | clock id."""
-    alphabet = "234567abcdefghijklmnopqrstuvwxyz"
-    value = (time.time_ns() // 1000) << 10 | secrets.randbelow(1024)
-    value &= (1 << 63) - 1
-    return "".join(alphabet[(value >> (5 * i)) & 31] for i in range(12, -1, -1))
+    """A new, unique, monotonically increasing record key in TID format."""
+    global _tid_last_us
+    with _TID_LOCK:
+        micros = max(time.time_ns() // 1000, _tid_last_us + 1)
+        if micros >= 1 << 53:
+            raise BlueskyError("The system clock is out of range for a Bluesky record key.", "clock")
+        _tid_last_us = micros
+    value = micros << 10 | _TID_CLOCK_ID
+    return "".join(_TID_ALPHABET[(value >> (5 * i)) & 31] for i in range(12, -1, -1))
 
 
 def post_url(did: str, rkey: str) -> str:

@@ -21,7 +21,8 @@ from github_community_agent.errors import ToolError
 
 from test_promotion import NONCE, REPO_A, REPO_B, TOKEN_A, TOKEN_B, FakeModel, MemorySettings, env  # noqa: F401
 
-MANUAL = [k for k, wt in pr.WORK_TYPES.items() if not wt.automated_publishing]
+STARTABLE = [k for k in pr.WORK_TYPES if k not in pr.LEGACY_WORK_TYPES]
+MANUAL = [k for k in STARTABLE if not pr.WORK_TYPES[k].automated_publishing]
 
 
 def _start_type(service, creds, repo, model, definition_id):
@@ -39,7 +40,7 @@ def _development_work_types(monkeypatch):
 # -- selection -----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("definition_id", list(pr.WORK_TYPES))
+@pytest.mark.parametrize("definition_id", STARTABLE)
 def test_each_work_type_runs_only_itself(env, definition_id):
     fake, journal, creds, service, _ = env
     model = FakeModel(TOKEN_A)
@@ -74,7 +75,7 @@ def test_unknown_work_type_is_refused(env):
     assert journal.list() == []
 
 
-@pytest.mark.parametrize("definition_id", list(pr.WORK_TYPES))
+@pytest.mark.parametrize("definition_id", STARTABLE)
 def test_http_create_starts_exactly_the_selected_work_type(env, definition_id):
     _, journal, creds, _, _ = env
 
@@ -160,7 +161,7 @@ def test_actions_cannot_cross_work_types_or_tasks(env):
 
 def test_work_type_tasks_stay_bound_to_their_repository(env):
     _, journal, creds, service, _ = env
-    task_id, a = _start_type(service, creds, REPO_B, FakeModel(), "promote_social_media")
+    task_id, a = _start_type(service, creds, REPO_B, FakeModel(), "promote_bluesky")
     creds.update(REPO_A)  # switching the selected repository does not move the Task
     assert journal.get(task_id)["repository"] == REPO_B
     assert service.detail(task_id)["actions"][0]["repository"] == REPO_B

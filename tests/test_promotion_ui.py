@@ -163,16 +163,38 @@ console.log(JSON.stringify({{label:$("selection-label").textContent,options,firs
 """)
 
 
-def test_promotion_work_type_dropdown_lists_six_and_selects_only_the_chosen_task():
+def test_promotion_work_type_dropdown_lists_platform_work_types_and_selects_only_the_chosen_task():
     r = _route("domain")
     assert r["label"] == "Promotion — Work Type"
     assert [label for _, label in r["options"]] == [
         "GitHub Discussions", "Repository Optimization", "Reddit Promotion",
-        "Developer Forums", "Technical Articles", "Social Media"]
+        "Developer Forums", "Technical Articles", "Bluesky"]  # no generic "Social Media"
     assert r["first"] == "promote_repository" and "automated publishing" in r["note"]
     r = _route("domain", "promote_reddit")
     assert r["selected"] == "promote_reddit" and r["title"] == "Reddit Promotion"
     assert r["start_disabled"] is False and "manual publication only" in r["note"]
+
+
+def test_bluesky_new_task_says_the_agent_publishes_after_exact_approval():
+    r = _route("domain", "promote_bluesky")
+    assert r["selected"] == "promote_bluesky" and r["title"] == "Bluesky" and r["start_disabled"] is False
+    assert "the Agent publishes it from the connected project Bluesky account" in r["note"]
+    assert "yourself" not in r["note"] and "manual" not in r["note"]
+    released = _route("domain", development=False)
+    assert "Bluesky" not in [label for _, label in released["options"]]  # unverified: hidden in releases
+
+
+def test_bluesky_task_card_has_no_manual_publication_controls():
+    start = HTML.index("if(bsky){")
+    block = HTML[start:HTML.index("continue;", start)]
+    assert "Post text (published exactly as approved)" in block and "Label (not published)" in block
+    assert "blueskyHTML(a,d)" in block
+    for manual in ("promo-approve-manual", "manual publication", "yourself", "promo-preflight", "promo-publish"):
+        assert manual not in block
+    meta = HTML[HTML.index("const manual=a.channel"):HTML.index("if(manual&&(MANUAL_PUBLISHED")]
+    assert "the Agent publishes this exact post from the connected project account after your approval" in meta
+    # Legacy Social Media drafts no longer get a Bluesky box (no silent destination).
+    assert 'a.channel==="social_media"?blueskyHTML' not in HTML
 
 
 def test_community_management_work_types_are_unchanged():
@@ -371,14 +393,14 @@ def test_reddit_draft_asks_for_the_subreddit_before_approval():
     assert "promo-publish" not in block and "promo-preflight" not in block
 
 
-# -- Social Media -> Bluesky ----------------------------------------------------------------
+# -- Bluesky Work Type ----------------------------------------------------------------------
 
 BSKY_JS = (HTML[HTML.index("const ACTION_EVENTS="):HTML.index("function renderActivity(")]
            + HTML[HTML.index("const BLUESKY_LOCKED="):HTML.index("function renderPromotionPanel(")]
            + _function("function blueskyStatusText("))
 BSKY_D = ('{bluesky_available:true,bluesky_account:{available:true,connected:true,handle:"proj.bsky.social",'
           'did:"did:plc:aaaa"}}')
-BSKY_A = ('{id:7,channel:"social_media",status:"draft",approved_sha256:null,verification:null,'
+BSKY_A = ('{id:7,channel:"bluesky",status:"draft",approved_sha256:null,verification:null,'
           'bluesky:{text:"I maintain it https://github.com/o/r",graphemes:36,bytes:36,facets:[{}],issues:[],'
           'account_did:"did:plc:aaaa",approval_sha256:"s1",approved_did:null,uri:null,cid:null,url:null}}')
 

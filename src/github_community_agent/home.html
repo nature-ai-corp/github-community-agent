@@ -302,7 +302,7 @@ const needNumber=d&&d.workflow==="draft_replies";
 $("number-field").classList.toggle("hid",!needNumber);
 $("start").disabled=!d||!d.enabled;
 const promo=d?.workflow==="promotion";
-$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
+$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky (development, not released): research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
 $("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
@@ -911,7 +911,7 @@ function verifyMessage(res){
   if(res.outcome==="unavailable")return "Reddit could not be read"+(res.reason?" ("+res.reason+")":"")+". The record is unchanged; nothing new was verified.";
   return (VERIFY_OUTCOMES[res.outcome]||"NOT verified")+". The publication remains user-confirmed only.";
 }
-// Social Media → Bluesky (development only). One exact action: ONE post in the connected
+// Bluesky Work Type (development only). One exact action: ONE post in the connected
 // project account. Approval binds account DID, exact text and link facets; publishing is a
 // separate confirmed click; "verified" only after the public read-back matched.
 const BLUESKY_LOCKED=["bluesky_publishing","bluesky_published","bluesky_verified","bluesky_uncertain"];
@@ -923,7 +923,7 @@ function blueskyHTML(a,d){
   const b=a.bluesky; if(!b||!d.bluesky_available)return "";
   const acct=d.bluesky_account||{};
   const out=['<div class="manual-record bluesky-box"><h5>Bluesky (development — not a released platform)</h5>',
-    '<p class="note">Exact post text (SHORT POST): '+escapeHTML(b.graphemes)+'/300 characters · '+escapeHTML(b.bytes)+'/3000 bytes · '+escapeHTML(b.facets.length)+' link(s)</p>',
+    '<p class="note">Exact post text: '+escapeHTML(b.graphemes)+'/300 characters · '+escapeHTML(b.bytes)+'/3000 bytes · '+escapeHTML(b.facets.length)+' link(s)</p>',
     '<div class="draft-reply-text bluesky-text">'+escapeHTML(b.text)+'</div>'];
   if(b.issues.length)out.push('<p class="note"><strong>Not publishable on Bluesky: '+escapeHTML(b.issues.join(" "))+'</strong></p>');
   out.push('<p class="note">'+(acct.connected?'Connected account: @'+escapeHTML(acct.handle)+' ('+escapeHTML(acct.did)+')':'No Bluesky account connected (Settings → Promotion).')+'</p>');
@@ -973,10 +973,18 @@ function renderPromotionPanel(t,d){
   const panel=$("promo-panel");if(!panel)return;
   const parts=[];
   for(const a of d.actions){
-    const manual=a.channel!=="github_discussion";
-    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||BLUESKY_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
+    const manual=a.channel!=="github_discussion", bsky=a.channel==="bluesky";
+    parts.push('<section class="report-section promo-action" data-action="'+a.id+'"><h4>'+(bsky?'Post #':manual?'Draft #':'Announcement #')+a.id+' — '+escapeHTML(MANUAL_STATUS[a.status]||BLUESKY_STATUS[a.status]||a.status)+'</h4><p class="report-meta">'+(bsky?'Destination: Bluesky — the Agent publishes this exact post from the connected project account after your approval':manual?'Destination: '+escapeHTML(d.work_type||a.channel)+(a.channel==="reddit"&&a.category?' · r/'+escapeHTML(a.category):'')+' — draft / manual publication only; this application does not post it':'Destination: GitHub Discussion in '+escapeHTML(a.repository)+(a.category?' · category '+escapeHTML(a.category):''))+'</p>');
     if(manual&&(MANUAL_PUBLISHED.includes(a.status)||BLUESKY_LOCKED.includes(a.status))){
       parts.push('<p><strong>'+escapeHTML(a.title)+'</strong></p><div class="draft-reply-text">'+escapeHTML(a.body)+'</div>'+manualPublicationHTML(a)+blueskyHTML(a,d)+'</section>');
+      continue;
+    }
+    if(bsky){
+      parts.push('<label class="field-label">Label (not published)<input class="promo-title" maxlength="200" value="'+escapeHTML(a.title)+'"></label>'+
+        '<label class="field-label">Post text (published exactly as approved)<textarea class="promo-body" rows="5" maxlength="6000">'+escapeHTML(a.body)+'</textarea></label>'+
+        '<div class="form-actions"><button type="button" class="promo-save">Save edits'+(a.status==="bluesky_approved"?' (cancels approval)':'')+'</button>'+
+        (["draft","incomplete"].includes(a.status)?'<button type="button" class="promo-regenerate">Regenerate draft</button>':'')+'</div>'+
+        (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+blueskyHTML(a,d)+'</section>');
       continue;
     }
     if(manual){
@@ -989,7 +997,7 @@ function renderPromotionPanel(t,d){
         (a.status!=="incomplete"?'<button type="button" class="promo-copy">Copy text</button>':'')+'</div>'+
         (a.error?'<p class="note"><strong>'+escapeHTML(a.error)+'</strong></p>':'')+
         '<p class="note">'+(a.status==="ready_manual"?'Approved fingerprint '+escapeHTML(String(a.approved_sha256||"").slice(0,12))+'… Publish it yourself, following the checklist above.':'Draft fingerprint '+escapeHTML(String(a.draft_sha256).slice(0,12))+'… Nothing is sent by this application.')+'</p>'+
-        (a.channel==="reddit"?manualPublicationHTML(a):'')+(a.channel==="social_media"?blueskyHTML(a,d):'')+'</section>');
+        (a.channel==="reddit"?manualPublicationHTML(a):'')+'</section>');
       continue;
     }
     if(["draft","approved","failed","incomplete"].includes(a.status)){

@@ -22,7 +22,9 @@ from test_promotion import NONCE, REPO_A, FakeModel, MemorySettings, env  # noqa
 
 VERIFIED = ["promote_repository", "promote_repository_optimization"]
 UNVERIFIED = ["promote_reddit", "promote_developer_forums",
-              "promote_technical_articles", "promote_social_media"]
+              "promote_technical_articles", "promote_bluesky", "promote_social_media"]
+DEVELOPMENT_OFFERED = ["promote_reddit", "promote_developer_forums", "promote_technical_articles",
+                       "promote_bluesky"]  # never the legacy generic "Social Media"
 V1 = ["review_issues", "review_discussions", "draft_issue", "draft_discussion", "community_report"]
 
 
@@ -42,6 +44,15 @@ def test_release_definitions_expose_v1_and_verified_promotion_only(tmp_path):
     assert [d.id for d in w.task_choices("domain", "Promotion")] == VERIFIED
     for v1 in V1:  # V1 Community Management unchanged
         assert w.task_choices("work_type", w.BY_ID[v1].work_type) == [w.BY_ID[v1]]
+
+
+def test_development_new_task_lists_platform_work_types_never_legacy_social_media(monkeypatch):
+    monkeypatch.setenv(pr.DEV_WORK_TYPES_ENV, "1")
+    assert [d.id for d in w.task_choices("domain", "Promotion")] == VERIFIED + DEVELOPMENT_OFFERED
+    assert pr.startable_work_types() == set(VERIFIED + DEVELOPMENT_OFFERED)
+    assert "promote_social_media" in pr.enabled_work_types()  # existing dev Tasks stay usable as drafts
+    for future in ("promote_discord", "promote_mastodon", "promote_linkedin", "promote_dev_community"):
+        assert future not in pr.WORK_TYPES and future not in w.BY_ID  # not implemented, not offered
 
 
 def test_frozen_build_ignores_the_development_switch(monkeypatch):

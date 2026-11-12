@@ -139,6 +139,7 @@ VALID_BODY = {
     "reddit": "I maintain {repo}. The first pre-release is out.",
     "developer_forum": "I maintain {repo}. The first pre-release is out.",
     "technical_article": "Disclosure: I maintain {repo}. The first pre-release is out.",
+    "bluesky": "I maintain {repo}: the first pre-release is out. https://github.com/{repo}",
     "social_media": "SHORT POST:\nI maintain {repo}: the first pre-release is out.\n"
                     "LONG POST:\nI maintain {repo}. The first pre-release is out.",
 }
@@ -174,18 +175,21 @@ def _start(service, creds, repo, model):
 # -- architecture -------------------------------------------------------------------------
 
 
-def test_six_promotion_work_types_share_one_agent():
+def test_promotion_work_types_share_one_agent():
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
     assert [d.id for d in v2] == list(pr.WORK_TYPES)
     assert [d.title for d in v2] == ["GitHub Discussions", "Repository Optimization", "Reddit Promotion",
-                                     "Developer Forums", "Technical Articles", "Social Media"]
+                                     "Developer Forums", "Technical Articles", "Bluesky",
+                                     "Social Media (legacy)"]
     assert all(d.workflow == "promotion" and d.enabled and d.domain == "Promotion" for d in v2)
-    assert all(w.BY_ID[k].title == wt.label for k, wt in pr.WORK_TYPES.items())
+    assert all(w.BY_ID[k].title.removesuffix(" (legacy)") == wt.label for k, wt in pr.WORK_TYPES.items())
+    assert pr.LEGACY_WORK_TYPES == {"promote_social_media"}
     # GitHub Discussions keeps the original id and channel (existing Tasks and evidence).
     assert pr.WORK_TYPES[pr.DEFINITION_ID].channel == pr.CHANNEL == "github_discussion"
-    # Only GitHub Discussions has an automated publisher; every other type is manual.
-    assert [k for k, wt in pr.WORK_TYPES.items() if wt.automated_publishing] == [pr.DEFINITION_ID]
-    assert len({wt.channel for wt in pr.WORK_TYPES.values()}) == 6
+    # Publishers: GitHub Discussions (released) and Bluesky (development only); the rest are manual.
+    assert [k for k, wt in pr.WORK_TYPES.items() if wt.automated_publishing] == [pr.DEFINITION_ID,
+                                                                                 "promote_bluesky"]
+    assert len({wt.channel for wt in pr.WORK_TYPES.values()}) == 7
     import inspect
     source = inspect.getsource(pr)
     for forbidden in ("self_promotion", "product_promotion", "SelfPromotion", "ProductPromotion"):

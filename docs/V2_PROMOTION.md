@@ -1,4 +1,4 @@
-# V2 Promotion: one Promotion Agent, six Work Types
+# V2 Promotion: one Promotion Agent, platform Work Types
 
 **Status:** implemented on `feature/v2-promotion`, Windows. Not released. V1
 (`v1.0.0-rc1`) is unchanged.
@@ -7,7 +7,7 @@
 
 There is **one** Promotion Agent and **one** shared engine
 (`src/github_community_agent/promotion.py`, `PromotionService`). New Work →
-Promotion offers **six independently selectable Work Types**, using the same
+Promotion offers **independently selectable Work Types** (each social platform is its own), using the same
 pattern as Community Management: choosing a Work Type selects its own Task
 definition. A Task runs only its own Work Type; unselected Work Types never
 run. Self-promotion and product promotion are not separate workflows. The
@@ -27,7 +27,7 @@ publishing, monitoring and improvement.
 **Release gate.** Only Work Types with real-world acceptance evidence are offered in a
 release build (`RELEASE_VERIFIED_WORK_TYPES` in `promotion.py`; evidence in
 [V2_PROMOTION_RELEASE_GATE.md](testing/V2_PROMOTION_RELEASE_GATE.md)). Today that is
-**GitHub Discussions and Repository Optimization**. The other four are development code: they are hidden from
+**GitHub Discussions and Repository Optimization**. The others are development code: they are hidden from
 New Work, refused by the backend API and service (create and every action), and can be
 enabled only when running from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`. A packaged
 (frozen) build ignores that variable. Existing Tasks of an excluded Work Type stay
@@ -40,15 +40,16 @@ viewable, read-only.
 | Reddit Promotion (development: NOT VERIFIED) | `promote_reddit` | One disclosed post for a subreddit that allows project posts | **Draft / manual publication only** |
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (development: NOT VERIFIED) | `promote_technical_articles` | One article draft (tutorial or deep dive) | **Draft / manual publication only** |
-| Social Media (development: NOT VERIFIED) | `promote_social_media` | A short (max 280 characters) and a longer post | Draft; **Bluesky** publisher in development (exact approval, Agent publishes, public read-back) |
+| Bluesky (development: NOT VERIFIED) | `promote_bluesky` | One post (Bluesky limits: 300 graphemes, 3000 bytes) with the repository link | **Agent publishes** from the connected project account after exact approval; public read-back verification |
+| Social Media (legacy) | `promote_social_media` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 
-Only GitHub Discussions has a real publisher. The other five have **no**
-integration with Reddit, forums, blogs or social networks, and no fake one:
+GitHub Discussions has a real publisher, and Bluesky has one in development. Reddit,
+Developer Forums and Technical Articles have **no** integration, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read
 the community's rules, keep the affiliation disclosure, post once, never as an
-answer to someone else's question). Social Media has its first platform publisher,
-**Bluesky** (development only): the SHORT POST is approved as one exact action
+answer to someone else's question). Each social platform is its own Work Type; the
+first is **Bluesky** (development only): the post is approved as one exact action
 (account DID, text, link facets), published with one `createRecord` from the
 connected project account (app password, own DPAPI file) and verified through the
 public AppView. Platforms are released one by one after real-world acceptance.
@@ -89,9 +90,9 @@ channel focus, so a plan covers only the selected Work Type.
 | Output complete (provider `finish_reason` is not `length`/`content_filter`, nothing cut) | Plans, drafts, improvement suggestions |
 | Plan stays in scope (no GitHub Discussion publication outside GitHub Discussions) and marks statements Verified / Proposed | Plans |
 | Title at most 120 characters; body within the Work Type's limit (4000–5500) | Drafts |
-| Short post at most 280 and long post at most 1200 characters | Social Media |
+| At most 300 grapheme clusters and 3000 UTF-8 bytes (Bluesky Lexicon); must contain the https repository link | Bluesky |
 | `Current (verified):` and `Proposed:` labels | Repository Optimization |
-| Affiliation disclosure ("I maintain …") at the start of each post | Reddit, Developer Forums, Technical Articles, Social Media |
+| Affiliation disclosure ("I maintain …") at the start of each post | Reddit, Developer Forums, Technical Articles, Bluesky |
 | No claim that no release or installer exists when a release is published; no description of unread Issues; no engagement bait, incentives or testimonials | All |
 
 Generation budgets are per Work Type (1,500–3,500 completion tokens, 120-second timeout;

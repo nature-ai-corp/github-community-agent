@@ -13,14 +13,14 @@ def test_new_task_alternative_routes_use_product_defined_taxonomies():
     promotion = w.task_choices("domain", "Promotion")
     assert w.BY_ID["review_issues"] in by_type
     assert w.BY_ID["review_issues"] not in promotion
-    # SIX Promotion Work Types (one Task each), one shared engine.
+    # Promotion Work Types (one Task each; each platform its own), one shared engine.
     # Release build: only the VERIFIED Promotion Work Types are offered (the other four are
     # development code; see tests/test_promotion_release_gate.py).
     assert [d.id for d in promotion] == ["promote_repository", "promote_repository_optimization"]
     domains = {d.domain for d in w.DEFINITIONS if d.domain}
     assert domains == {"Promotion"}
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
-    assert len(v2) == 6 and all(d.enabled and d.workflow == "promotion" for d in v2)
+    assert len(v2) == 7 and all(d.enabled and d.workflow == "promotion" for d in v2)
     for retired in ("promote_self", "promote_worker", "promote_other"):
         assert retired not in w.BY_ID
     assert not w.task_choices("domain", "Issues")
