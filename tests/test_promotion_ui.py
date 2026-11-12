@@ -456,3 +456,76 @@ def test_bluesky_settings_never_prefill_or_echo_the_app_password():
     assert 'type="password" id="bsky-password"' in block and "hidden" in block
     load = _function("async function loadBlueskySettings(")
     assert '$("bsky-password").value=""' in load and "app_password" not in load
+
+
+# -- Settings → Promotion platform selector --------------------------------------------------
+
+SELECTOR_JS = (HTML[HTML.index("const PROMOTION_PLATFORMS="):HTML.index("function promotionPlatforms(")]
+               + _function("function promotionPlatforms(") + _function("function renderPromotionPlatforms(")
+               + _function("function selectPromotionPlatform("))
+
+
+def _selector(script: str) -> dict:
+    return _run(PRELUDE + SELECTOR_JS + """
+const els={}; const $=id=>els[id]||(els[id]=mk());
+const sent=[]; const postJSON=async(p,d)=>{sent.push(p)}; const getJSON=async p=>{sent.push(p)};
+const state={promotion:{selected:"o/a"},selectedTask:{id:7,channel:"social_media"}};
+const out={};
+""" + script + "\nconsole.log(JSON.stringify(out));")
+
+
+def test_platform_selector_lists_only_supported_platforms():
+    r = _selector("""
+state.promotionPlatforms={bluesky:false}; renderPromotionPlatforms(); out.off=$("promo-platform").innerHTML;
+state.promotionPlatforms={bluesky:true,mastodon:true,linkedin:true}; renderPromotionPlatforms(); out.on=$("promo-platform").innerHTML;
+""")
+    assert 'value="github"' in r["off"] and "bluesky" not in r["off"]
+    assert 'value="github"' in r["on"] and 'value="bluesky"' in r["on"] and "Bluesky (development)" in r["on"]
+    for unsupported in ("mastodon", "linkedin", "reddit", "x\""):
+        assert unsupported not in r["on"].lower()
+
+
+def test_switching_platform_shows_one_panel_and_changes_nothing_else():
+    r = _selector("""
+state.promotionPlatforms={bluesky:true}; renderPromotionPlatforms();
+$("promo-token").value="typed-gh"; $("bsky-password").value="typed-bs"; $("bsky-handle").value="proj.bsky.social";
+out.github=[$("promo-github-settings").hidden,$("bluesky-settings").hidden];
+selectPromotionPlatform("bluesky");
+out.bluesky=[$("promo-github-settings").hidden,$("bluesky-settings").hidden,$("promo-platform").value];
+selectPromotionPlatform("github");
+out.back=[$("promo-github-settings").hidden,$("bluesky-settings").hidden];
+out.fields=[$("promo-token").value,$("bsky-password").value,$("bsky-handle").value];
+out.sent=sent; out.task=state.selectedTask; out.promo=state.promotion;
+""")
+    assert r["github"] == [False, True]
+    assert r["bluesky"] == [True, False, "bluesky"]
+    assert r["back"] == [False, True]
+    # Switching deletes, overwrites and sends nothing, and never touches a Task.
+    assert r["fields"] == ["typed-gh", "typed-bs", "proj.bsky.social"] and r["sent"] == []
+    assert r["task"] == {"id": 7, "channel": "social_media"} and r["promo"] == {"selected": "o/a"}
+
+
+def test_unavailable_bluesky_falls_back_to_github():
+    r = _selector("""
+state.promotionPlatforms={bluesky:true}; renderPromotionPlatforms(); selectPromotionPlatform("bluesky");
+state.promotionPlatforms={bluesky:false}; renderPromotionPlatforms();
+out.v=[state.promotionPlatform,$("promo-github-settings").hidden,$("bluesky-settings").hidden];
+selectPromotionPlatform("unknown"); out.u=[state.promotionPlatform,$("bluesky-settings").hidden];
+""")
+    assert r["v"] == ["github", False, True] and r["u"] == ["github", True]
+
+
+def test_each_platform_panel_holds_only_its_own_credentials():
+    gh = HTML[HTML.index('<div id="promo-github-settings"'):HTML.index('<div id="bluesky-settings"')]
+    bs_end = HTML.index("</details>", HTML.index('<div id="bluesky-settings"'))
+    bs = HTML[HTML.index('<div id="bluesky-settings"'):bs_end]
+    assert 'id="promo-repo"' in gh and 'id="promo-token"' in gh and "bsky-" not in gh
+    assert 'id="bsky-handle"' in bs and 'id="bsky-password"' in bs and "promo-token" not in bs
+    assert 'id="promo-platform"' in HTML[HTML.index('<details id="settings-promotion"'):HTML.index('<div id="promo-github-settings"')]
+    # Each save sends its own fields to its own endpoint only.
+    save_gh = _function("async function savePromotion(") + _function("async function savePendingPromotion(")
+    save_bs = _function("async function saveBluesky(")
+    assert "/api/promotion/settings" in save_gh and "bsky" not in save_gh and "/api/promotion/bluesky" not in save_gh
+    assert "/api/promotion/bluesky" in save_bs and "promo-token" not in save_bs and "/api/promotion/settings" not in save_bs
+    # The selector itself never saves or removes anything.
+    assert "postJSON" not in SELECTOR_JS and "getJSON" not in SELECTOR_JS

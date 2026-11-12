@@ -59,6 +59,9 @@
 <p class="muted small">Read-only access; GitHub posting is disabled.</p>
 </details>
 <details id="settings-promotion"><summary>Promotion</summary>
+<label>Promotion Platform<select id="promo-platform"></select></label>
+<p class="muted small">Shows one platform's account settings. Switching changes only this view: stored credentials and existing Tasks are not changed.</p>
+<div id="promo-github-settings" data-platform="github">
 <p class="muted small">One Promotion Agent for any product repository you are authorized to promote. Default: nature-ai-corp/github-community-agent.</p>
 <label>Promotion repository<input id="promo-repo" placeholder="owner/repository" autocomplete="off"></label>
 <label>GitHub token for this repository<input type="password" id="promo-token" autocomplete="off" placeholder="Leave empty to keep the stored token"></label>
@@ -66,7 +69,8 @@
 <p class="muted small">Each token is stored encrypted and used only for its own repository. Publishing needs WRITE access and Discussions enabled; research and drafting do not need a token.</p>
 <div class="dialog-actions"><button type="button" id="promo-remove">Remove token for this repository</button><span class="spacer"></span><button type="button" id="promo-save">Save promotion target</button></div>
 <div id="promo-settings-message" role="status"></div>
-<div id="bluesky-settings" hidden>
+</div>
+<div id="bluesky-settings" data-platform="bluesky" hidden>
 <h4>Bluesky project account (development — not a released platform)</h4>
 <p class="muted small">Use the dedicated project account and an APP password (Bluesky → Settings → Privacy and security → App passwords), never the account password. It is stored encrypted for this Windows account, separately from GitHub tokens and AI keys, and used only to publish a post you approved.</p>
 <label>Bluesky handle<input id="bsky-handle" placeholder="project.bsky.social" autocomplete="off"></label>
@@ -125,9 +129,27 @@ $("settings-message").textContent="";
 $("settings-advanced").open=false;
 $("settings-promotion").open=false;$("promo-settings-message").textContent="";
 renderPromotionSettings();
+renderPromotionPlatforms();
 loadBlueskySettings();
 $("settings-overlay").classList.remove("hid");
 $("provider").focus();
+}
+// Settings → Promotion platform selector. Only platforms this build supports are listed;
+// switching shows one panel and hides the others. It never saves, removes or sends anything
+// and never changes a Task (a Task's platform is fixed by its own Work Type and approval).
+const PROMOTION_PLATFORMS=[{id:"github",label:"GitHub",panel:"promo-github-settings"},
+  {id:"bluesky",label:"Bluesky (development)",panel:"bluesky-settings"}];
+function promotionPlatforms(avail){return PROMOTION_PLATFORMS.filter(p=>p.id==="github"||avail[p.id]===true)}
+function renderPromotionPlatforms(){
+const list=promotionPlatforms(state.promotionPlatforms||{}), sel=$("promo-platform");
+if(!list.some(p=>p.id===state.promotionPlatform))state.promotionPlatform="github";
+sel.innerHTML=list.map(p=>'<option value="'+p.id+'"'+(p.id===state.promotionPlatform?' selected':'')+'>'+escapeHTML(p.label)+'</option>').join("");
+sel.value=state.promotionPlatform;
+for(const p of PROMOTION_PLATFORMS)$(p.panel).hidden=p.id!==state.promotionPlatform;
+}
+function selectPromotionPlatform(id){
+state.promotionPlatform=id;
+renderPromotionPlatforms();
 }
 // Bluesky project account (development only). The app password is sent once to connect
 // and never returned; the page only ever shows the handle and DID.
@@ -139,7 +161,8 @@ return b.connected?"Connected: @"+b.handle+" ("+b.did+"). The app password is st
 async function loadBlueskySettings(){
 let b={available:false};
 try{b=await getJSON("/api/promotion/bluesky")}catch(e){}
-$("bluesky-settings").hidden=!b.available;$("bsky-password").value="";$("bsky-message").textContent="";
+state.promotionPlatforms={...(state.promotionPlatforms||{}),bluesky:b.available===true};renderPromotionPlatforms();
+$("bsky-password").value="";$("bsky-message").textContent="";
 $("bsky-status").textContent=blueskyStatusText(b);
 if(b.connected)$("bsky-handle").value=b.handle;
 }
@@ -1076,6 +1099,7 @@ $("settings-save").addEventListener("click",saveSettings);
 $("test-connection").addEventListener("click",testSettings);
 $("promo-save").addEventListener("click",()=>savePromotion(false));
 $("promo-remove").addEventListener("click",()=>savePromotion(true));
+$("promo-platform").onchange=e=>selectPromotionPlatform(e.target.value);
 $("bsky-connect").addEventListener("click",()=>saveBluesky(false));
 $("bsky-remove").addEventListener("click",()=>saveBluesky(true));
 $("settings-overlay").addEventListener("click",e=>{if(e.target===$("settings-overlay"))closeSettings()});

@@ -490,3 +490,40 @@ def test_bluesky_routes_over_http(sky):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_github_and_bluesky_settings_are_saved_and_removed_independently(sky):
+    """Settings → Promotion platform switching: each platform's credentials live in their own
+    DPAPI file; saving or removing one never deletes, overwrites or reveals the other, and
+    never changes an existing Task's platform or status."""
+    from test_promotion import REPO_B, TOKEN_B
+    fake, fake_gh, journal, creds, service, tmp = sky
+    task_id, action = _task(service, creds)
+    service.bluesky_connect(HANDLE, APP_PW)
+    gh_file, bs_file = tmp / "promotion.dpapi", tmp / "bluesky.dpapi"
+    bs_before = bs_file.read_bytes()
+
+    creds.update(REPO_B, TOKEN_B)                      # GitHub: save another repository's token
+    creds.update(REPO_A, "", remove_token=True)        # GitHub: remove one repository's token
+    assert bs_file.read_bytes() == bs_before
+    assert service.bluesky_account()["connected"] and service.bluesky.account()["app_password"] == APP_PW
+
+    gh_before = gh_file.read_bytes()
+    service.bluesky_disconnect()                       # Bluesky: remove its account
+    assert not bs_file.exists() and gh_file.read_bytes() == gh_before
+    assert creds.token_for(REPO_B) == TOKEN_B and creds.token_for(REPO_A) is None and creds.selected() == REPO_A
+
+    service.bluesky_connect(HANDLE, APP_PW)            # reconnect: GitHub tokens still untouched
+    assert gh_file.read_bytes() == gh_before
+
+    # Neither file holds the other platform's secret; public views hold no secret at all.
+    gh_plain = pr.unprotect_for_current_user(gh_file.read_bytes()).decode()
+    bs_plain = bs.unprotect_for_current_user(bs_file.read_bytes()).decode()
+    assert APP_PW not in gh_plain and HANDLE not in gh_plain
+    assert TOKEN_B not in bs_plain and TOKEN_A not in bs_plain and "github" not in bs_plain.lower()
+    public = json.dumps([creds.public(), service.bluesky_account()])
+    assert APP_PW not in public and TOKEN_A not in public and TOKEN_B not in public
+
+    # The existing Task keeps its own platform and status.
+    after = service.detail(task_id)["actions"][0]
+    assert (after["channel"], after["status"]) == (action["channel"], action["status"])
