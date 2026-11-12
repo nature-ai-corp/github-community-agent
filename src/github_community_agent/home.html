@@ -82,7 +82,7 @@
 <div id="bsky-message" role="status"></div>
 </div>
 <div id="devto-settings" data-platform="devto" hidden>
-<h4>DEV Community project account (development — not a released platform)</h4>
+<h4>DEV Community project account</h4>
 <p class="muted small">Use the dedicated project account. Create an API key on DEV (Settings → Extensions → DEV Community API Keys). It is checked once with DEV, then stored encrypted for this Windows account in its own file, separately from GitHub tokens, Bluesky credentials and AI keys, and used only for an article you approved. A DEV API key has full account access: revoke it on DEV when you no longer need it.</p>
 <label>DEV API key<input type="password" id="devto-key" autocomplete="off" placeholder="DEV API key"></label>
 <p class="muted small" id="devto-status"></p>
@@ -150,7 +150,7 @@ $("provider").focus();
 // and never changes a Task (a Task's platform is fixed by its own Work Type and approval).
 const PROMOTION_PLATFORMS=[{id:"github",label:"GitHub",panel:"promo-github-settings"},
   {id:"bluesky",label:"Bluesky",panel:"bluesky-settings"},
-  {id:"devto",label:"DEV Community (development)",panel:"devto-settings"}];
+  {id:"devto",label:"DEV Community",panel:"devto-settings"}];
 function promotionPlatforms(avail){return PROMOTION_PLATFORMS.filter(p=>p.id==="github"||avail[p.id]===true)}
 function renderPromotionPlatforms(){
 const list=promotionPlatforms(state.promotionPlatforms||{}), sel=$("promo-platform");
@@ -187,7 +187,7 @@ $("bsky-message").textContent=remove?"Bluesky account disconnected.":"Connected 
 }catch(e){$("bsky-message").textContent="Not connected: "+e.message}
 finally{$("bsky-password").value=""}
 }
-// DEV Community project account (development only). The API key is sent once to connect and
+// DEV Community project account. The API key is sent once to connect and
 // never returned; the page only ever shows the username and numeric account id.
 function devtoStatusText(b){
 if(!b||!b.available)return "";
@@ -338,7 +338,7 @@ $("number-field").classList.toggle("hid",!needNumber);
 $("dev-brief").classList.toggle("hid",!(d&&d.id==="promote_dev_community"));
 $("start").disabled=!d||!d.enabled;
 const promo=d?.workflow==="promotion";
-$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_dev_community"?"V2 Promotion — DEV Community (development, not released): research, plan and one complete technical article draft run for the repository below, using the source documents you name. After you approve the exact article, the Agent saves it as a PRIVATE draft on the connected DEV account and compares it; it publishes only after your separate confirmation, then verifies it. Nothing is posted until you approve and confirm.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky: research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
+$("planned-note").textContent=promo?(d.id==="promote_repository"?"V2 Promotion — automated publishing: research, plan and draft run for the repository below. Nothing is published until you approve the exact text and confirm publication.":d.id==="promote_dev_community"?"V2 Promotion — DEV Community: research, plan and one complete technical article draft run for the repository below, using the source documents you name. After you approve the exact article, the Agent saves it as a PRIVATE draft on the connected DEV account and compares it; it publishes only after your separate confirmation, then verifies it. Nothing is posted until you approve and confirm.":d.id==="promote_bluesky"?"V2 Promotion — Bluesky: research, plan and one post draft run for the repository below. After you approve the exact post, the Agent publishes it from the connected project Bluesky account and verifies it. Nothing is posted until you approve and confirm.":"V2 Promotion — draft / manual publication only: research, plan and draft run for the repository below. This application never posts it; you publish it yourself."):"V1: real GitHub and AI analysis; no GitHub posting.";
 $("target-repo").value=promo?(state.promotion.selected||"Set in Settings → Promotion"):(state.settings.repository||"");
 if(!d){
 $("task-details").innerHTML='<p class="muted small">Choose a Task above to see its purpose, execution steps, expected output and review requirements.</p>';
@@ -1019,7 +1019,7 @@ function blueskyVerifyMessage(res){
   if(res.outcome==="not_found")return "Not found by the public Bluesky index yet (it can take a moment). NOT verified.";
   return "NOT verified: the public post differs from the approved action.";
 }
-// DEV Community Work Type (development only). One exact action: ONE article in the connected
+// DEV Community Work Type. One exact action: ONE article in the connected
 // project account — private draft, read back and compared, then published after a SEPARATE
 // confirmation. "verified" only after the public article API matched.
 const DEVTO_LOCKED=["dev_drafting","dev_draft_ready","dev_publishing","dev_published","dev_verified","dev_uncertain"];
@@ -1041,7 +1041,7 @@ function devtoCheckHTML(v){
 function devtoHTML(a,d){
   const v=a.devto; if(!v||!d.devto_available)return "";
   const acct=d.devto_account||{};
-  const out=['<div class="manual-record devto-box"><h5>DEV Community (development — not a released platform)</h5>',
+  const out=['<div class="manual-record devto-box"><h5>DEV Community</h5>',
     '<p class="note">Exact article: '+escapeHTML(v.words)+' words · '+escapeHTML(v.chars)+' characters · tags: '+escapeHTML((v.tags||[]).join(", ")||"none")+
     ' · description: '+escapeHTML(v.description||"none")+'</p>',
     '<p class="note">Publishing settings: personal account, no organization, no series, no canonical URL, no cover image, AI disclosure “'+escapeHTML(v.settings&&v.settings.ai_disclosure_level||"")+'”.</p>'];

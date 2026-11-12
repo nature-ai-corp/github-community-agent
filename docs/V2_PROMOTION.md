@@ -27,7 +27,7 @@ publishing, monitoring and improvement.
 **Release gate.** Only Work Types with real-world acceptance evidence are offered in a
 release build (`RELEASE_VERIFIED_WORK_TYPES` in `promotion.py`; evidence in
 [V2_PROMOTION_RELEASE_GATE.md](testing/V2_PROMOTION_RELEASE_GATE.md)). Today that is
-**GitHub Discussions, Repository Optimization and Bluesky**. The others are development code: they are hidden from
+**GitHub Discussions, Repository Optimization, Bluesky and DEV Community**. The others are development code: they are hidden from
 New Work, refused by the backend API and service (create and every action), and can be
 enabled only when running from source with `GCA_PROMOTION_DEV_WORK_TYPES=1`. A packaged
 (frozen) build ignores that variable. Existing Tasks of an excluded Work Type stay
@@ -41,10 +41,10 @@ viewable, read-only.
 | Developer Forums (development: NOT VERIFIED) | `promote_developer_forums` | One disclosed project announcement for a forum section that allows it | **Draft / manual publication only** |
 | Technical Articles (legacy) | `promote_technical_articles` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 | Bluesky (**released: VERIFIED**, Task #22) | `promote_bluesky` | One post (Bluesky limits: 300 graphemes, 3000 bytes) with the repository link | **Agent publishes** from the connected project account after exact approval; public read-back verification |
-| DEV Community (development: NOT VERIFIED) | `promote_dev_community` | One original, educational Markdown article on dev.to, from an optional topic and cited repository documents | **Agent publishes** from the connected DEV account: private draft, read-back comparison, separate confirmation, publish, public read-back |
+| DEV Community (**released: VERIFIED**, Task #23) | `promote_dev_community` | One original, educational Markdown article on dev.to, from an optional topic and cited repository documents | **Agent publishes** from the connected DEV account: private draft, read-back comparison, separate confirmation, publish, public read-back |
 | Social Media (legacy) | `promote_social_media` | Existing drafts only | Not offered in New Task, cannot be started; existing Tasks stay draft-only |
 
-GitHub Discussions and Bluesky have real publishers, and DEV Community has one in development.
+GitHub Discussions, Bluesky and DEV Community have real publishers.
 Reddit and Developer Forums have **no** integration, and no fake one:
 approving their text only records the exact version you will post or apply
 yourself (status `ready_manual`). Each shows a checklist (for example: read

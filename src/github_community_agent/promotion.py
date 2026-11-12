@@ -694,6 +694,12 @@ RELEASE_VERIFIED_WORK_TYPES = frozenset({
     # project account @natureai.bsky.social (one createRecord, 01:34:37Z) and independently
     # verified from the public AppView (URI, CID, author DID, record type, text, facets; 01:37:42Z).
     "promote_bluesky",
+    # DEV Community: Task #23 (2026-11-12) — owner-approved exact article saved by the Agent as a
+    # private draft on the project account natureai (id 4240080), read back and matched, then
+    # published after a separate confirmation (article 5020275, 03:06:13Z) and independently
+    # verified through the public article API (id, account, title, description, tags, full body,
+    # no organization, URL; AI disclosure some_ai; 03:09:03Z).
+    "promote_dev_community",
 })
 DEV_WORK_TYPES_ENV = "GCA_PROMOTION_DEV_WORK_TYPES"
 # Historical Work Types: existing Tasks stay viewable (and, in development, editable as the
@@ -2217,7 +2223,7 @@ class PromotionService:
         return {"status": status, "verified": verified, "outcome": outcome, "checks": checks,
                 "checked_utc": checked}
 
-    # -- DEV Community (development only until real-world acceptance) -------------------
+    # -- DEV Community (released: verified by real-world acceptance, Task #23) -----------
     # ONE article in the connected project account, in two writes with a check in between:
     # create a PRIVATE draft -> read it back and compare -> separate confirmation -> publish it.
     # Approval binds account (id + username), title, description, tags, full body and the fixed

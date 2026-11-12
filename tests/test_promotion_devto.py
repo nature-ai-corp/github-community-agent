@@ -1,4 +1,4 @@
-"""DEV Community Work Type (development only): one exact, approved article; private draft read
+"""DEV Community Work Type (released after Task #23): one exact, approved article; private draft read
 back and compared; separate confirmation to publish; independent public verification."""
 from __future__ import annotations
 
@@ -551,10 +551,25 @@ def test_brief_documents_are_read_pinned_and_cited(dev, monkeypatch):
 # -- release gate and legacy ------------------------------------------------------------------------
 
 
-def test_dev_community_is_development_only_until_real_world_acceptance(dev, monkeypatch):
+def test_dev_community_is_released_after_real_world_acceptance(dev, monkeypatch):
+    """Task #23 (2026-11-12) verified DEV Community: a packaged build offers and runs it."""
+    fake, _, _, _, service, _ = dev
+    assert "promote_dev_community" in pr.RELEASE_VERIFIED_WORK_TYPES
+    monkeypatch.delenv(pr.DEV_WORK_TYPES_ENV)
+    monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build: release configuration
+    assert service.devto_account() == {"available": True, "connected": False}
+    assert "promote_dev_community" in [d.id for d in w.available_definitions()]
+    task_id, a, out = _drafted(dev)
+    assert out["status"] == "dev_draft_ready"
+    assert service.devto_publish(task_id, a["id"], a["approved_sha256"])["status"] == "dev_published"
+    assert service.devto_verify(task_id, a["id"])["outcome"] == "verified"
+
+
+def test_dev_community_is_still_gated_by_the_release_allowlist(dev, monkeypatch):
+    """Exposure follows RELEASE_VERIFIED_WORK_TYPES: without it, a packaged build refuses DEV."""
     fake, _, _, _, service, _ = dev
     task_id, a, _ = _drafted(dev)
-    assert "promote_dev_community" not in pr.RELEASE_VERIFIED_WORK_TYPES
+    monkeypatch.setattr(pr, "RELEASE_VERIFIED_WORK_TYPES", pr.RELEASE_VERIFIED_WORK_TYPES - {"promote_dev_community"})
     monkeypatch.setattr(pr.sys, "frozen", True, raising=False)  # packaged build
     assert service.devto_account() == {"available": False, "connected": False}
     writes = len(fake.writes())

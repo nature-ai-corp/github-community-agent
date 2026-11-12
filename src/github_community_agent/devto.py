@@ -1,5 +1,7 @@
 """DEV Community (dev.to, Forem API v1): one technical article per approved Task action.
 
+Verified by real-world acceptance (Task #23, 2026-11-12) and released through the Work Type gate.
+
 Scope is deliberately small: the Agent creates ONE article in the connected project account
 as a PRIVATE DRAFT, reads that draft back and compares it with the approved version, and
 only after a separate confirmation publishes that same article (one ``PUT published=true``).

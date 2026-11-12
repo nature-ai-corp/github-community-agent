@@ -232,9 +232,9 @@ TASK_DETAILS = {
                     "Platform: DEV Community). No GitHub token is used.",
         "review": "Explicit approval of the exact article, bound to the DEV account; saving the private draft "
                   "and publishing are separate confirmations. Any edit cancels the approval.",
-        "limitations": "Development only: not released until a real article passes draft check, publication "
-                       "and public read-back. Educational content only (DEV Terms §11, DEV's AI-assisted "
-                       "article guidelines). Uncertain outcomes are checked, never retried blindly."
+        "limitations": "One article per approval, from the one connected project account. Educational content "
+                       "only (DEV Terms §11, DEV's AI-assisted article guidelines). Uncertain outcomes are "
+                       "checked, never retried blindly."
     },
     "promote_social_media": {
         "goal": "Legacy: social media post drafts created before platform Work Types. Existing Tasks only.",

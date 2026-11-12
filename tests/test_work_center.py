@@ -17,7 +17,7 @@ def test_new_task_alternative_routes_use_product_defined_taxonomies():
     # Release build: only the VERIFIED Promotion Work Types are offered (the other four are
     # development code; see tests/test_promotion_release_gate.py).
     assert [d.id for d in promotion] == ["promote_repository", "promote_repository_optimization",
-                                       "promote_bluesky"]
+                                       "promote_bluesky", "promote_dev_community"]
     domains = {d.domain for d in w.DEFINITIONS if d.domain}
     assert domains == {"Promotion"}
     v2 = [d for d in w.DEFINITIONS if d.version == "V2"]
@@ -182,7 +182,7 @@ def test_concrete_work_types_and_separate_promotion_domains(tmp_path):
     assert len(w.task_choices("work_type", "Review Issues")) == 1
     assert len(w.task_choices("work_type", "Community Management")) == 0
     assert len(w.task_choices("work_type", "Promotion")) == 0
-    assert len(w.task_choices("domain", "Promotion")) == 3  # release gate: verified only
+    assert len(w.task_choices("domain", "Promotion")) == 4  # release gate: verified only
 
 
 def test_task_details_available_for_every_definition(tmp_path):
@@ -212,7 +212,7 @@ def test_new_task_entry_labels_are_community_management_and_promotion():
     # UI label changes must not mutate the mutually exclusive backend routes.
     assert w.task_choices("work_type", "Review Issues") == [w.BY_ID["review_issues"]]
     assert [d.id for d in w.task_choices("domain", "Promotion")] == ["promote_repository", "promote_repository_optimization",
-                                                                     "promote_bluesky"]
+                                                                     "promote_bluesky", "promote_dev_community"]
 
 
 def test_my_work_result_copy_and_json_export_controls():

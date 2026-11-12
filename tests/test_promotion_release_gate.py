@@ -2,7 +2,7 @@
 
 Only Work Types with real-world acceptance evidence are listed, startable or
 actionable in a release build: GitHub Discussions and Repository Optimization.
-The four unverified Promotion Work Types remain development code: enabled only from source with GCA_PROMOTION_DEV_WORK_TYPES=1,
+The unverified Promotion Work Types remain development code: enabled only from source with GCA_PROMOTION_DEV_WORK_TYPES=1,
 and never in a frozen (packaged) build. V1 Work Types are unaffected.
 """
 from __future__ import annotations
@@ -20,9 +20,9 @@ from github_community_agent.errors import ToolError
 
 from test_promotion import NONCE, REPO_A, FakeModel, MemorySettings, env  # noqa: F401
 
-VERIFIED = ["promote_repository", "promote_repository_optimization", "promote_bluesky"]
+VERIFIED = ["promote_repository", "promote_repository_optimization", "promote_bluesky", "promote_dev_community"]
 UNVERIFIED = ["promote_reddit", "promote_developer_forums",
-              "promote_technical_articles", "promote_dev_community", "promote_social_media"]
+              "promote_technical_articles", "promote_social_media"]
 V1 = ["review_issues", "review_discussions", "draft_issue", "draft_discussion", "community_report"]
 
 

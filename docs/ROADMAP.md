@@ -29,8 +29,10 @@ approve the exact text → publish (permission re-checked) → monitor → impro
 Release rule: no real-world verification, no released Work Type. The release
 configuration offers only **GitHub Discussions** (verified with Discussion #13)
 and **Repository Optimization** (verified with Task #20 and the merged README PR #15)
-and **Bluesky** (verified with Task #22: an Agent-published post read back from the public index).
-Reddit Promotion, Developer Forums and DEV Community
+and **Bluesky** (verified with Task #22: an Agent-published post read back from the public index)
+and **DEV Community** (verified with Task #23: an Agent-published article, private draft checked first,
+read back from the public API).
+Reddit Promotion and Developer Forums
 exist as development code on the same engine and are excluded
 from release builds until each passes real-world acceptance
 ([release gate](testing/V2_PROMOTION_RELEASE_GATE.md)).

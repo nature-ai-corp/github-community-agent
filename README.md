@@ -39,10 +39,11 @@ V2 build will offer, are **GitHub Discussions** (an announcement Discussion in
 that repository, published after your approval and a fresh permission check,
 then monitored), **Repository Optimization** (exact Description, Topics and
 README changes, each applied only after your approval; README only through a
-pull request that you merge) and **Bluesky** (one exact, approved post that the
+pull request that you merge), **Bluesky** (one exact, approved post that the
 Agent publishes from the connected project account and verifies from the public
-index). Reddit Promotion, Developer Forums and
-DEV Community are **development work, not released
+index) and **DEV Community** (one exact, approved technical article that the Agent
+saves as a private draft, checks, publishes after your confirmation and verifies).
+Reddit Promotion and Developer Forums are **development work, not released
 capabilities**: they are not offered in the release configuration until each
 passes its own real-world acceptance. See
 [V2 Promotion design](docs/V2_PROMOTION.md). The released V1 (`v1.0.0-rc1`)

@@ -181,7 +181,8 @@ def test_bluesky_new_task_says_the_agent_publishes_after_exact_approval():
     assert "the Agent publishes it from the connected project Bluesky account" in r["note"]
     assert "yourself" not in r["note"] and "manual" not in r["note"]
     released = _route("domain", development=False)  # verified (Task #22): offered in releases
-    assert [label for _, label in released["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky"]
+    assert [label for _, label in released["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky",
+                                                           "DEV Community"]
     assert "development" not in r["note"] and "not released" not in r["note"]
 
 
@@ -209,7 +210,8 @@ def test_community_management_work_types_are_unchanged():
 
 def test_release_build_promotion_dropdown_lists_only_verified_work_types():
     r = _route("domain", development=False)
-    assert [label for _, label in r["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky"]
+    assert [label for _, label in r["options"]] == ["GitHub Discussions", "Repository Optimization", "Bluesky",
+                                                    "DEV Community"]
     assert r["first"] == "promote_repository"
 
 
@@ -647,7 +649,7 @@ def test_platform_selector_offers_dev_only_when_available():
 state.promotionPlatforms={bluesky:true,devto:false}; renderPromotionPlatforms(); out.off=$("promo-platform").innerHTML;
 state.promotionPlatforms={bluesky:true,devto:true}; renderPromotionPlatforms(); out.on=$("promo-platform").innerHTML;
 selectPromotionPlatform("devto"); out.panels=[$("promo-github-settings").hidden,$("bluesky-settings").hidden,$("devto-settings").hidden];""")
-    assert "devto" not in r["off"] and 'value="devto"' in r["on"] and "DEV Community (development)" in r["on"]
+    assert "devto" not in r["off"] and 'value="devto"' in r["on"] and ">DEV Community<" in r["on"]
     assert r["panels"] == [True, True, False]
 
 
@@ -655,8 +657,9 @@ def test_new_dev_task_shows_the_brief_and_says_the_agent_publishes_after_confirm
     r = _route("domain", "promote_dev_community")
     assert r["selected"] == "promote_dev_community" and r["title"] == "DEV Community"
     assert "PRIVATE draft" in r["note"] and "separate confirmation" in r["note"] and "yourself" not in r["note"]
-    released = _route("domain", development=False)
-    assert "DEV Community" not in [label for _, label in released["options"]]
+    released = _route("domain", development=False)  # verified (Task #23): offered in releases
+    assert "DEV Community" in [label for _, label in released["options"]]
+    assert "development" not in r["note"] and "not released" not in r["note"]
     assert 'id="dev-topic"' in HTML and 'id="dev-docs"' in HTML
     start = _function("async function startTask(")
     assert 'd.id==="promote_dev_community"' in start and "data.brief={topic,documents:docs}" in start
