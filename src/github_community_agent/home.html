@@ -726,6 +726,9 @@ const ACTION_EVENTS={technical_review_complete:"technical review complete",appro
   bluesky_reconciled_not_found:"uncertain outcome resolved: not created",bluesky_reconcile_unavailable:"Bluesky check unavailable — still uncertain",
   bluesky_verified:"independently verified on Bluesky",bluesky_verify_failed:"Bluesky check: NOT verified",
   bluesky_verify_unavailable:"Bluesky could not be read — not verified",bluesky_verify_refused:"Bluesky verify refused",
+  bluesky_metrics_observed:"Bluesky engagement observed",bluesky_new_replies:"new public Bluesky replies recorded",
+  bluesky_monitor_changed:"Bluesky post differs from the published record",bluesky_monitor_not_found:"Bluesky post not found (deleted or not indexed)",
+  bluesky_monitor_unavailable:"Bluesky engagement could not be read",bluesky_monitor_refused:"Bluesky engagement refresh refused",
   dev_approved:"approved for DEV",dev_approve_refused:"DEV approval refused",dev_draft_requested:"private DEV draft requested",
   dev_draft_refused:"DEV draft refused — nothing was sent",dev_draft_verified:"private DEV draft saved and matches",
   dev_draft_mismatch:"saved DEV draft differs — not published",dev_draft_failed:"DEV draft failed — nothing was created",
@@ -971,6 +974,28 @@ const BLUESKY_STATUS={bluesky_approved:"approved for Bluesky — not published",
   bluesky_published:"published on Bluesky — NOT independently verified yet",bluesky_verified:"published on Bluesky — independently verified",
   bluesky_uncertain:"Bluesky outcome UNCERTAIN — check before any new attempt",bluesky_failed:"Bluesky publication failed — nothing was posted"};
 const BLUESKY_CHECKS={found:"post found",uri:"record URI",cid:"record CID",author_did:"account DID",collection:"record type",text:"text",facets:"links"};
+// Bluesky post engagement monitoring: public read-only observations (append-only history)
+// and first-seen public replies. Nothing is ever replied to, liked, followed or reposted.
+const OBS_OUTCOME={observed:"observed",changed:"post changed",not_found:"post not found",unavailable:"could not be read"};
+function blueskyMonitorHTML(b){
+  const obs=Array.isArray(b.observations)?b.observations:[], reps=Array.isArray(b.replies)?b.replies:[];
+  const n=v=>v===null||v===undefined?"–":escapeHTML(v);
+  const out=['<div class="engagement-box"><h5>Post engagement (public, read-only)</h5>',
+    '<div class="form-actions"><button type="button" class="bsky-monitor">Refresh engagement</button></div>'];
+  if(!obs.length)out.push('<p class="note">No engagement observation recorded yet. The verification snapshot above is kept unchanged.</p>');
+  else out.push('<table class="promo-metrics"><tr><th>Observed (UTC)</th><th>Result</th><th>Likes</th><th>Replies</th><th>Reposts</th><th>Quotes</th><th>New replies</th></tr>'+
+    obs.map(o=>'<tr><td>'+escapeHTML(o.observed_utc)+'</td><td>'+escapeHTML(OBS_OUTCOME[o.outcome]||o.outcome)+(o.reason?' ('+escapeHTML(o.reason)+')':'')+'</td><td>'+n(o.likes)+'</td><td>'+n(o.replies)+'</td><td>'+n(o.reposts)+'</td><td>'+n(o.quotes)+'</td><td>'+(o.replies_checked?n(o.new_replies):'not checked')+'</td></tr>').join("")+'</table>');
+  if(reps.length)out.push('<p class="note">Public replies recorded (read and answer them yourself on Bluesky):</p><ul>'+
+    reps.map(r=>'<li>'+(r.url?'<a href="'+escapeHTML(r.url)+'" target="_blank" rel="noopener noreferrer">'+escapeHTML(r.created_at||r.first_seen_utc)+'</a>':escapeHTML(r.reply_uri))+' · first seen '+escapeHTML(r.first_seen_utc)+'</li>').join("")+'</ul>');
+  return out.join("")+'</div>';
+}
+function blueskyMonitorMessage(res){
+  if(res.outcome==="unavailable")return "Bluesky could not be read ("+(res.reason||"")+"). Nothing was changed; try again later.";
+  if(res.outcome==="not_found")return "The post was not found on Bluesky (deleted or not indexed). Recorded; the original evidence is unchanged.";
+  const base=(res.outcome==="changed"?"The post on Bluesky differs from the published record. ":"Engagement recorded: ")+
+    res.likes+" likes, "+res.replies+" replies, "+res.reposts+" reposts, "+res.quotes+" quotes.";
+  return base+(res.replies_checked?" New replies: "+res.new_replies+".":" Replies could not be checked.");
+}
 function blueskyHTML(a,d){
   const b=a.bluesky; if(!b||!d.bluesky_available)return "";
   const acct=d.bluesky_account||{};
@@ -996,6 +1021,7 @@ function blueskyHTML(a,d){
         (typeof v.replyCount==="number"?' · '+escapeHTML(v.replyCount)+' replies':'')+(typeof v.repostCount==="number"?' · '+escapeHTML(v.repostCount)+' reposts':'')+'</p>');
     }
     out.push('<div class="form-actions"><button type="button" class="bsky-verify">Verify on Bluesky</button></div>');
+    out.push(blueskyMonitorHTML(b));
   }
   return out.join("")+'</div>';
 }
@@ -1188,7 +1214,7 @@ function renderPromotionPanel(t,d){
     parts.push('</section>');
   }
   parts.push(renderChanges(t,d));
-  const published=d.actions.some(a=>a.status==="published");
+  const published=d.actions.some(a=>["published","bluesky_published","bluesky_verified"].includes(a.status));
   parts.push('<section class="report-section"><h4>Improve</h4>'+(d.improvements.length?d.improvements.map(i=>'<p class="note">'+escapeHTML(i.created_utc)+'</p>'+reportLines(i.text)).join(""):'<p class="note">After publishing and refreshing engagement, ask for improvement suggestions. Suggestions never publish anything.</p>')+'<button type="button" id="promo-improve"'+(published?'':' disabled')+'>Suggest improvements</button></section><p class="note" id="promo-message" role="status"></p>');
   panel.innerHTML=parts.join("");
   const msg=m=>{const e=$("promo-message");if(e)e.textContent=m};
@@ -1231,6 +1257,7 @@ function renderPromotionPanel(t,d){
     on(".bsky-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}const g=gate();if(!confirmOverride(g))return;msg(await blueskyApproveFlow(a,d,{...bdeps,call:(v,x)=>bdeps.call(v,{...x,...g})}));await reopen(t)});
     on(".bsky-publish",async()=>{msg(await blueskyPublishFlow(a,d,bdeps));await reopen(t)});
     on(".bsky-reconcile",async()=>{const res=await call("bluesky_reconcile",{},PREFLIGHT_TIMEOUT_MS);msg(res.status==="bluesky_published"?"Found on Bluesky: "+res.url+" — verify it next.":"Not created on Bluesky. You may approve and publish again.");await reopen(t)});
+    on(".bsky-monitor",async()=>{msg("Reading public engagement from Bluesky…");msg(blueskyMonitorMessage(await call("bluesky_monitor",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     on(".bsky-verify",async()=>{msg("Reading the post from the public Bluesky index…");msg(blueskyVerifyMessage(await call("bluesky_verify",{},PREFLIGHT_TIMEOUT_MS)));await reopen(t)});
     const ddeps={confirm:m=>window.confirm(m),call:(verb,data)=>call(verb,data,PREFLIGHT_TIMEOUT_MS)};
     on(".devto-approve",async()=>{if(edited()){msg("Save your edits before approving.");return}const g=gate();if(!confirmOverride(g))return;msg(await devtoApproveFlow(a,d,{...ddeps,call:(v,x)=>ddeps.call(v,{...x,...g})}));await reopen(t)});

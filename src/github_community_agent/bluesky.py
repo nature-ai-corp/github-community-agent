@@ -335,6 +335,41 @@ def get_public_post(uri: str) -> dict | None:
     return next((p for p in posts if isinstance(p, dict) and p.get("uri") == uri), None)
 
 
+POST_URI = re.compile(r"at://(did:plc:[a-z2-7]{24}|did:web:[a-z0-9.-]{3,253})/app\.bsky\.feed\.post/"
+                      r"[A-Za-z0-9._:~-]{1,512}")  # AT Protocol record key syntax
+
+
+def get_post_replies(uri: str) -> list[dict] | None:
+    """Public, unauthenticated read of the post's direct replies (app.bsky.feed.getPostThread,
+    depth 1). Returns only reply identifiers and timestamps; None if the post is not found."""
+    try:
+        data = _request("GET", APPVIEW, "app.bsky.feed.getPostThread",
+                        params={"uri": uri, "depth": 1, "parentHeight": 0})
+    except BlueskyError as exc:
+        if exc.code in ("notfound", "http_404"):
+            return None
+        raise
+    thread = data.get("thread")
+    if not isinstance(thread, dict):
+        raise BlueskyError("Bluesky returned an unexpected thread.", "format")
+    if thread.get("$type") == "app.bsky.feed.defs#notFoundPost" or thread.get("notFound") is True:
+        return None
+    if (thread.get("post") or {}).get("uri") != uri:
+        raise BlueskyError("Bluesky returned a different thread.", "format")
+    out = []
+    for item in thread.get("replies") or []:
+        post = item.get("post") if isinstance(item, dict) else None
+        if not isinstance(post, dict) or not POST_URI.fullmatch(str(post.get("uri", ""))):
+            continue  # blocked / not-found entries carry no public reply
+        record = post.get("record") if isinstance(post.get("record"), dict) else {}
+        parent = ((record.get("reply") or {}).get("parent") or {}).get("uri")
+        if parent not in (None, uri):
+            continue  # only direct replies to this post
+        out.append({"uri": post["uri"], "created_at": str(record.get("createdAt") or "")[:40] or None,
+                    "indexed_at": str(post.get("indexedAt") or "")[:40] or None})
+    return out
+
+
 # -- isolated credentials ----------------------------------------------------------------------
 
 

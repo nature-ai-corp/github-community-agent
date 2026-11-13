@@ -677,6 +677,8 @@ def handler_factory(service: WorkService, nonce: str, settings: EncryptedSetting
                     return self._send(200, promo.bluesky_reconcile(task_id, action_id))
                 if verb == "bluesky_verify":
                     return self._send(200, promo.bluesky_verify(task_id, action_id))
+                if verb == "bluesky_monitor":   # public read-only engagement refresh
+                    return self._send(200, promo.bluesky_monitor(task_id, action_id))
                 if verb == "devto_approve":
                     return self._send(200, promo.devto_approve(task_id, action_id, payload.get("sha256"),
                                                                payload.get("review_override")))
