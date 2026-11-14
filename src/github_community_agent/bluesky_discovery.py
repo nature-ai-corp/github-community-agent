@@ -13,7 +13,7 @@ from urllib.parse import quote
 import httpx
 
 SEARCH_API = "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts"
-_AT_URI = re.compile(r"^at://(did:plc:[a-z2-7]{24}|did:web:[a-z0-9.-]+)/app\\.bsky\\.feed\\.post/([a-zA-Z0-9._~-]{1,128})$")
+_AT_URI = re.compile(r"^at://(did:plc:[a-z2-7]{24}|did:web:[a-z0-9.-]+)/app\.bsky\.feed\.post/([a-zA-Z0-9._~-]{1,128})$")
 # Bluesky's public search currently may reject cursor requests from anonymous clients.
 # Use 'until' date paging in latest-first results instead.
 MAX_QUERIES = 8
