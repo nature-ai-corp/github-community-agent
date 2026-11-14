@@ -26,8 +26,8 @@
 ## Work list — Bluesky-first
 | ID | Task / deliverable | Status | Exit evidence | Depends on |
 |---|---|---|---|---|
-| GP-001 | Audit Bluesky reusable HTTP client, authentication/read-only access, test coverage and source boundaries | IN PROGRESS | Code map + gap list with file/line references | — |
-| GP-002 | Bluesky public discussion search: keywords, pagination, time bounds, deduplication and source URLs | BACKLOG | Deterministic tests + real query and post URLs | GP-001 |
+| GP-001 | Audit Bluesky reusable HTTP client, authentication/read-only access, test coverage and source boundaries | VERIFIED | Code map + gap list with file/line references | — |
+| GP-002 | Bluesky public discussion search: keywords, pagination, time bounds, deduplication and source URLs | TESTING | Deterministic tests + real query and post URLs | GP-001 |
 | GP-003 | Opportunity record schema + evidence capture (author, timestamp, content, metrics, canonical URL; missing fields explicit) | BACKLOG | Example records from public posts, validation tests | GP-002 |
 | GP-004 | Five-dimension valuation rubric, weights, hard filters, missing-data policy and explanations | BACKLOG | Reviewed scoring specification with worked real cases | GP-003 |
 | GP-005 | Compute 0–100 value scores; threshold defaults to 80 (can set 75); stable top-5 ranking and ties | BACKLOG | Repeatable tests, score breakdown and ordering | GP-004 |
@@ -57,3 +57,12 @@ For **every** work session, append a dated entry below with:
 - Searched for dedicated `github-promotor` / `github-promoter` repositories through linked GitHub access; none surfaced.
 - Tests executed this session: **NOT RUN**. No publishing or repository application writes performed.
 - Next action: GP-001 audit, then GP-002 read-only search prototype with real evidence. Keep GitHub Builder and GC Agent task tracking in their own places.
+
+### 2026-11-14 — GP-001 audited, GP-002 first implementation committed
+- **GP-001 → VERIFIED (code-inspection only):** inspected existing `src/github_community_agent/bluesky.py`. Historical code is a single-post writer, not a searcher. It uses DPAPI-managed credentials and the `public.api.bsky.app` AppView for post read-back. No new publishing endpoint is needed for search. The new read-only search implementation is deliberately isolated in a separate module.
+- **GP-002 → TESTING:** added `src/github_community_agent/bluesky_discovery.py` (commit `79a800ea3d28672346256204cd230ac752dd84c3`) and `tests/test_bluesky_discovery.py` (commit `19ecc3c03689a3c7b7a3f14e8a0560d2ae523613`). Corrected the AT URI regex escaping in `a632ddf196f1dc3a2bee8cd36cb419efaf41a7f0`.
+- **Discovery contract:** public GET only to `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts`; query/page/candidate ceilings; latest-first, `until` pagination (no anonymous cursor dependency), timestamp cutoff, URI deduplication across keywords, canonical URLs, missing engagement metrics preserved as `None`, no valuation and no API credential use. No publishing action.
+- **Test cases committed but not executed:** query deduplication, source URL and GET-only boundary, missing metrics, local cutoff, malformed URI discard, HTTP error refusal, invalid query refusal, and timestamp pagination. **CI not verified; do not report PASS.**
+- **External API note:** Bluesky source describes `searchPosts` GET. An independent community report notes that anonymous pagination with `cursor` can be rejected, and `public.api.bsky.app` search can return 403 while `api.bsky.app` works. Require real-world validation, not an assumption about current availability.
+- **No live search executed**, no code executed on the owner's Windows machine, no repository merge, and no social publication.
+- **Next:** run `python -m pytest tests/test_bluesky_discovery.py -q` on the Windows development checkout, fix any failures, then run actual bounded search requests and record redacted outcomes and real URLs. GP-003 follows after a verified live search.
