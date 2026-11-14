@@ -149,6 +149,13 @@ def content_sha256(repository: str, category: str, title: str, body: str, channe
     return _sha([repository, channel, category, title, body])
 
 
+def _bsky_reply_url(at_uri: str) -> str | None:
+    m = bs.POST_URI.fullmatch(at_uri or "")
+    if not m:
+        return None
+    return f"https://bsky.app/profile/{m.group(1)}/post/{at_uri.rsplit('/', 1)[1]}"
+
+
 # -- technical review (M1) ----------------------------------------------------------------
 #
 # "Technical review complete" records the exact draft (fingerprint, title and body) a person
@@ -570,13 +577,16 @@ SOCIAL_MEDIA_INSTRUCTION = (
     + _FORMAT.format(w=200))
 
 IMPROVE_INSTRUCTION = (
-    "You review the results of a product announcement published as a GitHub Discussion. " + _SHARED_RULES +
+    "You review the results of published promotion content (a GitHub Discussion or a Bluesky post). "
+    + _SHARED_RULES +
     " Use ONLY the plan and the measured engagement provided; do not invent numbers. 'latest_metrics' are "
     "cumulative totals from the most recent observation: report them exactly and never add observations "
     "together. Suggest at most five "
     "concrete, honest improvements to the content, timing or clarity of the next announcement, each with "
-    "the metric it targets. These are suggestions only; nothing will be published without new human "
-    "approval.")
+    "the metric it targets. You may also suggest follow-up actions for the maintainer (for example reading "
+    "and answering new replies personally); never claim they were done. These are suggestions only: this "
+    "application does not reply, like, follow, repost or publish, and nothing is published without new "
+    "human approval.")
 
 RETRY_SUFFIX = (" Your previous answer is in the input under 'previous_answer' and failed these checks, "
                 "listed under 'problems'. Return a complete, corrected answer that fixes every problem.")
@@ -1263,6 +1273,20 @@ class PromotionStore:
                 con.execute(f"CREATE TRIGGER IF NOT EXISTS promotion_reviews_no_{op.lower()} BEFORE {op} ON "
                             "promotion_reviews BEGIN SELECT RAISE(ABORT, 'technical review records are "
                             "immutable'); END")
+            # Post engagement monitoring: append-only observations and first-seen public replies.
+            con.execute("""CREATE TABLE IF NOT EXISTS promotion_observations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, action_id INTEGER NOT NULL,
+                platform TEXT NOT NULL, observed_utc TEXT NOT NULL, outcome TEXT NOT NULL, reason TEXT,
+                likes INTEGER, replies INTEGER, reposts INTEGER, quotes INTEGER, new_replies INTEGER,
+                replies_checked INTEGER NOT NULL DEFAULT 0)""")
+            con.execute("""CREATE TABLE IF NOT EXISTS promotion_replies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, action_id INTEGER NOT NULL,
+                reply_uri TEXT NOT NULL, created_at TEXT, indexed_at TEXT, first_seen_utc TEXT NOT NULL,
+                UNIQUE(action_id, reply_uri))""")
+            for table in ("promotion_observations", "promotion_replies"):
+                for op in ("UPDATE", "DELETE"):
+                    con.execute(f"CREATE TRIGGER IF NOT EXISTS {table}_no_{op.lower()} BEFORE {op} ON {table} "
+                                f"BEGIN SELECT RAISE(ABORT, '{table} records are append-only'); END")
             # Additive migration (existing rows untouched): last independent publication check.
             columns = {r[1] for r in con.execute("PRAGMA table_info(promotion_actions)")}
             if "verification_json" not in columns:
@@ -1402,6 +1426,40 @@ class PromotionStore:
             self._event(con, task_id, action_id, "technical_review" if kind == "review" else "review_override")
             return cur.lastrowid
 
+    def add_observation(self, task_id, action_id, platform, outcome, *, reason=None, counts=None,
+                        replies=None) -> dict:
+        """One append-only observation; new public replies are recorded once (first seen)."""
+        counts = counts or {}
+        now = _utc()
+        with self._connect() as con:
+            new = 0
+            for r in replies or []:
+                cur = con.execute("INSERT OR IGNORE INTO promotion_replies(task_id,action_id,reply_uri,created_at,"
+                                  "indexed_at,first_seen_utc) VALUES (?,?,?,?,?,?)",
+                                  (task_id, action_id, r["uri"], r.get("created_at"), r.get("indexed_at"), now))
+                new += cur.rowcount
+            con.execute("INSERT INTO promotion_observations(task_id,action_id,platform,observed_utc,outcome,reason,"
+                        "likes,replies,reposts,quotes,new_replies,replies_checked) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (task_id, action_id, platform, now, outcome, reason, counts.get("likes"),
+                         counts.get("replies"), counts.get("reposts"), counts.get("quotes"),
+                         new if replies is not None else None, int(replies is not None)))
+            self._event(con, task_id, action_id, f"engagement_observed:{outcome}")
+        return {"observed_utc": now, "new_replies": new if replies is not None else None}
+
+    def observations(self, action_id, limit=50) -> list[dict]:
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            return [dict(r) for r in con.execute(
+                "SELECT observed_utc,outcome,reason,likes,replies,reposts,quotes,new_replies,replies_checked "
+                "FROM promotion_observations WHERE action_id=? ORDER BY id DESC LIMIT ?", (action_id, limit))]
+
+    def replies(self, action_id, limit=100) -> list[dict]:
+        with self._connect() as con:
+            con.row_factory = sqlite3.Row
+            return [dict(r) for r in con.execute(
+                "SELECT reply_uri,created_at,indexed_at,first_seen_utc FROM promotion_replies WHERE action_id=? "
+                "ORDER BY id DESC LIMIT ?", (action_id, limit))]
+
     def latest_review(self, action_id) -> dict | None:
         with self._connect() as con:
             con.row_factory = sqlite3.Row
@@ -1490,6 +1548,7 @@ class PromotionService:
         self.devto = devto      # devto.DevCredentials: its own DPAPI file (devto.dpapi)
         self._applying: set[int] = set()
         self._applying_lock = threading.RLock()
+        self._monitoring: set[int] = set()
 
     # Task creation binds the repository; the AI model comes from the shared app settings.
     def start(self, model, definition_id: str = DEFINITION_ID, brief=None) -> int:
@@ -1685,6 +1744,9 @@ class PromotionService:
             out["bluesky_available"], out["bluesky_account"] = account["available"], account
             for a in out["actions"]:
                 a["bluesky"] = self._bluesky_view(task["repository"], a, account)
+                a["bluesky"]["observations"] = self.store.observations(a["id"], 20)
+                a["bluesky"]["replies"] = [{**r, "url": _bsky_reply_url(r["reply_uri"])}
+                                           for r in self.store.replies(a["id"], 50)]
         if work_type.channel == "dev_community":
             account = self.devto_account()
             out["devto_available"], out["devto_account"] = account["available"], account
@@ -2288,6 +2350,56 @@ class PromotionService:
         return {"status": "bluesky_published", "uri": record["uri"], "cid": record["cid"],
                 "url": action["published_url"], "verified": False}
 
+    def bluesky_monitor(self, task_id, action_id) -> dict:
+        """Post engagement monitoring: public, unauthenticated reads only (getPosts, getPostThread).
+        Appends one observation; never changes the publication or verification evidence; never
+        replies, likes, follows, reposts or publishes."""
+        action = self._bluesky_action(task_id, action_id)
+        if action["status"] not in ("bluesky_published", "bluesky_verified") or not action["published_node_id"]:
+            self._action_activity(task_id, action_id, "bluesky_monitor_refused:not_published", store=True)
+            raise ToolError("Only a published Bluesky post can be monitored.")
+        with self._applying_lock:
+            if action_id in self._monitoring:
+                raise ToolError("Engagement is already being refreshed for this post.")
+            self._monitoring.add(action_id)
+        try:
+            uri, did = action["published_node_id"], (action["category"] or "").removeprefix("bluesky:")
+            try:
+                post = bs.get_public_post(uri)
+            except bs.BlueskyError as exc:
+                self.store.add_observation(task_id, action_id, "bluesky", "unavailable", reason=exc.code)
+                self._action_activity(task_id, action_id, f"bluesky_monitor_unavailable:{exc.code}")
+                return {"outcome": "unavailable", "reason": exc.code}
+            if post is None:
+                self.store.add_observation(task_id, action_id, "bluesky", "not_found")
+                self._action_activity(task_id, action_id, "bluesky_monitor_not_found")
+                return {"outcome": "not_found"}
+
+            def count(v):
+                return v if type(v) is int and v >= 0 else None
+            counts = {"likes": count(post.get("likeCount")), "replies": count(post.get("replyCount")),
+                      "reposts": count(post.get("repostCount")), "quotes": count(post.get("quoteCount"))}
+            same = post.get("cid") == action["published_cid"] and (post.get("author") or {}).get("did") == did
+            outcome = "observed" if same else "changed"
+            try:
+                replies = bs.get_post_replies(uri)
+                reason = None if replies is not None else "thread_not_found"
+            except bs.BlueskyError as exc:
+                replies, reason = None, f"replies_{exc.code}"[:40]
+            obs = self.store.add_observation(task_id, action_id, "bluesky", outcome, reason=reason, counts=counts,
+                                             replies=replies)
+            if outcome == "changed":
+                self._action_activity(task_id, action_id, "bluesky_monitor_changed")
+            else:
+                self._action_activity(task_id, action_id, "bluesky_metrics_observed")
+            if obs["new_replies"]:
+                self._action_activity(task_id, action_id, "bluesky_new_replies")
+            return {"outcome": outcome, "observed_utc": obs["observed_utc"], **counts,
+                    "new_replies": obs["new_replies"], "replies_checked": replies is not None, "reason": reason}
+        finally:
+            with self._applying_lock:
+                self._monitoring.discard(action_id)
+
     def bluesky_verify(self, task_id, action_id) -> dict:
         """Independent read-back via the public AppView: verified only if DID, record and content match."""
         action = self._bluesky_action(task_id, action_id)
@@ -2800,12 +2912,21 @@ class PromotionService:
         _require_enabled(task["definition_id"])
         detail = self.store.for_task(task_id)
         # Only the latest observation: totals are already cumulative and must not be added up.
-        published = [{"title": a["title"], "url": a["published_url"],
+        published = [{"platform": "GitHub Discussions", "title": a["title"], "url": a["published_url"],
                       "latest_metrics": a["metrics"][-1] if a["metrics"] else "not measured yet",
                       "observations": len(a["metrics"])}
                      for a in detail["actions"] if a["status"] == "published"]
+        for a in detail["actions"]:
+            if a["status"] in ("bluesky_published", "bluesky_verified"):
+                obs = [o for o in self.store.observations(a["id"], 50) if o["outcome"] in ("observed", "changed")]
+                published.append({
+                    "platform": "Bluesky", "text": a["body"], "url": a["published_url"],
+                    "latest_metrics": ({k: obs[0][k] for k in ("observed_utc", "likes", "replies", "reposts",
+                                                                "quotes")} if obs else "not measured yet"),
+                    "observations": len(obs),
+                    "public_replies_recorded": len(self.store.replies(a["id"], 1000))})
         if not published:
-            raise ToolError("Publish and monitor an approved announcement before asking for improvements.")
+            raise ToolError("Publish and monitor an approved post before asking for improvements.")
         plan = (task.get("result") or {}).get("plan", "")
         evidence = (task.get("result") or {}).get("evidence") or {}
         text, issues = self._checked(model, IMPROVE_INSTRUCTION, {"plan": plan, "published": published},

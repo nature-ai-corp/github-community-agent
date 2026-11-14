@@ -715,3 +715,37 @@ def test_every_approval_handler_passes_through_the_review_gate():
     assert "parts.push(reviewHTML(a));" in panel   # GitHub Discussions card
     assert 'technical_review_complete:"technical review complete"' in HTML
     assert 'approved_over_review:"approved WITHOUT a current technical review (owner override)"' in HTML
+
+
+# -- Bluesky post engagement monitoring ------------------------------------------------------------
+
+
+def test_bluesky_engagement_box_shows_history_replies_and_never_offers_interaction():
+    r = _bsky("""
+const pub={...a,status:"bluesky_verified",bluesky:{...a.bluesky,uri:"at://did:plc:aaaa/app.bsky.feed.post/3k",cid:"bafy",
+  url:"https://bsky.app/profile/did:plc:aaaa/post/3k",observations:[
+   {observed_utc:"2026-11-12T12:00:00Z",outcome:"observed",likes:1,replies:1,reposts:0,quotes:0,new_replies:1,replies_checked:1},
+   {observed_utc:"2026-11-12T11:00:00Z",outcome:"unavailable",reason:"http_503",likes:null,replies:null,reposts:null,quotes:null,new_replies:null,replies_checked:0}],
+  replies:[{reply_uri:"at://did:plc:q/app.bsky.feed.post/3r",created_at:"2026-11-12T11:30:00Z",first_seen_utc:"2026-11-12T12:00:00Z",url:"https://bsky.app/profile/did:plc:q/post/3r"}]}};
+out.html=blueskyHTML(pub,d);
+out.empty=blueskyHTML({...pub,bluesky:{...pub.bluesky,observations:[],replies:[]}},d);
+out.msgs=[blueskyMonitorMessage({outcome:"observed",likes:1,replies:1,reposts:0,quotes:0,replies_checked:true,new_replies:1}),
+  blueskyMonitorMessage({outcome:"unavailable",reason:"http_503"}),blueskyMonitorMessage({outcome:"not_found"}),
+  blueskyMonitorMessage({outcome:"changed",likes:0,replies:0,reposts:0,quotes:0,replies_checked:false})];""")
+    html = r["html"]
+    assert "bsky-monitor" in html and "Post engagement (public, read-only)" in html
+    assert "<td>could not be read (http_503)</td>" in html and "<td>–</td>" in html
+    assert 'href="https://bsky.app/profile/did:plc:q/post/3r"' in html and "answer them yourself" in html
+    for action in ("reply", "like", "follow", "repost"):
+        assert f'class="bsky-{action}' not in html
+    assert "verification snapshot above is kept unchanged" in r["empty"]
+    assert r["msgs"][0] == "Engagement recorded: 1 likes, 1 replies, 0 reposts, 0 quotes. New replies: 1."
+    assert "Nothing was changed" in r["msgs"][1] and "original evidence is unchanged" in r["msgs"][2]
+    assert r["msgs"][3].startswith("The post on Bluesky differs") and "Replies could not be checked" in r["msgs"][3]
+
+
+def test_refresh_and_improve_are_wired_for_published_bluesky_posts():
+    panel = _function("function renderPromotionPanel(")
+    assert 'on(".bsky-monitor"' in panel and 'call("bluesky_monitor"' in panel
+    assert '["published","bluesky_published","bluesky_verified"].includes(a.status)' in panel
+    assert 'bluesky_metrics_observed:"Bluesky engagement observed"' in HTML
