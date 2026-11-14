@@ -74,9 +74,14 @@ def test_sbom_is_cyclonedx_and_describes_the_packaged_bundle():
         assert component["version"], component["name"]
         for f in component.get("components", []):
             assert f["hashes"][0]["alg"] == "SHA-256" and len(f["hashes"][0]["content"]) == 64
-    # All 25 runtime binaries plus the bootloader EXE are hashed individually.
+    # All 28 runtime binaries plus the bootloader EXE are hashed individually. V2 adds three
+    # unmodified PSF CPython runtime files: _uuid.pyd, _wmi.pyd and VCRUNTIME140_1.dll (which
+    # _wmi.pyd imports); the DLL belongs to the same msvc-runtime component as VCRUNTIME140.dll.
     hashed = [f for c in sbom["components"] for f in c.get("components", [])]
-    assert len(hashed) == 26
+    assert len(hashed) == 29
+    by_component = {c["bom-ref"]: {f["name"] for f in c.get("components", [])} for c in sbom["components"]}
+    assert {"_internal/VCRUNTIME140.dll", "_internal/VCRUNTIME140_1.dll"} <= by_component["msvc-runtime"]
+    assert {"_internal/_uuid.pyd", "_internal/_wmi.pyd"} <= by_component["cpython"]
     assert sbom["dependencies"][0]["dependsOn"] == sorted(refs)
 
 

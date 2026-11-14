@@ -106,3 +106,20 @@
 /* Archived Work: keep local history legible without building an audit dashboard. */
 .task-activity{padding-left:20px;font-size:12px;line-height:1.65}
 .task-activity li{margin:5px 0;overflow-wrap:anywhere}
+
+/* V2 Repository Optimization: before/after and README diff */
+.promo-change{border-top:1px solid var(--border,#d0d7de);padding-top:8px;margin-top:8px}
+.change-status:empty{display:none}
+.change-status{margin:6px 0 0;padding:6px 9px;border-radius:6px;border-left:3px solid var(--border,#d0d7de);background:var(--surface)}
+.change-status-applying{border-left-color:var(--accent)}
+.change-status-verified{border-left-color:var(--ok)}
+.change-status-failed{border-left-color:var(--error-border)}
+.change-status-uncertain{border-left-color:#a05f15}
+.manual-record{margin:10px 0 0;padding:8px 10px;border:1px solid var(--border,#d0d7de);border-radius:6px}
+.manual-record h5{margin:0 0 6px}
+.check-label{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
+.review-diff{max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;padding:8px;border:1px solid var(--line, #ccc);border-radius:6px}
+.manual-state{margin:0 0 6px;padding:6px 9px;border-radius:6px;border-left:3px solid #a05f15;background:var(--surface)}
+.manual-state-verified{border-left-color:var(--ok)}
+.promo-diff{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;font-size:12px;
+  background:var(--code-bg,rgba(127,127,127,.08));padding:8px;border-radius:6px}

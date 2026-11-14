@@ -17,7 +17,7 @@
   #define AppName "GitHub Community Agent"
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.0-rc1"
+  #define AppVersion "2.0.0-b1"
 #endif
 #ifndef OutputName
   #define OutputName "GitHubCommunityAgent-InternalTest-Unsigned"

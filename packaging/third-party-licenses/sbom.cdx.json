@@ -394,6 +394,40 @@
           "type": "file"
         },
         {
+          "bom-ref": "file:_internal/_uuid.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "0d7589ac0965d1ad7b19bcdfddc726eefa5896aafa6702d68dc9ca6cd58820dc"
+            }
+          ],
+          "name": "_internal/_uuid.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_uuid.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/_wmi.pyd",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "927aab8eef564d2dee1bbcf8e11f488789f664eafb4a0d2aacd99e224be2f10a"
+            }
+          ],
+          "name": "_internal/_wmi.pyd",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "DLLs/_wmi.pyd"
+            }
+          ],
+          "type": "file"
+        },
+        {
           "bom-ref": "file:_internal/pyexpat.pyd",
           "hashes": [
             {
@@ -732,6 +766,23 @@
             }
           ],
           "type": "file"
+        },
+        {
+          "bom-ref": "file:_internal/VCRUNTIME140_1.dll",
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+            }
+          ],
+          "name": "_internal/VCRUNTIME140_1.dll",
+          "properties": [
+            {
+              "name": "gc-agent:identical-to",
+              "value": "vcruntime140_1.dll"
+            }
+          ],
+          "type": "file"
         }
       ],
       "licenses": [
@@ -741,7 +792,7 @@
           }
         }
       ],
-      "name": "Microsoft Visual C++ runtime (VCRUNTIME140.dll)",
+      "name": "Microsoft Visual C++ runtime (VCRUNTIME140.dll, VCRUNTIME140_1.dll)",
       "purl": "pkg:generic/microsoft/vcruntime140@14.51.36247.0",
       "type": "library",
       "version": "14.51.36247.0"
@@ -754,7 +805,7 @@
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
+              "content": "aa2bb2d7989eb6c0179e44c263c47df2fa59cd18f46e2d55c939ed59fc6a8fc0"
             }
           ],
           "name": "GitHubCommunityAgent.exe",
@@ -823,7 +874,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "0a4b022f94b00ac7eeab80c6c75d16abf8c6c771b8dbc8a792b30022b2fe3d89"
+          "content": "aa2bb2d7989eb6c0179e44c263c47df2fa59cd18f46e2d55c939ed59fc6a8fc0"
         }
       ],
       "licenses": [
@@ -833,7 +884,7 @@
       ],
       "name": "github-community-agent",
       "type": "application",
-      "version": "1.0.0rc1"
+      "version": "2.0.0b1"
     },
     "tools": {
       "components": [
@@ -844,7 +895,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:06e4f763-b593-53fb-8ba5-25bc86838269",
+  "serialNumber": "urn:uuid:26279e65-78cc-5bfc-a41d-e3114f3630d6",
   "specVersion": "1.5",
   "version": 1
 }
